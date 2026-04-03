@@ -4,6 +4,7 @@ export const navigationItems = [
   { label: 'Über uns', href: '/about' },
   { label: 'Newsletter', href: '/newsletter' },
   { label: 'Login', href: '/login' },
+  { label: 'Test', href: '/test' },
 ] as const;
 
 export const appNavigationItems = [

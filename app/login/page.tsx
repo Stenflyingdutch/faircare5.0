@@ -1,4 +1,5 @@
 import { Card } from '@/components/Card';
+import { CTAButton } from '@/components/CTAButton';
 import { PageHero } from '@/components/PageHero';
 import { SectionWrapper } from '@/components/SectionWrapper';
 
@@ -16,9 +17,7 @@ export default function LoginPage() {
             <form className="form-shell" style={{ marginTop: '1rem' }}>
               <input type="email" placeholder="E-Mail" className="input" />
               <input type="password" placeholder="Passwort" className="input" />
-              <button type="button" className="button primary" style={{ width: '100%' }}>
-                Anmelden (bald verfügbar)
-              </button>
+              <CTAButton href="/test">Zum Test starten</CTAButton>
             </form>
           </Card>
         </div>
