@@ -28,20 +28,27 @@ service cloud.firestore {
 
     match /quizSessions/{sessionId} {
       allow read: if isAuthed() && userDoc().householdId == resource.data.householdId;
-      allow create: if isAuthed() && userDoc().householdId == request.resource.data.householdId;
-      allow update: if isAuthed() && userDoc().householdId == resource.data.householdId;
+      allow create: if (isAuthed() && userDoc().householdId == request.resource.data.householdId)
+        || (request.resource.data.sourcePlatform == 'web' && request.resource.data.householdId == null);
+      allow update: if isAuthed() && userDoc().householdId == resource.data.householdId
+        || resource.data.sourcePlatform == 'web';
     }
 
     match /quizAnswers/{answerId} {
       allow read: if isAuthed() && resource.data.userId == request.auth.uid;
-      allow create: if isAuthed() && request.resource.data.userId == request.auth.uid;
+      allow create: if (isAuthed() && request.resource.data.userId == request.auth.uid)
+        || (request.resource.data.userId == null && request.resource.data.sessionId is string);
       allow update, delete: if false;
+    }
+
+    match /results/{resultId} {
+      allow create: if request.resource.data.mode == 'public_preview' && request.resource.data.userId == null;
+      allow read, update, delete: if false;
     }
 
     match /publicTestResponses/{responseId} {
       allow create: if true;
       allow read, update, delete: if false;
     }
-
   }
 }
