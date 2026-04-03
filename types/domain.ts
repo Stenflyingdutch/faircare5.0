@@ -72,6 +72,7 @@ export const firestoreCollections = {
   quizSessions: 'quizSessions',
   quizAnswers: 'quizAnswers',
   results: 'results',
+  userResults: 'userResults',
   couples: 'couples',
   taskAssignments: 'taskAssignments',
   weeklyCheckins: 'weeklyCheckins',

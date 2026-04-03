@@ -1,8 +1,8 @@
-export type YoungestAgeGroup = '0-1' | '1-3' | '3-6' | '6-12' | '12-18';
+export type ChildCount = '1' | '2' | '3_plus';
+export type AgeGroup = '0_1' | '1_3' | '3_6' | '6_12' | '12_18';
 
-export type ChildcareTag = 'none' | 'kita' | 'tagesmutter' | 'familie' | 'babysitter';
-
-export type SplitClarity = 'clear' | 'mixed' | 'unclear';
+export type ChildcareTag = 'none' | 'kita' | 'tagesmutter' | 'family' | 'babysitter';
+export type SplitClarity = 'eher_klar' | 'teils_spontan' | 'oft_unklar';
 
 export type OwnershipAnswer = 'ich' | 'eher_ich' | 'beide' | 'eher_partner' | 'partner';
 
@@ -14,19 +14,24 @@ export type StressCategory =
   | 'haushalt_versorgung'
   | 'soziales';
 
+export type QuizCategory = StressCategory | 'entwicklung';
+
 export interface QuizFilterInput {
-  childCount: '1' | '2' | '3+';
-  youngestAgeGroup: YoungestAgeGroup;
+  childCount: ChildCount;
+  youngestAgeGroup: AgeGroup;
   childcareTags: ChildcareTag[];
   splitClarity: SplitClarity;
 }
 
-export interface QuizQuestion {
+export interface QuestionTemplate {
   id: string;
   text: string;
-  category: StressCategory;
+  category: QuizCategory;
+  ageGroups: AgeGroup[];
+  priority: number;
   isCore: boolean;
-  requiredChildcareTag?: Extract<ChildcareTag, 'familie' | 'babysitter'>;
+  requiredChildcareTags?: ChildcareTag[];
+  excludedChildcareTags?: ChildcareTag[];
 }
 
 export interface TempQuizSession extends QuizFilterInput {
@@ -37,11 +42,25 @@ export interface TempQuizSession extends QuizFilterInput {
   sourcePlatform: 'web';
   createdAt: string;
   completedAt?: string;
+  userId?: string;
+  isAnonymousResultSaved?: boolean;
 }
 
 export interface QuizSummary {
-  mePercent: number;
+  selfPercent: number;
   partnerPercent: number;
-  topCategories: StressCategory[];
+  topCategories: QuizCategory[];
   summaryText: string;
+}
+
+export interface CategoryInsight {
+  category: QuizCategory;
+  selfPercent: number;
+  text: string;
+}
+
+export interface DetailedReport {
+  summary: QuizSummary;
+  categories: CategoryInsight[];
+  createdAt: string;
 }
