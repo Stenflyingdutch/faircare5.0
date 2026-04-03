@@ -16,9 +16,7 @@ if (!firebaseConfig.projectId) {
   throw new Error('Firebase ist nicht konfiguriert. Bitte .env.local prüfen.');
 }
 
-if (firebaseConfig.projectId !== 'carefair5') {
-  console.warn(`Unerwartetes Firebase-Projekt aktiv: ${firebaseConfig.projectId}`);
-}
+export const firebaseProjectId = firebaseConfig.projectId;
 
 export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 

@@ -94,7 +94,7 @@ export default function DashboardPage() {
         error,
       });
       setInviteState('error');
-      setInviteMessage('Einladung konnte nicht gesendet werden. Bitte versuche es erneut.');
+      setInviteMessage(error instanceof Error ? error.message : 'Einladung konnte nicht gesendet werden. Bitte versuche es erneut.');
     }
   }
 
