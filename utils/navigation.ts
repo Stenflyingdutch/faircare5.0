@@ -3,6 +3,7 @@ export const navigationItems = [
   { label: 'Mental Load', href: '/mental-load' },
   { label: 'Über uns', href: '/about' },
   { label: 'Newsletter', href: '/newsletter' },
+  { label: 'Test', href: '/test' },
   { label: 'Login', href: '/login' },
 ] as const;
 
