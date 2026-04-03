@@ -30,7 +30,8 @@ export async function sendAppMail(input: SendMailInput) {
 
   const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload?.error ?? 'Mail konnte nicht versendet werden.');
+    const detail = payload?.detail ? ` (${payload.detail})` : '';
+    throw new Error(`${payload?.error ?? 'Mail konnte nicht versendet werden.'}${detail}`);
   }
 
   await addDoc(collection(db, firestoreCollections.mailLogs), payload.payload);
