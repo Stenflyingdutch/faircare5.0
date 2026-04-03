@@ -18,8 +18,21 @@ interface SendMailInput {
 
 const TEST_RECIPIENT = 'pa4sten@gmail.com';
 
+function resolveAppEnvironment() {
+  const appEnv = (process.env.APP_ENV ?? process.env.NEXT_PUBLIC_APP_ENV ?? '').toLowerCase();
+  const vercelEnv = (process.env.VERCEL_ENV ?? '').toLowerCase();
+  const nodeEnv = (process.env.NODE_ENV ?? '').toLowerCase();
+
+  // Safety-first: only treat as production when explicitly marked as production.
+  // If APP_ENV is missing/unknown, we intentionally keep mails in test-routing mode.
+  if (appEnv === 'production') return 'production';
+  if (appEnv === 'staging' || vercelEnv === 'preview') return 'staging';
+  if (appEnv === 'test' || nodeEnv === 'test') return 'test';
+  return 'development';
+}
+
 function isProduction() {
-  return process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_APP_ENV === 'production';
+  return resolveAppEnvironment() === 'production';
 }
 
 export function resolveRecipient(email: string) {
@@ -68,6 +81,7 @@ export async function dispatchMail(input: SendMailInput) {
   return {
     collection: firestoreCollections.mailLogs,
     payload: {
+      environment: resolveAppEnvironment(),
       type: input.type,
       originalRecipient: input.originalRecipient,
       actualRecipient: resolved.actualRecipient,
