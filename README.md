@@ -50,6 +50,8 @@ NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 Firebase ist zentral gekapselt in `lib/firebase.ts`.
 
+Hinweis: Die Datei muss im **Projektroot** liegen, also unter `faircare5.0/.env.local` (nicht in Unterordnern). Für lokale Setups kann `.env.local` direkt aus `.env.example` erstellt und anschließend befüllt werden.
+
 ## Test-Flow (Etappe 2)
 - `/test` Einstieg
 - `/test/filter` Kontextfragen (Kinderzahl, Altersgruppe, Betreuung, Klarheit)
