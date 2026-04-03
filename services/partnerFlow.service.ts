@@ -14,7 +14,7 @@ import {
 
 import { auth, db } from '@/lib/firebase';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
-import { sendAppMail } from '@/services/mail-client.service';
+import { sendJointResultReadyForActivationMail, sendPartnerInvite } from '@/services/invitePartner';
 import { firestoreCollections } from '@/types/domain';
 import type {
   AppUserProfile,
@@ -26,8 +26,6 @@ import type {
   QuizSessionDocument,
 } from '@/types/partner-flow';
 import type { OwnershipAnswer, QuestionTemplate } from '@/types/quiz';
-
-const INVITATION_TTL_HOURS = 96;
 
 function nowIso() {
   return new Date().toISOString();
@@ -43,11 +41,6 @@ async function sha256(value: string) {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-function randomToken() {
-  const arr = new Uint8Array(32);
-  crypto.getRandomValues(arr);
-  return Array.from(arr).map((v) => v.toString(16).padStart(2, '0')).join('');
-}
 
 export async function ensureUserProfile(params: { userId: string; email: string; displayName?: string; role?: FamilyRole }) {
   const userRef = doc(db, firestoreCollections.users, params.userId);
@@ -85,132 +78,26 @@ async function getQuestionSnapshot(questionIds: string[]): Promise<QuestionTempl
 }
 
 export async function sendPartnerInvitation(partnerEmail: string) {
-  const user = auth.currentUser;
-  if (!user?.email) throw new Error('Bitte zuerst einloggen.');
-
-  const normalizedPartnerEmail = normalizeEmail(partnerEmail);
-  const normalizedInitiatorEmail = normalizeEmail(user.email);
-  if (normalizedPartnerEmail === normalizedInitiatorEmail) {
-    throw new Error('Du kannst dich nicht selbst einladen.');
-  }
-
-  const initiatorResult = await getLatestInitiatorResult(user.uid);
-  if (!initiatorResult?.questionIds?.length) {
-    throw new Error('Bitte schließe zuerst deinen Quiz vollständig ab.');
-  }
-
-  const questionSetSnapshot = await getQuestionSnapshot(initiatorResult.questionIds);
-  if (!questionSetSnapshot.length || questionSetSnapshot.length !== initiatorResult.questionIds.length) {
-    throw new Error('Der Fragenkatalog konnte nicht konsistent geladen werden.');
-  }
-
-  const existingInvitation = await getDocs(query(
-    collection(db, firestoreCollections.invitations),
-    where('initiatorUserId', '==', user.uid),
-    where('partnerEmail', '==', normalizedPartnerEmail),
-    where('status', '==', 'sent'),
-    limit(1),
-  ));
-  if (!existingInvitation.empty) {
-    throw new Error('Es existiert bereits eine offene Einladung für diese E-Mail-Adresse.');
-  }
-
-  const token = randomToken();
-  const tokenHash = await sha256(token);
-  const expiresAt = new Date(Date.now() + INVITATION_TTL_HOURS * 60 * 60 * 1000).toISOString();
-
-  const result = await runTransaction(db, async (transaction) => {
-    const userRef = doc(db, firestoreCollections.users, user.uid);
-    const userSnapshot = await transaction.get(userRef);
-    const userData = userSnapshot.exists() ? userSnapshot.data() as AppUserProfile : null;
-
-    const familiesRef = collection(db, firestoreCollections.families);
-    let familyDoc: FamilyDocument | null = null;
-
-    if (userData?.familyId) {
-      const familyRef = doc(db, firestoreCollections.families, userData.familyId);
-      const familySnapshot = await transaction.get(familyRef);
-      if (familySnapshot.exists()) {
-        familyDoc = { id: familySnapshot.id, ...familySnapshot.data() } as FamilyDocument;
-      }
-    }
-
-    if (familyDoc?.partnerUserId) {
-      throw new Error('Diese Familie hat bereits einen verbundenen Partner.');
-    }
-
-    const familyId = familyDoc?.id ?? doc(collection(db, firestoreCollections.families)).id;
-    const invitationId = doc(collection(db, firestoreCollections.invitations)).id;
-
-    transaction.set(doc(db, firestoreCollections.families, familyId), {
-      id: familyId,
-      initiatorUserId: user.uid,
-      partnerUserId: familyDoc?.partnerUserId ?? null,
-      status: 'invited',
-      invitationId,
-      createdAt: familyDoc?.createdAt ?? nowIso(),
-      activatedAt: familyDoc?.activatedAt ?? null,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-
-    transaction.set(userRef, {
-      id: user.uid,
-      email: normalizedInitiatorEmail,
-      displayName: user.displayName ?? null,
-      familyId,
-      role: 'initiator',
-      createdAt: userData?.createdAt ?? nowIso(),
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-
-    transaction.set(doc(db, firestoreCollections.invitations, invitationId), {
-      id: invitationId,
-      familyId,
-      initiatorUserId: user.uid,
-      partnerEmail: normalizedPartnerEmail,
-      tokenHash,
-      status: 'sent',
-      sentAt: nowIso(),
-      acceptedAt: null,
-      expiresAt,
-      questionSetId: `initiator-${user.uid}-${Date.now()}`,
-      questionSetSnapshot,
-    });
-
-    return { invitationId, familyId, token };
-  });
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
-  const inviteUrl = `${baseUrl}/invite/${result.token}`;
-  await sendAppMail({
-    type: 'partner_invitation',
-    to: normalizedPartnerEmail,
-    subject: 'Partner-Einladung zum FairCare-Quiz',
-    familyId: result.familyId,
-    invitationId: result.invitationId,
-    html: `
-      <h2>Du wurdest zum FairCare-Quiz eingeladen</h2>
-      <p>Dein Partner hat den Test bereits abgeschlossen.</p>
-      <p>Du erhältst exakt denselben Fragenkatalog in derselben Reihenfolge – ohne Filterfragen.</p>
-      <p><a href="${inviteUrl}">Quiz starten</a></p>
-      <p>Falls der Button nicht funktioniert, kopiere diesen Link: ${inviteUrl}</p>
-    `,
-  });
-
-  return { ...result, inviteUrl, partnerEmail: normalizedPartnerEmail };
+  return sendPartnerInvite(partnerEmail);
 }
 
 export async function resolveInvitationByToken(token: string) {
-  const tokenHash = await sha256(token);
-  const snap = await getDocs(query(collection(db, firestoreCollections.invitations), where('tokenHash', '==', tokenHash), limit(1)));
-  if (snap.empty) {
+  const plainTokenSnap = await getDocs(query(collection(db, firestoreCollections.invitations), where('token', '==', token), limit(1)));
+  let invitationSnapshot = plainTokenSnap;
+
+  if (invitationSnapshot.empty) {
+    const tokenHash = await sha256(token);
+    invitationSnapshot = await getDocs(query(collection(db, firestoreCollections.invitations), where('tokenHash', '==', tokenHash), limit(1)));
+  }
+
+  if (invitationSnapshot.empty) {
     return { status: 'invalid' as const };
   }
 
-  const invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
+  const invitation = { id: invitationSnapshot.docs[0].id, ...invitationSnapshot.docs[0].data() } as InvitationDocument;
   if (invitation.status === 'accepted') return { status: 'accepted' as const, invitation };
 
-  if (Date.parse(invitation.expiresAt) < Date.now()) {
+  if (invitation.expiresAt && Date.parse(invitation.expiresAt) < Date.now()) {
     await setDoc(doc(db, firestoreCollections.invitations, invitation.id), { status: 'expired' }, { merge: true });
     return { status: 'expired' as const, invitation };
   }
@@ -220,14 +107,20 @@ export async function resolveInvitationByToken(token: string) {
 
 export async function startPartnerSession(invitation: InvitationDocument) {
   const sessionId = doc(collection(db, firestoreCollections.quizSessions)).id;
+  const questionSetSnapshot = invitation.questionSetSnapshot
+    ?? (invitation.questionIds?.length ? await getQuestionSnapshot(invitation.questionIds) : []);
+  if (!questionSetSnapshot.length) {
+    throw new Error('Der Fragenkatalog für die Einladung konnte nicht geladen werden.');
+  }
+
   const payload: QuizSessionDocument = {
     id: sessionId,
     familyId: invitation.familyId,
     userId: null,
     role: 'partner',
     source: 'partner',
-    questionSetId: invitation.questionSetId,
-    questionSetSnapshot: invitation.questionSetSnapshot,
+    questionSetId: invitation.questionSetId ?? `invite-${invitation.id}`,
+    questionSetSnapshot,
     filterAnswers: null,
     answers: {},
     createdAt: nowIso(),
@@ -432,23 +325,11 @@ export async function triggerJointPreparationByPartner(userId: string) {
   await setDoc(familyRef, { status: 'joint_pending', updatedAt: serverTimestamp() }, { merge: true });
 
   const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
-  const activationUrl = `${baseUrl}/joint-result/activate/${jointId}`;
-
   if (initiatorProfile?.email) {
-    const recipient = initiatorProfile.email;
-    await sendAppMail({
-      type: 'joint_result_ready_for_activation',
-      to: recipient,
-      subject: 'Gemeinsames Ergebnis bereit zur Freischaltung',
+    await sendJointResultReadyForActivationMail({
+      jointResultId: jointId,
       familyId: family.id,
-      html: `
-        <h2>Euer gemeinsames Ergebnis ist vorbereitet</h2>
-        <p>Dein Partner hat den Fragenkatalog abgeschlossen.</p>
-        <p>Du kannst die gemeinsame Auswertung jetzt freischalten.</p>
-        <p><a href="${activationUrl}">Gesamtergebnis freischalten</a></p>
-        <p>Alternativer Link: ${activationUrl}</p>
-      `,
+      initiatorEmail: initiatorProfile.email,
     });
   }
 

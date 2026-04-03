@@ -9,26 +9,31 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isFamilyMember(familyId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/families/$(familyId)) && (
+          get(/databases/$(database)/documents/families/$(familyId)).data.initiatorUserId == request.auth.uid ||
+          get(/databases/$(database)/documents/families/$(familyId)).data.partnerUserId == request.auth.uid
+        );
+    }
+
     match /users/{userId} {
       allow read: if isSelf(userId);
       allow create, update: if isSelf(userId);
     }
 
     match /families/{familyId} {
-      allow read: if isSignedIn() && (
-        resource.data.initiatorUserId == request.auth.uid ||
-        resource.data.partnerUserId == request.auth.uid
-      );
+      allow read: if isFamilyMember(familyId);
       allow create: if isSignedIn() && request.resource.data.initiatorUserId == request.auth.uid;
-      allow update: if isSignedIn() && (
-        resource.data.initiatorUserId == request.auth.uid ||
-        resource.data.partnerUserId == request.auth.uid
-      );
+      allow update: if isFamilyMember(familyId);
     }
 
     match /invitations/{invitationId} {
-      allow read: if true;
-      allow create, update: if isSignedIn() && request.resource.data.initiatorUserId == request.auth.uid;
+      allow read: if isSignedIn() && (
+        resource.data.initiatorUserId == request.auth.uid ||
+        isFamilyMember(resource.data.familyId)
+      );
+      allow create, update, delete: if false;
     }
 
     match /quizSessions/{sessionId} {
@@ -39,29 +44,21 @@ service cloud.firestore {
     match /quizResults/{resultId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        exists(/databases/$(database)/documents/families/$(resource.data.familyId)) && (
-          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.initiatorUserId == request.auth.uid ||
-          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.partnerUserId == request.auth.uid
-        )
+        isFamilyMember(resource.data.familyId)
       );
       allow create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
     match /jointResults/{jointResultId} {
-      allow read: if isSignedIn() && (
-        exists(/databases/$(database)/documents/families/$(resource.data.familyId)) && (
-          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.initiatorUserId == request.auth.uid ||
-          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.partnerUserId == request.auth.uid
-        )
-      );
+      allow read: if isSignedIn() && isFamilyMember(resource.data.familyId);
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && exists(/databases/$(database)/documents/families/$(resource.data.familyId)) &&
+      allow update: if isSignedIn() &&
+        exists(/databases/$(database)/documents/families/$(resource.data.familyId)) &&
         get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.initiatorUserId == request.auth.uid;
     }
 
     match /mailLogs/{mailLogId} {
-      allow create: if isSignedIn();
-      allow read: if false;
+      allow read, create, update, delete: if false;
     }
 
     match /{document=**} {

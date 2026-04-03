@@ -29,13 +29,15 @@ export interface InvitationDocument {
   familyId: string;
   initiatorUserId: string;
   partnerEmail: string;
-  tokenHash: string;
+  token?: string;
+  tokenHash?: string;
   status: InvitationStatus;
   sentAt: string;
   acceptedAt?: string | null;
-  expiresAt: string;
-  questionSetId: string;
-  questionSetSnapshot: QuestionTemplate[];
+  expiresAt?: string;
+  questionSetId?: string;
+  questionIds?: string[];
+  questionSetSnapshot?: QuestionTemplate[];
 }
 
 export interface QuizSessionDocument {

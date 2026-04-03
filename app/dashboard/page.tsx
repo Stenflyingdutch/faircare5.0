@@ -1,15 +1,15 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
 import { observeAuthState } from '@/services/auth.service';
+import PartnerInviteCard from '@/components/dashboard/PartnerInviteCard';
 import {
   ensureUserProfile,
   fetchDashboardBundle,
   fetchAppUserProfile,
-  sendPartnerInvitation,
   triggerJointPreparationByPartner,
 } from '@/services/partnerFlow.service';
 import type { JointInsight } from '@/types/partner-flow';
@@ -29,10 +29,6 @@ export default function DashboardPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [inviteMessage, setInviteMessage] = useState('');
-
   const [jointState, setJointState] = useState<'idle' | 'analyzing' | 'success' | 'error'>('idle');
   const [jointMessage, setJointMessage] = useState('');
   const [jointProgress, setJointProgress] = useState(0);
@@ -57,28 +53,6 @@ export default function DashboardPage() {
 
     return () => unsubscribe();
   }, [router]);
-
-  async function onInviteSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (!inviteEmail) return;
-
-    setInviteState('loading');
-    setInviteMessage('');
-    try {
-      const result = await sendPartnerInvitation(inviteEmail);
-      setInviteState('success');
-      setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
-      if (currentUserId) {
-        const profile = await fetchAppUserProfile(currentUserId);
-        if (profile?.id) {
-          await refreshDashboard(profile.id);
-        }
-      }
-    } catch (error) {
-      setInviteState('error');
-      setInviteMessage(error instanceof Error ? error.message : 'Einladung konnte nicht versendet werden.');
-    }
-  }
 
   async function triggerJointPreparation() {
     const userId = currentUserId;
@@ -188,31 +162,16 @@ export default function DashboardPage() {
                 </button>
               </>
             ) : (
-              <>
-                <h2 className="card-title">Partner einladen</h2>
-                <p className="card-description">Lade deinen Partner per E-Mail ein. Er erhält exakt denselben Fragenkatalog – ohne Filterfragen.</p>
-                <form className="stack" onSubmit={onInviteSubmit}>
-                  <input
-                    type="email"
-                    className="input"
-                    required
-                    placeholder="partner@email.de"
-                    value={inviteEmail}
-                    onChange={(event) => setInviteEmail(event.target.value)}
-                    disabled={inviteState === 'loading' || Boolean(bundle?.family?.partnerUserId)}
-                  />
-                  <button
-                    type="submit"
-                    className="button primary"
-                    disabled={inviteState === 'loading' || Boolean(bundle?.family?.partnerUserId)}
-                  >
-                    {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung senden'}
-                  </button>
-                </form>
-                {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
-                {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
-                {bundle?.family?.partnerUserId && <p className="helper">Es ist bereits ein Partner mit deiner Familie verbunden.</p>}
-              </>
+              <PartnerInviteCard
+                hasPartner={Boolean(bundle?.family?.partnerUserId)}
+                onSent={async () => {
+                  if (!currentUserId) return;
+                  const profile = await fetchAppUserProfile(currentUserId);
+                  if (profile?.id) {
+                    await refreshDashboard(profile.id);
+                  }
+                }}
+              />
             )}
           </article>
         </div>
