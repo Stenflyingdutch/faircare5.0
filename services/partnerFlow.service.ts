@@ -11,9 +11,9 @@ import {
   setDoc,
   where,
 } from 'firebase/firestore';
-import { FunctionsError, getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
-import { app, auth, db, firebaseProjectId } from '@/lib/firebase';
+import { app, auth, db } from '@/lib/firebase';
 import { sendAppMail } from '@/services/mail-client.service';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
 import { firestoreCollections } from '@/types/domain';
@@ -86,38 +86,13 @@ async function getQuestionSnapshot(questionIds: string[]): Promise<QuestionTempl
 export async function sendPartnerInvitation(partnerEmail: string) {
   const user = auth.currentUser;
   if (!user?.email) throw new Error('Bitte zuerst einloggen.');
-  if (firebaseProjectId !== 'carefair5') {
-    throw new Error('Einladung konnte nicht gesendet werden, weil das falsche Firebase-Projekt konfiguriert ist.');
-  }
-
-  const normalizedPartnerEmail = normalizeEmail(partnerEmail);
-  await user.getIdToken();
+  
   const functions = getFunctions(app, 'europe-west3');
   const sendPartnerInvite = httpsCallable<{ partnerEmail: string }, { partnerEmail?: string }>(functions, 'sendPartnerInvite');
-  try {
-    const response = await sendPartnerInvite({ partnerEmail: normalizedPartnerEmail });
-    return {
-      partnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
-    };
-  } catch (error) {
-    const functionError = error as Partial<FunctionsError>;
-    const code = functionError?.code ?? '';
-
-    if (code === 'functions/invalid-argument') {
-      throw new Error('Bitte überprüfe die E-Mail-Adresse und versuche es erneut.');
-    }
-    if (code === 'functions/unauthenticated') {
-      throw new Error('Deine Sitzung ist abgelaufen. Bitte melde dich neu an.');
-    }
-    if (code === 'functions/permission-denied') {
-      throw new Error('Du hast keine Berechtigung, Einladungen zu senden.');
-    }
-    if (code === 'functions/unavailable' || code === 'functions/deadline-exceeded') {
-      throw new Error('Der Einladungsdienst ist gerade nicht erreichbar. Bitte versuche es in Kürze erneut.');
-    }
-
-    throw new Error('Einladung konnte nicht gesendet werden. Bitte versuche es erneut.');
-  }
+  const response = await sendPartnerInvite({ partnerEmail });
+  return {
+    partnerEmail: response.data?.partnerEmail ?? partnerEmail,
+  };
 }
 
 export async function resolveInvitationByToken(token: string) {

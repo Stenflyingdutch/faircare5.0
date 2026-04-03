@@ -87,14 +87,12 @@ export default function DashboardPage() {
       }
     } catch (error) {
       const errorObject = error as { code?: string; message?: string; details?: unknown };
-      console.error('sendPartnerInvite failed', {
-        code: errorObject?.code,
-        message: errorObject?.message,
-        details: errorObject?.details,
-        error,
-      });
+      console.error('sendPartnerInvite failed', error);
+      console.error('code', errorObject?.code);
+      console.error('message', errorObject?.message);
+      console.error('details', errorObject?.details);
       setInviteState('error');
-      setInviteMessage(error instanceof Error ? error.message : 'Einladung konnte nicht gesendet werden. Bitte versuche es erneut.');
+      setInviteMessage('Einladung konnte nicht gesendet werden. Bitte versuche es erneut.');
     }
   }
 

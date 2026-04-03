@@ -17,6 +17,9 @@ if (!firebaseConfig.projectId) {
 }
 
 export const firebaseProjectId = firebaseConfig.projectId;
+if (firebaseProjectId !== 'carefair5') {
+  console.warn(`Unerwartetes Firebase-Projekt aktiv: ${firebaseProjectId}`);
+}
 
 export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
