@@ -92,7 +92,7 @@ export default function DashboardPage() {
       console.error('message', errorObject?.message);
       console.error('details', errorObject?.details);
       setInviteState('error');
-      setInviteMessage('Einladung konnte nicht gesendet werden. Bitte versuche es erneut.');
+      setInviteMessage(errorObject?.message || 'Einladung konnte nicht gesendet werden. Bitte versuche es erneut.');
     }
   }
 
