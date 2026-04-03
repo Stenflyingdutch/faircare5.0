@@ -3,11 +3,7 @@ export const navigationItems = [
   { label: 'Mental Load', href: '/mental-load' },
   { label: 'Über uns', href: '/about' },
   { label: 'Newsletter', href: '/newsletter' },
-  { label: 'Test', href: '/test' },
   { label: 'Login', href: '/login' },
 ] as const;
 
-export const appNavigationItems = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Admin', href: '/admin' },
-] as const;
+export const appNavigationItems = [{ label: 'Admin', href: '/admin' }] as const;

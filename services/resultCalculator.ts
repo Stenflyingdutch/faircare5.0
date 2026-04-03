@@ -1,0 +1,57 @@
+import type { OwnershipAnswer, QuestionTemplate, QuizCategory, QuizSummary } from '@/types/quiz';
+
+const scoreMap: Record<OwnershipAnswer, number> = {
+  ich: 4,
+  eher_ich: 3,
+  beide: 2,
+  eher_partner: 1,
+  partner: 0,
+};
+
+export const categoryLabelMap: Record<QuizCategory, string> = {
+  organisation: 'Organisation',
+  gesundheit: 'Gesundheit',
+  betreuung_bildung: 'Betreuung & Bildung',
+  grundversorgung: 'Grundversorgung',
+  haushalt_versorgung: 'Haushalt & Versorgung',
+  soziales: 'Soziales',
+  entwicklung: 'Entwicklung',
+};
+
+export function calculateSummary(
+  questions: QuestionTemplate[],
+  answers: Partial<Record<string, OwnershipAnswer>>,
+): QuizSummary {
+  const answered = questions.filter((question) => answers[question.id]);
+  const maxScore = answered.length * 4;
+  const totalScore = answered.reduce((sum, q) => sum + scoreMap[answers[q.id] as OwnershipAnswer], 0);
+  const selfPercent = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 50;
+
+  const byCategory = new Map<QuizCategory, { sum: number; count: number }>();
+  for (const q of answered) {
+    const key = q.category;
+    const current = byCategory.get(key) ?? { sum: 0, count: 0 };
+    current.sum += scoreMap[answers[q.id] as OwnershipAnswer];
+    current.count += 1;
+    byCategory.set(key, current);
+  }
+
+  const topCategories = [...byCategory.entries()]
+    .sort((a, b) => b[1].sum / b[1].count - a[1].sum / a[1].count)
+    .slice(0, 3)
+    .map(([category]) => category);
+
+  const summaryText =
+    selfPercent >= 56
+      ? 'Aus deiner Sicht liegt aktuell ein größerer Teil der Verantwortung bei dir.'
+      : selfPercent <= 44
+        ? 'Aus deiner Sicht liegt aktuell ein größerer Teil der Verantwortung bei deinem Partner.'
+        : 'Aus deiner Sicht ist die Verantwortung aktuell eher ausgeglichen verteilt.';
+
+  return {
+    selfPercent,
+    partnerPercent: 100 - selfPercent,
+    topCategories,
+    summaryText,
+  };
+}
