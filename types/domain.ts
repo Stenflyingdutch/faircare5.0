@@ -67,6 +67,11 @@ export interface NewsletterSubscriber {
 
 export const firestoreCollections = {
   users: 'users',
+  families: 'families',
+  invitations: 'invitations',
+  quizResults: 'quizResults',
+  jointResults: 'jointResults',
+  mailLogs: 'mailLogs',
   templates: 'templates',
   questionPools: 'questionPools',
   quizSessions: 'quizSessions',

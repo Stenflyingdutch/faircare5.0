@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId);
+      allow create, update: if isSelf(userId);
+    }
+
+    match /families/{familyId} {
+      allow read: if isSignedIn() && (
+        resource.data.initiatorUserId == request.auth.uid ||
+        resource.data.partnerUserId == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.resource.data.initiatorUserId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.initiatorUserId == request.auth.uid ||
+        resource.data.partnerUserId == request.auth.uid
+      );
+    }
+
+    match /invitations/{invitationId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && request.resource.data.initiatorUserId == request.auth.uid;
+    }
+
+    match /quizSessions/{sessionId} {
+      allow read, create: if true;
+      allow update: if true;
+    }
+
+    match /quizResults/{resultId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        exists(/databases/$(database)/documents/families/$(resource.data.familyId)) && (
+          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.initiatorUserId == request.auth.uid ||
+          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.partnerUserId == request.auth.uid
+        )
+      );
+      allow create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /jointResults/{jointResultId} {
+      allow read: if isSignedIn() && (
+        exists(/databases/$(database)/documents/families/$(resource.data.familyId)) && (
+          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.initiatorUserId == request.auth.uid ||
+          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.partnerUserId == request.auth.uid
+        )
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && exists(/databases/$(database)/documents/families/$(resource.data.familyId)) &&
+        get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.initiatorUserId == request.auth.uid;
+    }
+
+    match /mailLogs/{mailLogId} {
+      allow create: if isSignedIn();
+      allow read: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,9 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
 import { ageGroupOptions, childcareChoices, splitClarityOptions } from '@/components/test/test-config';
+import { observeAuthState } from '@/services/auth.service';
+import { fetchAppUserProfile } from '@/services/partnerFlow.service';
 import { generateQuestionSet } from '@/services/questionGenerator';
 import { persistQuizSession } from '@/services/firestoreQuiz';
 import { createTempSessionId, saveSessionToStorage } from '@/services/sessionStorage';
@@ -20,6 +22,17 @@ export default function QuizFilterPage() {
   const [filter, setFilter] = useState<Partial<QuizFilterInput>>({ childcareTags: [] });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = observeAuthState(async (user) => {
+      if (!user) return;
+      const profile = await fetchAppUserProfile(user.uid);
+      if (profile?.role === 'partner') {
+        router.replace('/dashboard');
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
 
   function toggleChildcare(tag: ChildcareTag) {
     setFilter((current) => {
