@@ -21,21 +21,32 @@ type FilterQuestion = {
 
 const FILTER_QUESTIONS: FilterQuestion[] = [
   {
-    id: 'household',
-    text: 'Lebt ihr aktuell in einem gemeinsamen Haushalt?',
+    id: 'childrenCount',
+    text: 'Wie viele Kinder leben im Haushalt?',
     options: [
-      { label: 'Ja', value: 'yes' },
-      { label: 'Teilweise', value: 'partly' },
-      { label: 'Nein', value: 'no' },
+      { label: '1 Kind', value: '1' },
+      { label: '2 Kinder', value: '2' },
+      { label: '3 Kinder', value: '3' },
+      { label: '4+ Kinder', value: '4plus' },
     ],
   },
   {
-    id: 'children',
-    text: 'Gibt es Betreuungs- oder Familienaufgaben, die regelmäßig koordiniert werden müssen?',
+    id: 'childrenAge',
+    text: 'Wie alt sind die Kinder (dominante Altersgruppe)?',
     options: [
-      { label: 'Ja, häufig', value: 'high' },
-      { label: 'Ja, gelegentlich', value: 'medium' },
-      { label: 'Kaum', value: 'low' },
+      { label: '0–2 Jahre', value: '0-2' },
+      { label: '3–5 Jahre', value: '3-5' },
+      { label: '6–10 Jahre', value: '6-10' },
+      { label: '11+ Jahre', value: '11plus' },
+    ],
+  },
+  {
+    id: 'careModel',
+    text: 'Wie ist eure Betreuung aktuell organisiert?',
+    options: [
+      { label: 'Überwiegend durch uns Eltern', value: 'parents' },
+      { label: 'Gemischt (Kita/Schule + Eltern)', value: 'mixed' },
+      { label: 'Viel externe Unterstützung', value: 'external' },
     ],
   },
 ];
@@ -95,7 +106,7 @@ export default function TestPage() {
       <PageHero
         badge="Test"
         title="Mental-Load-Test direkt starten"
-        subtitle="Der Test startet mit Filterfragen. Registrierung ist erst nach dem Gesamtergebnis nötig, um Detailergebnisse zu öffnen."
+        subtitle="Der Test startet mit den Filterfragen (Anzahl Kinder, Alter, Betreuung). Registrierung ist erst nach dem Gesamtergebnis nötig."
       />
 
       <SectionWrapper>
