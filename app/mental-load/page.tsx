@@ -6,22 +6,22 @@ export default function MentalLoadPage() {
   return (
     <>
       <PageHero
-        badge="Wissen"
-        title="Mental Load in Familien verstehen"
-        subtitle="Mental Load beschreibt die unsichtbare Verantwortung, an alles zu denken – von Kita-Terminen bis zu Geburtstagsgeschenken."
+        badge="Mental Load"
+        title="Mental Load in Familien besser verstehen"
+        subtitle="Mental Load ist die Verantwortung, an alles zu denken – von Terminen über Einkäufe bis zu kleinen Details im Alltag."
       />
       <SectionWrapper>
         <InfoBlock
-          heading="Warum ist das relevant?"
-          text="Ungleich verteilte mentale Last kann zu Überforderung, Konflikten und einem dauerhaften Gefühl von Alleinverantwortung führen."
+          heading="Warum ist das wichtig?"
+          text="Wenn mentale Verantwortung dauerhaft einseitig liegt, entstehen Erschöpfung, Konflikte und das Gefühl, alles allein tragen zu müssen."
         />
         <InfoBlock
-          heading="Warum betrifft es viele Eltern?"
-          text="Gerade mit kleinen Kindern entstehen viele parallele Aufgaben. Wer mehr Mental Load trägt, plant oft im Hintergrund ohne sichtbare Anerkennung."
+          heading="Warum trifft es so viele Eltern?"
+          text="Mit Kindern laufen viele Aufgaben parallel. Oft übernimmt eine Person unbemerkt das Mitdenken im Hintergrund."
         />
         <InfoBlock
-          heading="Was folgt in Etappe 2+?"
-          text="Hier entstehen später vertiefende Studien-Links, Doku-Empfehlungen, praxisnahe Leitfäden und interaktive Inhalte."
+          heading="Was findest du hier künftig?"
+          text="Schritt für Schritt ergänzen wir verständliche Inhalte, Studien und praxisnahe Hilfen für eine fairere Aufteilung im Alltag."
         />
       </SectionWrapper>
     </>

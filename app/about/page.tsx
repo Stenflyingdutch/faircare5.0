@@ -7,18 +7,17 @@ export default function AboutPage() {
       <PageHero
         badge="Über uns"
         title="Wir sind Nata und Sander"
-        subtitle="Gründer von mental carefair – und Eltern von Liam (11 Monate)."
+        subtitle="Als Eltern wissen wir, wie schnell Mental Load unsichtbar wird – genau deshalb haben wir mental carefair gestartet."
       />
       <SectionWrapper>
-        <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.8, fontSize: '1.05rem' }}>
-          Wir haben mental carefair gegründet, weil wir selbst erlebt haben, wie schnell Mental Load in Familien
-          unsichtbar und ungleich verteilt wird. Zwischen Alltag, Job und Baby blieb oft zu wenig Raum für klare
-          Gespräche darüber, wer was im Kopf behält und organisiert.
-        </p>
-        <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.8, fontSize: '1.05rem' }}>
-          Mit mental carefair wollen wir ein Werkzeug schaffen, das ehrlich, alltagstauglich und respektvoll
-          unterstützt: erst sichtbar machen, dann gemeinsam vereinbaren, was sich fair anfühlt.
-        </p>
+        <div className="stack">
+          <p className="text-block">
+            Wir haben mental carefair gegründet, weil wir selbst erlebt haben, wie schnell Verantwortung in Familien unausgesprochen bei einer Person landet. Zwischen Alltag, Job und Kind fehlt oft die Zeit, darüber ruhig zu sprechen.
+          </p>
+          <p className="text-block">
+            Unser Ziel ist ein Werkzeug, das klar, respektvoll und alltagstauglich unterstützt: zuerst sichtbar machen, dann gemeinsam entscheiden, was sich für euch fair anfühlt.
+          </p>
+        </div>
       </SectionWrapper>
     </>
   );

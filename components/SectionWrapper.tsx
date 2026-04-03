@@ -7,10 +7,7 @@ type SectionWrapperProps = {
 
 export function SectionWrapper({ children, subdued = false }: SectionWrapperProps) {
   return (
-    <section
-      className="section"
-      style={{ background: subdued ? '#fafafe' : 'transparent', borderTop: '1px solid var(--color-line)' }}
-    >
+    <section className={`section ${subdued ? 'section-subdued' : 'section-default'}`}>
       <div className="container">{children}</div>
     </section>
   );
