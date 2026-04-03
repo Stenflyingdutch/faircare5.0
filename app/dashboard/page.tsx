@@ -60,12 +60,23 @@ export default function DashboardPage() {
 
   async function onInviteSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!inviteEmail) return;
+    const email = inviteEmail.trim();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      setInviteState('error');
+      setInviteMessage('Bitte gib eine E-Mail-Adresse ein.');
+      return;
+    }
+    if (!emailPattern.test(email)) {
+      setInviteState('error');
+      setInviteMessage('Bitte gib eine gültige E-Mail-Adresse ein.');
+      return;
+    }
 
     setInviteState('loading');
     setInviteMessage('');
     try {
-      const result = await sendPartnerInvitation(inviteEmail);
+      const result = await sendPartnerInvitation(email);
       setInviteState('success');
       setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
       if (currentUserId) {
@@ -75,8 +86,15 @@ export default function DashboardPage() {
         }
       }
     } catch (error) {
+      const errorObject = error as { code?: string; message?: string; details?: unknown };
+      console.error('sendPartnerInvite failed', {
+        code: errorObject?.code,
+        message: errorObject?.message,
+        details: errorObject?.details,
+        error,
+      });
       setInviteState('error');
-      setInviteMessage(error instanceof Error ? error.message : 'Einladung konnte nicht versendet werden.');
+      setInviteMessage('Einladung konnte nicht gesendet werden. Bitte versuche es erneut.');
     }
   }
 
@@ -198,7 +216,13 @@ export default function DashboardPage() {
                     required
                     placeholder="partner@email.de"
                     value={inviteEmail}
-                    onChange={(event) => setInviteEmail(event.target.value)}
+                    onChange={(event) => {
+                      setInviteEmail(event.target.value);
+                      if (inviteState !== 'loading') {
+                        setInviteState('idle');
+                        setInviteMessage('');
+                      }
+                    }}
                     disabled={inviteState === 'loading' || Boolean(bundle?.family?.partnerUserId)}
                   />
                   <button
