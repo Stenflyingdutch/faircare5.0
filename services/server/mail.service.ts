@@ -44,7 +44,7 @@ export function resolveRecipient(email: string) {
 
 async function sendViaResend(to: string, subject: string, html: string) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.MAIL_FROM ?? 'FairCare <noreply@faircare.local>';
+  const from = process.env.MAIL_FROM ?? 'FairCare <onboarding@resend.dev>';
   if (!apiKey) return { ok: false, reason: 'RESEND_API_KEY fehlt' };
 
   const response = await fetch('https://api.resend.com/emails', {
@@ -77,6 +77,9 @@ export async function dispatchMail(input: SendMailInput) {
   `;
 
   const result = await sendViaResend(resolved.actualRecipient, subject, `${input.html}${footer}`);
+  if (!result.ok) {
+    throw new Error(`Mail provider error: ${result.reason}`);
+  }
 
   return {
     collection: firestoreCollections.mailLogs,
