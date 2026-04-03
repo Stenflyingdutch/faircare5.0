@@ -1,26 +1,28 @@
-# mental carefair – Web Plattform (Etappe 1)
+# mental carefair – Web Plattform (Etappe 2)
 
 ## Projektziel
-Diese Codebasis enthält das **technische und visuelle Fundament** der Plattform „mental carefair“ zum Thema Mental Load in der Kindererziehung.
+Diese Codebasis enthält die Website und den öffentlichen Test-Flow für „mental carefair“.
 
-Etappe 1 liefert:
-- moderne Next.js Website mit App Router
-- modulare Architektur für UI, Auth, Firestore und Templates
-- öffentliche Seiten + Platzhalter für geschützte Bereiche
-- vorbereitete Datentypen und Collection-Struktur für spätere Quiz-/App-Features
+Etappe 2 liefert:
+- Next.js App-Router-basierter öffentlicher Test ohne Registrierung
+- Filterflow (`/test/filter`) → Quiz (`/test/quiz`) → Stressfrage (`/test/stress`) → Kurz-Auswertung (`/test/result`)
+- Fragen-Generator (15 Fragen) für die Altersgruppe `0–1`
+- temporäre Session-Speicherung (LocalStorage + Firestore)
+- Kurz-Auswertung mit einfacher Ownership-Berechnung
+- sichtbare Build-/Versionskennung im Footer
 
 Noch **nicht** enthalten (bewusst):
-- Quiz-Flow und Ergebnisberechnung
-- fertiger Login-Flow inkl. Provider
-- produktive Admin-Bearbeitung
-- echte Weekly Check-in Logik
+- Registrierung und Login-Flow für Testergebnisse
+- Partnervergleich / gemeinsames Ergebnis
+- Aufgaben-Zuordnung
+- Weekly Check-in
+- Admin-Bearbeitung
 
 ## Tech Stack
 - Next.js (App Router)
 - TypeScript
-- Firebase Auth (Basis vorbereitet)
-- Firestore (Basis vorbereitet)
-- für Vercel Deployment vorbereitet
+- Firebase Firestore
+- Firebase Auth (Basis weiter vorhanden)
 
 ## Setup
 ```bash
@@ -31,11 +33,10 @@ npm install
 ```bash
 npm run dev
 ```
-
 Danach unter: `http://localhost:3000`
 
-## Environment Variablen
-Erstelle eine `.env.local` auf Basis von `.env.example`:
+## Firebase Setup
+Erstelle `.env.local` mit folgenden Variablen:
 
 ```env
 NEXT_PUBLIC_FIREBASE_API_KEY=
@@ -44,49 +45,51 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
 ```
 
-## Firebase Konfiguration
-- `lib/firebase.ts`: zentrale Firebase Initialisierung
-- `services/auth.service.ts`: Auth-Basis (Auth-State, Sign-out)
-- `services/firestore.service.ts`: Firestore Basisfunktionen
-- `services/template-loader.service.ts`: vorbereitetes Laden von Template-Daten
+Firebase ist zentral gekapselt in `lib/firebase.ts`.
 
-## Seitenstruktur
-- `/` Startseite
-- `/mental-load` Wissen zu Mental Load
-- `/about` Über uns
-- `/newsletter` Newsletter Anmeldung (UI)
-- `/login` Login Platzhalter
-- `/dashboard` geschützter Bereich (Platzhalter)
-- `/admin` Admin Bereich (Platzhalter)
+Hinweis: Die Datei muss im **Projektroot** liegen, also unter `faircare5.0/.env.local` (nicht in Unterordnern). Für lokale Setups kann `.env.local` direkt aus `.env.example` erstellt und anschließend befüllt werden.
 
-## Vorbereitete Firestore Collections
-- users
-- templates
-- questionPools
-- quizSessions
-- quizAnswers
-- results
-- couples
-- taskAssignments
-- weeklyCheckins
-- newsletterSubscribers
+## Test-Flow (Etappe 2)
+- `/test` Einstieg
+- `/test/filter` Kontextfragen (Kinderzahl, Altersgruppe, Betreuung, Klarheit)
+- `/test/quiz` 15 Ownership-Fragen mit Fortschrittsanzeige
+- `/test/stress` optionale Mehrfachauswahl belastender Bereiche
+- `/test/result` Kurz-Auswertung vor Registrierung
 
-## Architektur / Ordner
-- `app/` Routing + Seiten (UI Layer)
-- `components/` wiederverwendbare UI-Bausteine
-- `lib/` Infrastruktur (Firebase Init)
-- `services/` Auth-, Firestore- und Template-Services
-- `types/` zentrale Domain-Typen (inkl. Rollenmodell)
-- `styles/` Theme-Basis
-- `utils/` Hilfsstrukturen (Navigation)
+## Datenhaltung
+- **questionPools**: Fragenpool (Firestore-first, lokaler Seed als Fallback)
+- **quizSessions**: temporäre Session-Metadaten + Antwortenstatus
+- **quizAnswers**: Antwort-Payload pro tempSessionId
+- **results**: Kurz-Auswertungsstatus und Stress-Kategorien
 
-## Nächste Etappen
-1. Geschützte Routen + Rollenprüfung (`user` / `admin`)
-2. Quiz-Template Einbindung aus Firestore
-3. Quiz-Session + Antworten speichern
-4. Ergebnisdarstellung (einzeln & gemeinsam)
-5. Aufgaben-Zuordnung und Weekly Check-in Datenmodell aktiv nutzen
-6. Admin-Editing Oberfläche für Templates
-7. API-/Shared-Layer extrahieren für zukünftige iOS-/Android-Nutzung
+Temporäre Session-Felder:
+- `tempSessionId`
+- `childCount`
+- `youngestAgeGroup`
+- `childcareTags`
+- `splitClarity`
+- `questionIds`
+- `answers`
+- `stressCategories`
+- `sourcePlatform = web`
+- `createdAt`
+- `completedAt` (optional)
+
+## Versions-/Build-Anzeige
+Im Footer wird eine Kennung angezeigt:
+- bevorzugt: `Build <short-git-sha>`
+- fallback: `Version <package.json version>`
+
+Die Kennung wird zentral über `utils/version.ts` angezeigt.
+`next.config.ts` erzeugt `NEXT_PUBLIC_BUILD_ID` und `NEXT_PUBLIC_APP_VERSION` für Laufzeit/Build.
+
+Damit ändert sich die sichtbare Kennung nach neuem Commit/Merge zuverlässig (bei vorhandenem Git SHA).
+
+## Qualität / Checks
+```bash
+npm run lint
+npm run typecheck
+```
