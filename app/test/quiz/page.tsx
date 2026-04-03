@@ -26,7 +26,11 @@ export default function TestQuizPage() {
 
   const questions = useMemo(() => pool.filter((q) => session?.questionIds.includes(q.id)), [pool, session?.questionIds]);
 
-  if (!session || !questions.length) return null;
+  if (!session) return null;
+
+  if (!questions.length) {
+    return <SectionWrapper><Card title="Fragen werden geladen" description="Bitte kurz warten oder Seite neu laden." /></SectionWrapper>;
+  }
 
   const current = questions[index];
 
