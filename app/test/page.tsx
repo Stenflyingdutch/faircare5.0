@@ -6,6 +6,7 @@ import { Card } from '@/components/Card';
 import { CTAButton } from '@/components/CTAButton';
 import { PageHero } from '@/components/PageHero';
 import { SectionWrapper } from '@/components/SectionWrapper';
+import { savePublicTestResponse } from '@/services/firestore.service';
 
 type Question = {
   id: string;
@@ -17,7 +18,10 @@ type FilterQuestion = {
   id: string;
   text: string;
   options: Array<{ label: string; value: string }>;
+  multi?: boolean;
 };
+
+type FilterAnswers = Record<string, string | string[]>;
 
 const FILTER_QUESTIONS: FilterQuestion[] = [
   {
@@ -32,21 +36,25 @@ const FILTER_QUESTIONS: FilterQuestion[] = [
   },
   {
     id: 'childrenAge',
-    text: 'Wie alt sind die Kinder (dominante Altersgruppe)?',
+    text: 'Wie alt sind die Kinder? (Mehrfachauswahl möglich)',
+    multi: true,
     options: [
-      { label: '0–2 Jahre', value: '0-2' },
-      { label: '3–5 Jahre', value: '3-5' },
-      { label: '6–10 Jahre', value: '6-10' },
-      { label: '11+ Jahre', value: '11plus' },
+      { label: '0-1', value: '0-1' },
+      { label: '1-3', value: '1-3' },
+      { label: '3-6', value: '3-6' },
+      { label: '6-12', value: '6-12' },
+      { label: '12-18', value: '12-18' },
     ],
   },
   {
-    id: 'careModel',
-    text: 'Wie ist eure Betreuung aktuell organisiert?',
+    id: 'externalCare',
+    text: 'Externe Betreuung',
     options: [
-      { label: 'Überwiegend durch uns Eltern', value: 'parents' },
-      { label: 'Gemischt (Kita/Schule + Eltern)', value: 'mixed' },
-      { label: 'Viel externe Unterstützung', value: 'external' },
+      { label: 'Keine', value: 'none' },
+      { label: 'KITA/Tagesmutter', value: 'kita_tagesmutter' },
+      { label: 'Nanny', value: 'nanny' },
+      { label: 'Eltern', value: 'grandparents' },
+      { label: 'Freunde', value: 'friends' },
     ],
   },
 ];
@@ -92,21 +100,50 @@ const getSummary = (score: number) => {
 
 export default function TestPage() {
   const [stage, setStage] = useState<'filter' | 'quiz' | 'result'>('filter');
-  const [filterAnswers, setFilterAnswers] = useState<Record<string, string>>({});
+  const [filterAnswers, setFilterAnswers] = useState<FilterAnswers>({});
   const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  const filterComplete = Object.keys(filterAnswers).length === FILTER_QUESTIONS.length;
+  const filterComplete = FILTER_QUESTIONS.every((question) => {
+    const answer = filterAnswers[question.id];
+    if (question.multi) return Array.isArray(answer) && answer.length > 0;
+    return typeof answer === 'string' && answer.length > 0;
+  });
+
   const answeredCount = Object.keys(answers).length;
   const quizComplete = answeredCount === QUESTIONS.length;
 
   const totalScore = useMemo(() => Object.values(answers).reduce((sum, value) => sum + value, 0), [answers]);
+
+  const toggleMultiValue = (id: string, value: string) => {
+    setFilterAnswers((prev) => {
+      const existing = Array.isArray(prev[id]) ? prev[id] : [];
+      const next = existing.includes(value) ? existing.filter((item) => item !== value) : [...existing, value];
+      return { ...prev, [id]: next };
+    });
+  };
+
+  const saveToFirebase = async () => {
+    setSaveState('saving');
+    try {
+      await savePublicTestResponse({
+        filterAnswers,
+        quizAnswers: answers,
+        totalScore,
+        createdAt: new Date().toISOString(),
+      });
+      setSaveState('saved');
+    } catch {
+      setSaveState('error');
+    }
+  };
 
   return (
     <>
       <PageHero
         badge="Test"
         title="Mental-Load-Test direkt starten"
-        subtitle="Der Test startet mit den Filterfragen (Anzahl Kinder, Alter, Betreuung). Registrierung ist erst nach dem Gesamtergebnis nötig."
+        subtitle="Filter- und Quizfragen werden in Firebase gespeichert. Registrierung ist erst nach dem Gesamtergebnis nötig."
       />
 
       <SectionWrapper>
@@ -115,17 +152,23 @@ export default function TestPage() {
             {FILTER_QUESTIONS.map((question, index) => (
               <Card key={question.id} title={`Filterfrage ${index + 1}`} description={question.text}>
                 <div style={{ display: 'grid', gap: '.5rem', marginTop: '1rem' }}>
-                  {question.options.map((option) => (
-                    <button
-                      key={option.label}
-                      type="button"
-                      className={`button ${filterAnswers[question.id] === option.value ? 'primary' : 'secondary'}`}
-                      onClick={() => setFilterAnswers((prev) => ({ ...prev, [question.id]: option.value }))}
-                      style={{ justifyContent: 'flex-start' }}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                  {question.options.map((option) => {
+                    const selected = question.multi
+                      ? Array.isArray(filterAnswers[question.id]) && filterAnswers[question.id].includes(option.value)
+                      : filterAnswers[question.id] === option.value;
+
+                    return (
+                      <button
+                        key={option.label}
+                        type="button"
+                        className={`button ${selected ? 'primary' : 'secondary'}`}
+                        onClick={() => (question.multi ? toggleMultiValue(question.id, option.value) : setFilterAnswers((prev) => ({ ...prev, [question.id]: option.value })))}
+                        style={{ justifyContent: 'flex-start' }}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </Card>
             ))}
@@ -165,10 +208,20 @@ export default function TestPage() {
                 <button type="button" className="button secondary" onClick={() => setStage('filter')}>
                   Zurück zu Filterfragen
                 </button>
-                <button type="button" className="button primary" disabled={!quizComplete} onClick={() => setStage('result')}>
+                <button
+                  type="button"
+                  className="button primary"
+                  disabled={!quizComplete || saveState === 'saving'}
+                  onClick={async () => {
+                    await saveToFirebase();
+                    setStage('result');
+                  }}
+                >
                   Gesamtergebnis anzeigen
                 </button>
               </div>
+              {saveState === 'saving' && <p style={{ marginTop: '.5rem' }}>Speichere Antworten…</p>}
+              {saveState === 'error' && <p style={{ marginTop: '.5rem', color: '#b42318' }}>Speichern fehlgeschlagen. Ergebnis wird lokal angezeigt.</p>}
             </Card>
           </div>
         )}
@@ -177,6 +230,7 @@ export default function TestPage() {
           <div style={{ width: 'min(760px, 100%)', display: 'grid', gap: '1rem' }}>
             <Card title="Euer vorläufiges Gesamtergebnis" description={`Gesamtscore: ${totalScore} von ${QUESTIONS.length * 4}`}>
               <p style={{ marginTop: '1rem' }}>{getSummary(totalScore)}</p>
+              {saveState === 'saved' && <p style={{ marginTop: '.5rem', color: '#027a48' }}>Filter- und Quizantworten wurden in Firebase gespeichert.</p>}
             </Card>
 
             <Card

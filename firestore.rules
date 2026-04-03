@@ -37,5 +37,11 @@ service cloud.firestore {
       allow create: if isAuthed() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
     }
+
+    match /publicTestResponses/{responseId} {
+      allow create: if true;
+      allow read, update, delete: if false;
+    }
+
   }
 }

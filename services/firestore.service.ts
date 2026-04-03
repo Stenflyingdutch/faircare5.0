@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import type {
   FirestoreCollectionName,
   NewsletterSubscriber,
+  PublicTestResponse,
   TemplateDocument,
   UserProfile,
 } from '@/types/domain';
@@ -35,4 +36,9 @@ export async function upsertUserProfile(user: UserProfile) {
 
 export async function subscribeNewsletter(payload: NewsletterSubscriber) {
   return addDoc(collectionRef(firestoreCollections.newsletterSubscribers), payload);
+}
+
+
+export async function savePublicTestResponse(payload: PublicTestResponse) {
+  return addDoc(collectionRef(firestoreCollections.publicTestResponses), payload);
 }

@@ -58,6 +58,15 @@ export interface WeeklyCheckinTemplate {
   moodScaleEnabled: boolean;
 }
 
+
+
+export interface PublicTestResponse {
+  filterAnswers: Record<string, string | string[]>;
+  quizAnswers: Record<string, number>;
+  totalScore: number;
+  createdAt: string;
+}
+
 export interface NewsletterSubscriber {
   id?: string;
   email: string;
@@ -76,6 +85,7 @@ export const firestoreCollections = {
   taskAssignments: 'taskAssignments',
   weeklyCheckins: 'weeklyCheckins',
   newsletterSubscribers: 'newsletterSubscribers',
+  publicTestResponses: 'publicTestResponses',
 } as const;
 
 export type FirestoreCollectionName =
