@@ -9,19 +9,7 @@ type CTAButtonProps = {
 
 export function CTAButton({ href, children, variant = 'primary' }: CTAButtonProps) {
   return (
-    <Link
-      href={href}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 999,
-        padding: '0.85rem 1.5rem',
-        fontWeight: 600,
-        backgroundColor: variant === 'primary' ? 'var(--color-primary)' : 'var(--color-secondary)',
-        color: 'white',
-      }}
-    >
+    <Link href={href} className={`cta-button ${variant}`}>
       {children}
     </Link>
   );

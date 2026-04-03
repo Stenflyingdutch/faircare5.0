@@ -7,37 +7,18 @@ export default function NewsletterPage() {
       <PageHero
         badge="Newsletter"
         title="Bleib auf dem Laufenden"
-        subtitle="Melde dich an und erhalte Produkt-Updates, neue Inhalte und praktische Impulse rund um Mental Load in Familien."
+        subtitle="Erhalte in kurzen Abständen hilfreiche Impulse, neue Inhalte und Updates zu mental carefair."
       />
       <SectionWrapper>
-        <form style={{ maxWidth: 560, display: 'grid', gap: '0.75rem' }}>
+        <form className="form-shell">
           <label htmlFor="email" style={{ fontWeight: 600 }}>
             E-Mail-Adresse
           </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="du@beispiel.de"
-            style={{ border: '1px solid var(--color-line)', borderRadius: 12, padding: '0.85rem' }}
-          />
-          <button
-            type="submit"
-            style={{
-              border: 0,
-              borderRadius: 999,
-              background: 'var(--color-primary)',
-              color: '#fff',
-              fontWeight: 600,
-              padding: '0.85rem 1.2rem',
-              width: 'fit-content',
-            }}
-          >
+          <input id="email" name="email" type="email" placeholder="du@beispiel.de" className="input" />
+          <button type="submit" className="button primary" style={{ width: 'fit-content' }}>
             Zum Newsletter anmelden
           </button>
-          <small style={{ color: 'var(--color-text-secondary)' }}>
-            Hinweis: Die technische Speicherung wird in einer späteren Etappe finalisiert.
-          </small>
+          <small className="helper">Wir informieren dich, sobald die Anmeldung vollständig aktiv ist.</small>
         </form>
       </SectionWrapper>
     </>
