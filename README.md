@@ -90,3 +90,32 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 5. Aufgaben-Zuordnung und Weekly Check-in Datenmodell aktiv nutzen
 6. Admin-Editing Oberfläche für Templates
 7. API-/Shared-Layer extrahieren für zukünftige iOS-/Android-Nutzung
+
+## Expo + Firebase mobile module
+
+This repository now includes a modular Expo React Native implementation under `src/` for authentication, onboarding, quiz, and results.
+
+### Environment variables
+
+Set the following in your Expo environment (`.env` / EAS secrets):
+
+- `EXPO_PUBLIC_FIREBASE_API_KEY`
+- `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
+- `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `EXPO_PUBLIC_FIREBASE_APP_ID`
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
+- `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+- `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`
+
+### Expo packages to install
+
+```bash
+npx expo install firebase expo-router expo-auth-session expo-apple-authentication react-native-safe-area-context react-native-screens
+npm i zustand
+```
+
+### Firestore rules
+
+Deploy `firestore.rules` to protect user, individual result, and shared result access.

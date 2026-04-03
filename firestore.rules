@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    match /users/{uid} {
+      allow read, update, delete: if isAuthed() && request.auth.uid == uid;
+      allow create: if isAuthed() && request.auth.uid == uid;
+    }
+
+    match /individualResults/{resultId} {
+      allow read: if isAuthed() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthed() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /sharedResults/{sharedResultId} {
+      allow read: if isAuthed() && userDoc().householdId == resource.data.householdId;
+      allow create: if isAuthed() && userDoc().householdId == request.resource.data.householdId;
+      allow update, delete: if false;
+    }
+
+    match /quizSessions/{sessionId} {
+      allow read: if isAuthed() && userDoc().householdId == resource.data.householdId;
+      allow create: if isAuthed() && userDoc().householdId == request.resource.data.householdId;
+      allow update: if isAuthed() && userDoc().householdId == resource.data.householdId;
+    }
+
+    match /quizAnswers/{answerId} {
+      allow read: if isAuthed() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthed() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}
