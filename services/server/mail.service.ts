@@ -17,6 +17,7 @@ interface SendMailInput {
 }
 
 const DEFAULT_TEST_RECIPIENT = 'pa4sten@gmail.com';
+const DEFAULT_MAIL_FROM = 'FairCare <noreply@mail.mental-faircare.de>';
 
 function resolveAppEnvironment() {
   const appEnv = (process.env.APP_ENV ?? process.env.NEXT_PUBLIC_APP_ENV ?? '').toLowerCase();
@@ -45,7 +46,7 @@ export function resolveRecipient(email: string) {
 
 async function sendViaResend(to: string, subject: string, html: string) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.MAIL_FROM ?? 'FairCare <onboarding@resend.dev>';
+  const from = process.env.MAIL_FROM ?? DEFAULT_MAIL_FROM;
   if (!apiKey) return { ok: false, reason: 'RESEND_API_KEY fehlt', provider: 'resend' };
 
   const response = await fetch('https://api.resend.com/emails', {
@@ -67,7 +68,7 @@ async function sendViaResend(to: string, subject: string, html: string) {
 
 async function sendViaSendgrid(to: string, subject: string, html: string) {
   const apiKey = process.env.SENDGRID_API_KEY;
-  const from = process.env.MAIL_FROM ?? 'noreply@faircare.local';
+  const from = process.env.MAIL_FROM ?? DEFAULT_MAIL_FROM;
   if (!apiKey) return { ok: false, reason: 'SENDGRID_API_KEY fehlt', provider: 'sendgrid' };
 
   const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
