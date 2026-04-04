@@ -56,23 +56,52 @@ async function sendViaResend(to: string, subject: string, html: string) {
   const apiKey = process.env.RESEND_API_KEY;
   const configuredProvider = (process.env.MAIL_PROVIDER ?? '').toLowerCase();
   const rawFrom = process.env.MAIL_FROM?.trim();
-  const from = rawFrom || DEFAULT_MAIL_FROM;
+  const env = resolveAppEnvironment();
+  let from = rawFrom || DEFAULT_MAIL_FROM;
   if (!apiKey) return { ok: false, reason: 'RESEND_API_KEY fehlt', provider: 'resend' };
   if (configuredProvider === 'resend') {
     if (!rawFrom) {
-      return {
-        ok: false,
-        reason: `MAIL_FROM fehlt. Für MAIL_PROVIDER=resend muss MAIL_FROM gesetzt sein (Domain ${REQUIRED_MAIL_FROM_DOMAIN}).`,
-        provider: 'resend',
-      };
+      if (env !== 'production') {
+        console.warn('[mail.dispatch] MAIL_FROM fehlt für Resend, verwende DEFAULT_MAIL_FROM in non-production.', {
+          env,
+          fallbackFrom: DEFAULT_MAIL_FROM,
+        });
+        from = DEFAULT_MAIL_FROM;
+      } else {
+        return {
+          ok: false,
+          reason: `MAIL_FROM fehlt. Für MAIL_PROVIDER=resend muss MAIL_FROM gesetzt sein (Domain ${REQUIRED_MAIL_FROM_DOMAIN}).`,
+          provider: 'resend',
+        };
+      }
     }
-    const fromEmail = extractEmailAddress(rawFrom);
+    const fromEmail = extractEmailAddress(from);
     if (!fromEmail.endsWith(REQUIRED_MAIL_FROM_DOMAIN)) {
-      return {
-        ok: false,
-        reason: `MAIL_FROM muss auf ${REQUIRED_MAIL_FROM_DOMAIN} enden. Aktuell: ${fromEmail}`,
-        provider: 'resend',
-      };
+      if (env !== 'production') {
+        console.warn('[mail.dispatch] MAIL_FROM Domain ungültig für Resend, verwende DEFAULT_MAIL_FROM in non-production.', {
+          env,
+          configuredFrom: fromEmail,
+          fallbackFrom: DEFAULT_MAIL_FROM,
+        });
+        from = DEFAULT_MAIL_FROM;
+      } else {
+        return {
+          ok: false,
+          reason: `MAIL_FROM muss auf ${REQUIRED_MAIL_FROM_DOMAIN} enden. Aktuell: ${fromEmail}`,
+          provider: 'resend',
+        };
+      }
+    }
+  }
+  if (configuredProvider !== 'resend' && rawFrom) {
+    const fromEmail = extractEmailAddress(rawFrom);
+    if (!fromEmail.endsWith(REQUIRED_MAIL_FROM_DOMAIN) && env !== 'production') {
+      console.warn('[mail.dispatch] MAIL_FROM ist nicht auf neuer Domain, nutze DEFAULT_MAIL_FROM in non-production.', {
+        env,
+        configuredFrom: fromEmail,
+        fallbackFrom: DEFAULT_MAIL_FROM,
+      });
+      from = DEFAULT_MAIL_FROM;
     }
   }
 
