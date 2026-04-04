@@ -18,6 +18,14 @@ interface SendMailInput {
 
 const DEFAULT_TEST_RECIPIENT = 'pa4sten@gmail.com';
 const DEFAULT_MAIL_FROM = 'FairCare <noreply@mail.mental-faircare.de>';
+const REQUIRED_MAIL_FROM_DOMAIN = '@mail.mental-faircare.de';
+
+function extractEmailAddress(fromValue: string) {
+  if (fromValue.includes('<') && fromValue.includes('>')) {
+    return fromValue.split('<')[1].replace('>', '').trim().toLowerCase();
+  }
+  return fromValue.trim().toLowerCase();
+}
 
 function resolveAppEnvironment() {
   const appEnv = (process.env.APP_ENV ?? process.env.NEXT_PUBLIC_APP_ENV ?? '').toLowerCase();
@@ -46,8 +54,27 @@ export function resolveRecipient(email: string) {
 
 async function sendViaResend(to: string, subject: string, html: string) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.MAIL_FROM ?? DEFAULT_MAIL_FROM;
+  const configuredProvider = (process.env.MAIL_PROVIDER ?? '').toLowerCase();
+  const rawFrom = process.env.MAIL_FROM?.trim();
+  const from = rawFrom || DEFAULT_MAIL_FROM;
   if (!apiKey) return { ok: false, reason: 'RESEND_API_KEY fehlt', provider: 'resend' };
+  if (configuredProvider === 'resend') {
+    if (!rawFrom) {
+      return {
+        ok: false,
+        reason: `MAIL_FROM fehlt. Für MAIL_PROVIDER=resend muss MAIL_FROM gesetzt sein (Domain ${REQUIRED_MAIL_FROM_DOMAIN}).`,
+        provider: 'resend',
+      };
+    }
+    const fromEmail = extractEmailAddress(rawFrom);
+    if (!fromEmail.endsWith(REQUIRED_MAIL_FROM_DOMAIN)) {
+      return {
+        ok: false,
+        reason: `MAIL_FROM muss auf ${REQUIRED_MAIL_FROM_DOMAIN} enden. Aktuell: ${fromEmail}`,
+        provider: 'resend',
+      };
+    }
+  }
 
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
