@@ -20,6 +20,10 @@ function sortCategories(categories: Array<[QuizCategory, number]>) {
   return [...categories].sort(([a], [b]) => categoryLabelMap[a].localeCompare(categoryLabelMap[b]));
 }
 
+function resolveDisplayName(value?: string | null, fallback = 'Nutzer') {
+  return value?.trim() || fallback;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -153,27 +157,9 @@ export default function DashboardPage() {
 
         <div className="grid grid-2">
           <article className="card stack">
-            <h2 className="card-title">Eigenes Ergebnis</h2>
-            {!ownResultText ? (
-              <p className="card-description">Noch kein Ergebnis verknüpft.</p>
-            ) : (
-              <>
-                <div>
-                  <p className="helper">Gesamtverteilung</p>
-                  <div className="result-bar"><div className="result-bar-me" style={{ width: `${ownResultText.selfPercent}%` }} /></div>
-                  <p>Du {ownResultText.selfPercent}% · Partner {ownResultText.partnerPercent}%</p>
-                </div>
-                <p className="helper">{ownResultText.interpretation}</p>
-                <div className="stack">
-                  {ownResultText.categories.map(([category, value]) => (
-                    <div key={category} className="report-block">
-                      <strong>{categoryLabelMap[category]}</strong>
-                      <p>{value}%</p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            {!ownResultText
+              ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
+              : <ResultBreakdown title={resolveDisplayName(bundle?.profile?.displayName, 'Du')} result={ownResultText} />}
           </article>
 
           <article className="card stack">
@@ -325,15 +311,38 @@ function PartnerResultCard({ bundle }: { bundle: Awaited<ReturnType<typeof fetch
   const otherRole = bundle.profile?.role === 'partner' ? 'initiator' : 'partner';
   const otherResult = otherRole === 'initiator' ? bundle.initiatorResult : bundle.partnerResult;
   const otherLabel = otherRole === 'initiator'
-    ? (bundle.initiatorDisplayName ?? 'Initiator')
-    : (bundle.partnerDisplayName ?? 'Partner');
+    ? resolveDisplayName(bundle.initiatorDisplayName, 'Initiator')
+    : resolveDisplayName(bundle.partnerDisplayName, 'Partner');
+  const partnerText = {
+    selfPercent: otherResult.totalScore,
+    partnerPercent: 100 - otherResult.totalScore,
+    interpretation: otherResult.interpretation,
+    categories: sortCategories(Object.entries(otherResult.categoryScores) as Array<[QuizCategory, number]>),
+  };
 
   return (
+    <ResultBreakdown title={otherLabel} result={partnerText} />
+  );
+}
+
+function ResultBreakdown({
+  title,
+  result,
+}: {
+  title: string;
+  result: { selfPercent: number; partnerPercent: number; interpretation: string; categories: Array<[QuizCategory, number]> };
+}) {
+  return (
     <>
-      <h2 className="card-title">{otherLabel}</h2>
-      <p className="card-description">Ergebnisse der anderen Person</p>
+      <h2 className="card-title">{title}</h2>
+      <div>
+        <p className="helper">Gesamtverteilung</p>
+        <div className="result-bar"><div className="result-bar-me" style={{ width: `${result.selfPercent}%` }} /></div>
+        <p>Du {result.selfPercent}% · Partner {result.partnerPercent}%</p>
+      </div>
+      <p className="helper">{result.interpretation}</p>
       <div className="stack">
-        {sortCategories(Object.entries(otherResult.categoryScores) as Array<[QuizCategory, number]>).map(([category, value]) => (
+        {result.categories.map(([category, value]) => (
           <div key={category} className="report-block">
             <strong>{categoryLabelMap[category]}</strong>
             <p>{value}%</p>

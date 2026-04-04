@@ -815,11 +815,11 @@ export async function fetchDashboardBundle(userId: string) {
     family = familySnap.exists() ? (familySnap.data() as FamilyDocument) : null;
     if (family?.initiatorUserId) {
       const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
-      initiatorDisplayName = initiatorProfile?.displayName || initiatorProfile?.email || 'der Initiator';
+      initiatorDisplayName = initiatorProfile?.displayName || 'Initiator';
     }
     if (family?.partnerUserId) {
       const partnerProfile = await fetchAppUserProfile(family.partnerUserId);
-      partnerDisplayName = partnerProfile?.displayName || partnerProfile?.email || 'Partner';
+      partnerDisplayName = partnerProfile?.displayName || 'Partner';
     }
 
     const canSeeSharedResults = Boolean(family?.resultsUnlocked && family?.sharedResultsOpened);
