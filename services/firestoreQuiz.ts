@@ -62,6 +62,10 @@ export async function persistQuizResult(session: TempQuizSession, report: Detail
 }
 
 export async function persistUserResult(userId: string, session: TempQuizSession, report: DetailedReport) {
+  const templates = await fetchQuestionTemplates();
+  const lookup = new Map(templates.map((q) => [q.id, q]));
+  const questionSetSnapshot = session.questionIds.map((id) => lookup.get(id)).filter(Boolean);
+
   await setDoc(doc(db, firestoreCollections.userResults, userId), {
     userId,
     tempSessionId: session.tempSessionId,
@@ -72,6 +76,7 @@ export async function persistUserResult(userId: string, session: TempQuizSession
       splitClarity: session.splitClarity,
     },
     questionIds: session.questionIds,
+    questionSetSnapshot,
     answers: session.answers,
     stressCategories: session.stressCategories,
     summary: report.summary,
