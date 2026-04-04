@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
-import { buildCategoryComparisons, buildIndividualInsights, buildJointRecommendations } from '@/services/resultInsights';
+import { buildCategoryComparisons, buildIndividualInsightsWithContext, buildJointRecommendations } from '@/services/resultInsights';
 import { observeAuthState } from '@/services/auth.service';
 import {
   ensureUserProfile,
@@ -141,14 +141,17 @@ export default function DashboardPage() {
 
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
+    const partnerScores = bundle?.profile?.role === 'partner'
+      ? bundle?.initiatorResult?.categoryScores
+      : bundle?.partnerResult?.categoryScores;
     return {
       selfPercent: bundle.ownResult.totalScore,
       partnerPercent: 100 - bundle.ownResult.totalScore,
       interpretation: bundle.ownResult.interpretation,
       categories: sortCategories(Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>),
-      insights: buildIndividualInsights(bundle.ownResult.categoryScores),
+      insights: buildIndividualInsightsWithContext(bundle.ownResult.categoryScores, partnerScores),
     };
-  }, [bundle?.ownResult]);
+  }, [bundle?.ownResult, bundle?.profile?.role, bundle?.initiatorResult?.categoryScores, bundle?.partnerResult?.categoryScores]);
 
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
 
@@ -344,7 +347,7 @@ function PartnerResultCard({ bundle }: { bundle: Awaited<ReturnType<typeof fetch
     partnerPercent: 100 - otherResult.totalScore,
     interpretation: otherResult.interpretation,
     categories: sortCategories(Object.entries(otherResult.categoryScores) as Array<[QuizCategory, number]>),
-    insights: buildIndividualInsights(otherResult.categoryScores),
+    insights: buildIndividualInsightsWithContext(otherResult.categoryScores, bundle.ownResult?.categoryScores),
   };
 
   return (

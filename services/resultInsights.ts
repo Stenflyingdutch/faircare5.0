@@ -31,10 +31,47 @@ export interface CategoryComparison {
 export function buildIndividualInsights(categoryScores: Record<QuizCategory, number>) {
   const entries = Object.entries(categoryScores) as Array<[QuizCategory, number]>;
   const sorted = [...entries].sort((a, b) => b[1] - a[1]);
-
   const focus = sorted.slice(0, 2).map(([category, score]) => {
     let text = `Dieser Bereich liegt aktuell stabil bei dir.`;
     if (score >= insightThresholds.highLoad) text = `Dieser Bereich liegt aktuell stark bei dir.`;
+    else if (score >= insightThresholds.mediumLoad) text = `Hier trägst du spürbar mehr Verantwortung.`;
+    return { category, score, text } satisfies IndividualInsight;
+  });
+
+  const overloadIndex = Math.round(sorted.slice(0, 3).reduce((sum, [, score]) => sum + score, 0) / Math.max(1, Math.min(3, sorted.length)));
+  const summary = overloadIndex >= insightThresholds.overloadIndexHigh
+    ? 'Deine Gesamtlast wirkt aktuell erhöht. Kleine Entlastungsschritte könnten schnell helfen.'
+    : 'Deine Verteilung wirkt in mehreren Bereichen tragfähig, einzelne Kategorien bleiben dennoch wichtig.';
+
+  return {
+    focus,
+    overloadIndex,
+    summary,
+  };
+}
+
+export function buildIndividualInsightsWithContext(
+  categoryScores: Record<QuizCategory, number>,
+  partnerScores?: Record<QuizCategory, number>,
+) {
+  const entries = Object.entries(categoryScores) as Array<[QuizCategory, number]>;
+  const sorted = [...entries].sort((a, b) => b[1] - a[1]);
+
+  const focus = sorted.slice(0, 2).map(([category, score]) => {
+    let text = `Dieser Bereich liegt aktuell stabil bei dir.`;
+    if (partnerScores) {
+      const partnerScore = partnerScores[category] ?? 0;
+      const diff = score - partnerScore;
+      if (score >= insightThresholds.mediumLoad && partnerScore >= insightThresholds.mediumLoad && Math.abs(diff) < 10) {
+        text = 'Dieser Bereich ist bei euch beiden spürbar präsent.';
+      } else if (diff >= insightThresholds.notableDifference) {
+        text = 'Hier trägst du spürbar mehr Verantwortung.';
+      } else if (diff <= -insightThresholds.notableDifference) {
+        text = 'Hier trägt dein Partner spürbar mehr Verantwortung.';
+      } else {
+        text = 'Dieser Bereich liegt bei euch in ähnlicher Größenordnung.';
+      }
+    } else if (score >= insightThresholds.highLoad) text = `Dieser Bereich liegt aktuell stark bei dir.`;
     else if (score >= insightThresholds.mediumLoad) text = `Hier trägst du spürbar mehr Verantwortung.`;
     return { category, score, text } satisfies IndividualInsight;
   });
@@ -105,5 +142,6 @@ export const resultLogicDocumentation = {
     `Spürbare Last ab >= ${insightThresholds.mediumLoad}.`,
     `Auffällige Differenz ab >= ${insightThresholds.notableDifference}.`,
     `Starke Differenz ab >= ${insightThresholds.strongDifference}.`,
+    'Wenn beide in derselben Kategorie hoch liegen und die Differenz klein ist, wird dies als gemeinsamer Lastbereich formuliert.',
   ],
 };
