@@ -450,6 +450,12 @@ textarea.input {
   color: #f5f3ff;
 }
 
+.individual-result-panel {
+  border-radius: 18px;
+  padding: 1.2rem 1.25rem;
+  box-shadow: inset 0 0 0 1px rgba(237, 233, 255, 0.06);
+}
+
 .personal-result-summary.detailed .helper {
   color: #cdcbc4;
 }
@@ -499,7 +505,7 @@ textarea.input {
 .result-highlight-primary,
 .result-highlight-accent {
   margin: 0.15rem 0 0;
-  font-size: 1.75rem;
+  font-size: clamp(1.6rem, 2.4vw, 2.5rem);
   line-height: 1.15;
   font-weight: 700;
 }
@@ -537,8 +543,12 @@ textarea.input {
 }
 
 .category-list {
-  border-top: 1px solid #3a3a38;
-  padding-top: 0.9rem;
+  border-top: 1px solid #cdc8e8;
+  padding-top: 1rem;
+}
+
+.individual-result-categories {
+  gap: 1rem;
 }
 
 .category-progress-row {
@@ -552,6 +562,7 @@ textarea.input {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.5rem;
+  align-items: center;
 }
 
 .category-progress-self,
@@ -563,11 +574,13 @@ textarea.input {
 .category-progress-self {
   justify-self: end;
   background: #7d74e8;
+  min-width: 12px;
 }
 
 .category-progress-partner {
   justify-self: start;
-  background: #d9d8e4;
+  background: #c7c6d7;
+  min-width: 12px;
 }
 
 .category-value {
@@ -597,7 +610,7 @@ textarea.input {
 
   .result-highlight-primary,
   .result-highlight-accent {
-    font-size: 1.3rem;
+    font-size: 1.5rem;
   }
 
   .category-progress-row {

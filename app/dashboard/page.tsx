@@ -359,7 +359,7 @@ function ResultBreakdown({
       <p className="helper" style={{ margin: 0 }}>
         Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise des Partners helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
       </p>
-      <div className="personal-result-summary detailed">
+      <div className="personal-result-summary detailed individual-result-panel">
         <div className="result-overview-grid">
           <div className="result-donut-wrap">
             <div
@@ -393,7 +393,7 @@ function ResultBreakdown({
           <span><i className="dot partner" />{partnerName}</span>
         </div>
       </div>
-      <div className="stack category-list">
+      <div className="stack category-list individual-result-categories">
         {sortedCategories.map(([category, value]) => (
           <div key={category} className="category-progress-row">
             <strong>{categoryLabelMap[category]}</strong>
