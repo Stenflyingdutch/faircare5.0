@@ -6,9 +6,6 @@ import { useRouter } from 'next/navigation';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
   buildCategoryComparisons,
-  buildClarityConsistencyInsight,
-  buildJointRecommendations,
-  buildPerceptionOutcome,
 } from '@/services/resultInsights';
 import { observeAuthState, signOutUser } from '@/services/auth.service';
 import {
@@ -19,7 +16,6 @@ import {
   openSharedResultsView,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
-import type { JointInsight } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
 
 function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
@@ -226,10 +222,16 @@ export default function DashboardPage() {
           ) : bundle?.family?.resultsUnlocked ? (
             <>
               <h2 className="card-title">Status</h2>
-              <p className="card-description">Eure gemeinsamen Ergebnisse sind bereit.</p>
-              <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
-                Gemeinsame Ergebnisse anschauen
-              </button>
+              <p className="card-description">
+                {bundle?.family?.sharedResultsOpened
+                  ? 'Eure gemeinsamen Ergebnisse werden unten angezeigt.'
+                  : 'Eure gemeinsamen Ergebnisse sind bereit.'}
+              </p>
+              {!bundle?.family?.sharedResultsOpened && (
+                <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
+                  Gemeinsame Ergebnisse anschauen
+                </button>
+              )}
               {openSharedState === 'error' && <p className="inline-error">{openSharedMessage}</p>}
             </>
           ) : bundle?.profile?.role === 'partner' ? (
@@ -275,48 +277,30 @@ export default function DashboardPage() {
             </p>
           </article>
         ) : (
-          <JointResultPanel insights={bundle?.joint?.insights ?? []} bundle={bundle} />
+          <JointResultPanel bundle={bundle} />
         )}
       </div>
     </section>
   );
 }
 
-function JointResultPanel({ insights, bundle }: {
-  insights: JointInsight[];
+function JointResultPanel({ bundle }: {
   bundle: Awaited<ReturnType<typeof fetchDashboardBundle>>;
 }) {
   if (!bundle.initiatorResult || !bundle.partnerResult) return null;
 
-  const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, 'Initiator');
-  const partnerName = resolveDisplayName(bundle.partnerDisplayName, 'Partner');
+  const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, deriveNameFromEmail(bundle.profile?.email) ?? 'Unbekannt');
+  const partnerName = resolveDisplayName(bundle.partnerDisplayName, deriveNameFromEmail(bundle.invitationPartnerEmail) ?? 'Unbekannt');
 
   const initiatorScores = bundle.initiatorResult.categoryScores;
   const partnerScores = bundle.partnerResult.categoryScores;
 
   const comparisons = buildCategoryComparisons(initiatorScores, partnerScores);
-  const recommendations = buildJointRecommendations(comparisons);
-  const perceptionOutcome = buildPerceptionOutcome(comparisons);
-  const averageDifference = comparisons.length
-    ? Math.round(comparisons.reduce((sum, item) => sum + item.difference, 0) / comparisons.length)
-    : 0;
-  const clarityInsight = buildClarityConsistencyInsight(
-    bundle.initiatorResult?.filterPerceptionAnswer,
-    bundle.partnerResult?.filterPerceptionAnswer,
-    averageDifference,
-  );
 
   return (
     <article className="card stack">
       <h2 className="card-title">Gemeinsames Ergebnis</h2>
-      <div className="report-block">
-        <strong>Block 1 · Wahrnehmungsvergleich</strong>
-        <p><strong>{perceptionOutcome.title}</strong></p>
-        <p>{perceptionOutcome.text}</p>
-        {clarityInsight && <p>{clarityInsight}</p>}
-      </div>
       <div className="stack">
-        <h3 className="card-title">Block 2 · Gemeinsame Bewertung</h3>
         {comparisons.map((entry) => {
           const initiatorSelf = initiatorScores[entry.category] ?? 0;
           const partnerSeesInitiator = 100 - (partnerScores[entry.category] ?? 0);
@@ -352,20 +336,6 @@ function JointResultPanel({ insights, bundle }: {
             </div>
           );
         })}
-      </div>
-      <div className="stack">
-        {insights.map((insight) => (
-          <div className="report-block" key={`${insight.category}-${insight.level}`}>
-            <strong>{categoryLabelMap[insight.category]}</strong>
-            <p>{insight.text}</p>
-          </div>
-        ))}
-      </div>
-      <div className="stack">
-        <h3 className="card-title">Gemeinsame Empfehlungen</h3>
-        {recommendations.map((item) => (
-          <div key={item} className="report-block"><p>{item}</p></div>
-        ))}
       </div>
     </article>
   );
