@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
-import { app, auth, db } from '@/lib/firebase';
+import { app, auth, db, firebaseProjectId } from '@/lib/firebase';
 import { sendAppMail } from '@/services/mail-client.service';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
 import { firestoreCollections } from '@/types/domain';
@@ -46,6 +46,46 @@ function randomToken() {
   const arr = new Uint8Array(32);
   crypto.getRandomValues(arr);
   return Array.from(arr).map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
+export interface InviteDebugDetails {
+  headline: string;
+  userErrors: string[];
+  configErrors: string[];
+  serverErrors: string[];
+  technicalDetails?: string[];
+}
+
+export interface SendPartnerInviteResult {
+  partnerEmail: string;
+  delivery: 'email_sent' | 'saved_without_email';
+  provider?: string;
+}
+
+export class InviteFlowError extends Error {
+  code: string;
+  details: InviteDebugDetails;
+
+  constructor(code: string, message: string, details: InviteDebugDetails) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
+
+function buildInviteError(
+  code: string,
+  headline: string,
+  buckets: Partial<Omit<InviteDebugDetails, 'headline'>>,
+  technicalDetails?: string[],
+) {
+  return new InviteFlowError(code, headline, {
+    headline,
+    userErrors: buckets.userErrors ?? [],
+    configErrors: buckets.configErrors ?? [],
+    serverErrors: buckets.serverErrors ?? [],
+    technicalDetails,
+  });
 }
 
 export async function ensureUserProfile(params: { userId: string; email: string; displayName?: string; role?: FamilyRole }) {
@@ -85,14 +125,238 @@ async function getQuestionSnapshot(questionIds: string[]): Promise<QuestionTempl
 
 export async function sendPartnerInvitation(partnerEmail: string) {
   const user = auth.currentUser;
-  if (!user?.email) throw new Error('Bitte zuerst einloggen.');
-  
+  if (!user?.email) {
+    throw buildInviteError(
+      'unauthenticated',
+      'Du bist nicht eingeloggt.',
+      { userErrors: ['Bitte melde dich neu an und versuche es erneut.'] },
+      ['request.auth fehlt'],
+    );
+  }
+
+  const normalizedPartnerEmail = normalizeEmail(partnerEmail);
+  if (!normalizedPartnerEmail) {
+    throw buildInviteError('invalid-argument', 'Die E-Mail-Adresse fehlt.', {
+      userErrors: ['Bitte gib eine E-Mail-Adresse ein.'],
+    });
+  }
+  if (normalizedPartnerEmail === normalizeEmail(user.email)) {
+    throw buildInviteError('invalid-argument', 'Diese E-Mail-Adresse kann nicht eingeladen werden.', {
+      userErrors: ['Bitte gib die E-Mail-Adresse deines Partners ein (nicht deine eigene).'],
+    });
+  }
+  if (firebaseProjectId !== 'carefair5') {
+    throw buildInviteError(
+      'failed-precondition',
+      'Falsches Firebase-Projekt konfiguriert.',
+      {
+        configErrors: [
+          `Aktiv ist "${firebaseProjectId}", erwartet wird "carefair5".`,
+          'Bitte NEXT_PUBLIC_FIREBASE_PROJECT_ID in .env.local prüfen und Dev-Server neu starten.',
+        ],
+      },
+      [`firebaseProjectId=${firebaseProjectId}`],
+    );
+  }
+
   const functions = getFunctions(app, 'europe-west3');
   const sendPartnerInvite = httpsCallable<{ partnerEmail: string }, { partnerEmail?: string }>(functions, 'sendPartnerInvite');
-  const response = await sendPartnerInvite({ partnerEmail });
-  return {
-    partnerEmail: response.data?.partnerEmail ?? partnerEmail,
-  };
+  try {
+    const response = await sendPartnerInvite({ partnerEmail: normalizedPartnerEmail });
+    return {
+      partnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
+      delivery: 'email_sent',
+    } satisfies SendPartnerInviteResult;
+  } catch (error) {
+    const callableError = error as { code?: string; message?: string; details?: unknown };
+    console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
+      code: callableError?.code,
+      message: callableError?.message,
+      details: callableError?.details,
+    });
+
+    const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
+    const allowLocalFallback = appEnv !== 'production';
+    const fallbackEligible = ['functions/internal', 'internal', 'functions/unavailable', 'functions/unimplemented']
+      .includes(callableError?.code ?? '');
+
+    if (allowLocalFallback && fallbackEligible) {
+      console.info('[sendPartnerInvitation] Falling back to local invite flow', {
+        appEnv,
+        code: callableError?.code,
+      });
+      return sendPartnerInvitationFallback(normalizedPartnerEmail, user.uid);
+    }
+
+    throw buildInviteError(
+      callableError?.code ?? 'internal',
+      'Einladung konnte serverseitig nicht verarbeitet werden.',
+      {
+        serverErrors: ['Die Firebase Function sendPartnerInvite hat einen Fehler zurückgegeben.'],
+        configErrors: ['Bitte Firebase Functions Logs für sendPartnerInvite (Region europe-west3) prüfen.'],
+      },
+      [
+        `code=${callableError?.code ?? 'unknown'}`,
+        callableError?.message ?? 'keine message',
+        'region=europe-west3',
+        `project=${firebaseProjectId}`,
+      ],
+    );
+  }
+}
+
+async function sendPartnerInvitationFallback(partnerEmail: string, userId: string) {
+  console.info('[sendPartnerInvite:fallback] Function gestartet');
+  console.info('[sendPartnerInvite:fallback] request.auth vorhanden', { hasAuth: Boolean(userId) });
+  console.info('[sendPartnerInvite:fallback] partnerEmail vorhanden', { hasPartnerEmail: Boolean(partnerEmail) });
+
+  try {
+    const userProfile = await fetchAppUserProfile(userId);
+    console.info('[sendPartnerInvite:fallback] User geladen', { userId, hasUserProfile: Boolean(userProfile) });
+
+    const latestResult = await getLatestInitiatorResult(userId);
+    if (!latestResult?.questionIds?.length) {
+      throw buildInviteError(
+        'failed-precondition',
+        'Kein Initiator-Ergebnis gefunden.',
+        { serverErrors: ['Der Fragenkatalog wurde noch nicht abgeschlossen oder konnte nicht geladen werden.'] },
+      );
+    }
+
+    const questionSetSnapshot = await getQuestionSnapshot(latestResult.questionIds);
+    if (!questionSetSnapshot.length) {
+      throw buildInviteError(
+        'failed-precondition',
+        'Fragenkatalog konnte nicht geladen werden.',
+        { serverErrors: ['Die Fragenliste ist leer oder ungültig.'] },
+      );
+    }
+
+    const familyId = userProfile?.familyId ?? doc(collection(db, firestoreCollections.families)).id;
+    if (userProfile?.familyId) {
+      console.info('[sendPartnerInvite:fallback] Family geladen', { familyId });
+    } else {
+      await setDoc(doc(db, firestoreCollections.families, familyId), {
+        id: familyId,
+        initiatorUserId: userId,
+        partnerUserId: null,
+        status: 'invited',
+        invitationId: null,
+        createdAt: nowIso(),
+        updatedAt: serverTimestamp(),
+      });
+      await setDoc(doc(db, firestoreCollections.users, userId), {
+        familyId,
+        role: 'initiator',
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      console.info('[sendPartnerInvite:fallback] Family erstellt', { familyId });
+    }
+
+    const invitationRef = doc(collection(db, firestoreCollections.invitations));
+    const token = randomToken();
+    const tokenHash = await sha256(token);
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString();
+
+    await setDoc(invitationRef, {
+      id: invitationRef.id,
+      familyId,
+      initiatorUserId: userId,
+      partnerEmail,
+      tokenHash,
+      status: 'sent',
+      sentAt: nowIso(),
+      acceptedAt: null,
+      expiresAt,
+      questionSetId: `initiator-${userId}`,
+      questionSetSnapshot,
+      createdAt: nowIso(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await setDoc(doc(db, firestoreCollections.families, familyId), {
+      invitationId: invitationRef.id,
+      status: 'invited',
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    console.info('[sendPartnerInvite:fallback] Invitation erstellt', { invitationId: invitationRef.id });
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const inviteUrl = `${baseUrl}/invite/${token}`;
+    console.info('[sendPartnerInvite:fallback] Mail-Provider gewählt', {
+      provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'none'),
+    });
+
+    console.info('[sendPartnerInvite:fallback] Mailversand gestartet', { partnerEmail });
+    const mailOutcome = await sendAppMail({
+      type: 'partner_invitation',
+      to: partnerEmail,
+      subject: 'Du wurdest zu FairCare eingeladen',
+      familyId,
+      invitationId: invitationRef.id,
+      html: `
+        <h2>Dein Partner hat dich zu FairCare eingeladen</h2>
+        <p>Bitte öffne den folgenden Link, um den Partner-Test zu starten:</p>
+        <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+      `,
+    });
+    const provider = String(mailOutcome?.result?.provider ?? 'unknown');
+    console.info('[sendPartnerInvite:fallback] Mailversand abgeschlossen', {
+      originalRecipient: partnerEmail,
+      testRecipient: 'pa4sten@gmail.com (nicht-production in /api/mail)',
+      provider,
+    });
+
+    if (provider === 'noop') {
+      return {
+        partnerEmail,
+        delivery: 'saved_without_email',
+        provider,
+      } satisfies SendPartnerInviteResult;
+    }
+
+    return {
+      partnerEmail,
+      delivery: 'email_sent',
+      provider,
+    } satisfies SendPartnerInviteResult;
+  } catch (error) {
+    console.error('[sendPartnerInvite:fallback] Fehler im lokalen Invite-Flow', error);
+    if (error instanceof InviteFlowError) throw error;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('Kein Mail-Provider konfiguriert')) {
+      throw buildInviteError(
+        'failed-precondition',
+        'Mail-Provider nicht konfiguriert.',
+        {
+          configErrors: [
+            'Für lokalen Versand fehlt die Mail-Konfiguration.',
+            'Setze MAIL_PROVIDER=resend + RESEND_API_KEY oder MAIL_PROVIDER=sendgrid + SENDGRID_API_KEY.',
+            'Für reine lokale Smoke-Tests kannst du MAIL_PROVIDER=noop setzen.',
+          ],
+          serverErrors: ['Die Einladung wurde gespeichert, aber der Mailversand konnte nicht gestartet werden.'],
+        },
+        [errorMessage],
+      );
+    }
+    if (errorMessage.includes('Mail provider error')) {
+      throw buildInviteError(
+        'internal',
+        'Mailversand fehlgeschlagen.',
+        {
+          serverErrors: ['Die Einladung wurde gespeichert, aber der Mailversand ist fehlgeschlagen.'],
+          configErrors: ['Bitte MAIL_PROVIDER, API-Key und Sender-Adresse prüfen.'],
+        },
+        [errorMessage],
+      );
+    }
+    throw buildInviteError(
+      'internal',
+      'Unbekannter Serverfehler im Invite-Flow.',
+      { serverErrors: ['Ein unerwarteter Fehler ist aufgetreten.'] },
+      [errorMessage],
+    );
+  }
 }
 
 export async function resolveInvitationByToken(token: string) {
