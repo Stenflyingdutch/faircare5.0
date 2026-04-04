@@ -31,7 +31,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
   const [inviteMessage, setInviteMessage] = useState('');
   const [inviteDetails, setInviteDetails] = useState<InviteDebugDetails | null>(null);
 
@@ -92,9 +92,21 @@ export default function DashboardPage() {
     setInviteDetails(null);
     try {
       const result = await sendPartnerInvitation(email);
-      setInviteState('success');
-      setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
-      setInviteDetails(null);
+      if (result.delivery === 'saved_without_email') {
+        setInviteState('warning');
+        setInviteMessage('Einladung gespeichert. Es wurde keine echte E-Mail verschickt, weil der Mail-Provider auf noop steht.');
+        setInviteDetails({
+          headline: 'Kein echter Versand aktiv',
+          userErrors: [],
+          configErrors: ['MAIL_PROVIDER ist auf noop/console konfiguriert.'],
+          serverErrors: [],
+          technicalDetails: [`provider=${result.provider ?? 'unknown'}`],
+        });
+      } else {
+        setInviteState('success');
+        setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
+        setInviteDetails(null);
+      }
       if (currentUserId) {
         const profile = await fetchAppUserProfile(currentUserId);
         if (profile?.id) {
@@ -259,6 +271,12 @@ export default function DashboardPage() {
                   </button>
                 </form>
                 {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
+                {inviteState === 'warning' && (
+                  <div className="report-block">
+                    <p className="inline-error"><strong>{inviteMessage}</strong></p>
+                    {inviteDetails?.headline && <p className="helper">{inviteDetails.headline}</p>}
+                  </div>
+                )}
                 {inviteState === 'error' && (
                   <div className="report-block">
                     <p className="inline-error"><strong>{inviteMessage}</strong></p>

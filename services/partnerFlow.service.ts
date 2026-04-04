@@ -56,6 +56,12 @@ export interface InviteDebugDetails {
   technicalDetails?: string[];
 }
 
+export interface SendPartnerInviteResult {
+  partnerEmail: string;
+  delivery: 'email_sent' | 'saved_without_email';
+  provider?: string;
+}
+
 export class InviteFlowError extends Error {
   code: string;
   details: InviteDebugDetails;
@@ -159,7 +165,8 @@ export async function sendPartnerInvitation(partnerEmail: string) {
     const response = await sendPartnerInvite({ partnerEmail: normalizedPartnerEmail });
     return {
       partnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
-    };
+      delivery: 'email_sent',
+    } satisfies SendPartnerInviteResult;
   } catch (error) {
     const callableError = error as { code?: string; message?: string; details?: unknown };
     console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
@@ -280,7 +287,8 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'none'),
     });
 
-    await sendAppMail({
+    console.info('[sendPartnerInvite:fallback] Mailversand gestartet', { partnerEmail });
+    const mailOutcome = await sendAppMail({
       type: 'partner_invitation',
       to: partnerEmail,
       subject: 'Du wurdest zu FairCare eingeladen',
@@ -292,12 +300,26 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
         <p><a href="${inviteUrl}">${inviteUrl}</a></p>
       `,
     });
-    console.info('[sendPartnerInvite:fallback] Mailversand erfolgreich', {
+    const provider = String(mailOutcome?.result?.provider ?? 'unknown');
+    console.info('[sendPartnerInvite:fallback] Mailversand abgeschlossen', {
       originalRecipient: partnerEmail,
       testRecipient: 'pa4sten@gmail.com (nicht-production in /api/mail)',
+      provider,
     });
 
-    return { partnerEmail };
+    if (provider === 'noop') {
+      return {
+        partnerEmail,
+        delivery: 'saved_without_email',
+        provider,
+      } satisfies SendPartnerInviteResult;
+    }
+
+    return {
+      partnerEmail,
+      delivery: 'email_sent',
+      provider,
+    } satisfies SendPartnerInviteResult;
   } catch (error) {
     console.error('[sendPartnerInvite:fallback] Fehler im lokalen Invite-Flow', error);
     if (error instanceof InviteFlowError) throw error;
@@ -313,6 +335,17 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
             'Für reine lokale Smoke-Tests kannst du MAIL_PROVIDER=noop setzen.',
           ],
           serverErrors: ['Die Einladung wurde gespeichert, aber der Mailversand konnte nicht gestartet werden.'],
+        },
+        [errorMessage],
+      );
+    }
+    if (errorMessage.includes('Mail provider error')) {
+      throw buildInviteError(
+        'internal',
+        'Mailversand fehlgeschlagen.',
+        {
+          serverErrors: ['Die Einladung wurde gespeichert, aber der Mailversand ist fehlgeschlagen.'],
+          configErrors: ['Bitte MAIL_PROVIDER, API-Key und Sender-Adresse prüfen.'],
         },
         [errorMessage],
       );

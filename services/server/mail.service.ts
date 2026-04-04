@@ -93,7 +93,6 @@ async function sendViaSendgrid(to: string, subject: string, html: string) {
 }
 
 async function sendViaProvider(to: string, subject: string, html: string) {
-  const environment = resolveAppEnvironment();
   const configuredProvider = (process.env.MAIL_PROVIDER ?? '').toLowerCase();
   if (configuredProvider === 'noop' || configuredProvider === 'console') {
     console.warn('[mail.dispatch] MAIL_PROVIDER=noop aktiv – Mail wird nicht extern versendet.', {
@@ -106,12 +105,6 @@ async function sendViaProvider(to: string, subject: string, html: string) {
   if (configuredProvider === 'sendgrid') return sendViaSendgrid(to, subject, html);
   if (process.env.RESEND_API_KEY) return sendViaResend(to, subject, html);
   if (process.env.SENDGRID_API_KEY) return sendViaSendgrid(to, subject, html);
-  if (environment !== 'production') {
-    console.warn('[mail.dispatch] Kein Provider gesetzt, fallback auf noop in non-production.', {
-      environment,
-    });
-    return { ok: true, reason: 'noop-auto', provider: 'noop' };
-  }
   return {
     ok: false,
     reason: 'Kein Mail-Provider konfiguriert. Setze MAIL_PROVIDER=resend mit RESEND_API_KEY oder MAIL_PROVIDER=sendgrid mit SENDGRID_API_KEY. Für lokale Smoke-Tests optional MAIL_PROVIDER=noop.',
@@ -124,6 +117,16 @@ export async function dispatchMail(input: SendMailInput) {
   const configuredProvider = (process.env.MAIL_PROVIDER ?? 'auto').toLowerCase();
   const hasResendKey = Boolean(process.env.RESEND_API_KEY);
   const hasSendgridKey = Boolean(process.env.SENDGRID_API_KEY);
+  const resolved = resolveRecipient(input.to);
+  const subject = `${resolved.subjectPrefix}${input.subject}`;
+  const mailDiagnostics = {
+    activeProvider: configuredProvider,
+    effectiveRecipient: resolved.actualRecipient,
+    usedNoopFallback: configuredProvider === 'noop' || configuredProvider === 'console',
+    mailAttemptStarted: false,
+    mailAttemptSucceeded: false,
+    hasResendKey,
+  };
   console.info('[mail.dispatch] gestartet', {
     type: input.type,
     env: runtimeEnv,
@@ -132,9 +135,8 @@ export async function dispatchMail(input: SendMailInput) {
     hasResendKey,
     hasSendgridKey,
     hasTestOverride: Boolean(process.env.TEST_EMAIL_OVERRIDE),
+    ...mailDiagnostics,
   });
-  const resolved = resolveRecipient(input.to);
-  const subject = `${resolved.subjectPrefix}${input.subject}`;
   console.info('[mail.dispatch] empfänger aufgelöst', {
     originalRecipient: input.originalRecipient,
     actualRecipient: resolved.actualRecipient,
@@ -149,15 +151,21 @@ export async function dispatchMail(input: SendMailInput) {
     <p style="font-size:12px;color:#666">familyId: ${input.familyId ?? '-'}, invitationId: ${input.invitationId ?? '-'}</p>
   `;
 
+  mailDiagnostics.mailAttemptStarted = true;
   const result = await sendViaProvider(resolved.actualRecipient, subject, `${input.html}${footer}`);
   if (!result.ok) {
     console.error('[mail.dispatch] Mailversand fehlgeschlagen', {
       provider: result.provider,
       reason: result.reason,
+      ...mailDiagnostics,
     });
     throw new Error(`Mail provider error: ${result.reason}`);
   }
-  console.info('[mail.dispatch] Mailversand erfolgreich', { provider: result.provider });
+  mailDiagnostics.mailAttemptSucceeded = true;
+  console.info('[mail.dispatch] Mailversand abgeschlossen', {
+    provider: result.provider,
+    ...mailDiagnostics,
+  });
 
   return {
     collection: firestoreCollections.mailLogs,
