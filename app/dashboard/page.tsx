@@ -160,6 +160,10 @@ export default function DashboardPage() {
       ),
     };
   }, [bundle?.ownResult]);
+  const partnerLabel = resolveDisplayName(
+    bundle?.profile?.role === 'partner' ? bundle?.initiatorDisplayName : bundle?.partnerDisplayName,
+    'Partner',
+  );
 
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
 
@@ -171,7 +175,13 @@ export default function DashboardPage() {
         <article className="card stack">
           {!ownResultText
             ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
-            : <ResultBreakdown title={resolveDisplayName(bundle?.profile?.displayName, 'Du')} result={ownResultText} />}
+            : (
+              <ResultBreakdown
+                title={resolveDisplayName(bundle?.profile?.displayName, 'Du')}
+                partnerName={partnerLabel}
+                result={ownResultText}
+              />
+            )}
         </article>
 
         <article className="card stack">
@@ -326,9 +336,11 @@ function JointResultPanel({ insights, bundle }: {
 
 function ResultBreakdown({
   title,
+  partnerName,
   result,
 }: {
   title: string;
+  partnerName: string;
   result: {
     selfPercent: number;
     statement: string;
@@ -378,7 +390,7 @@ function ResultBreakdown({
         </div>
         <div className="result-legend">
           <span><i className="dot self" />{displayName}</span>
-          <span><i className="dot partner" />Partner</span>
+          <span><i className="dot partner" />{partnerName}</span>
         </div>
       </div>
       <div className="stack category-list">

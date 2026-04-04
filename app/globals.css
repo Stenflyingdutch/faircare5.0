@@ -446,8 +446,8 @@ textarea.input {
 }
 
 .personal-result-summary.detailed {
-  background: #1f1f1d;
-  color: #f6f5f2;
+  background: linear-gradient(130deg, #2c2a39 0%, #2a313a 45%, #2f2e38 100%);
+  color: #f5f3ff;
 }
 
 .personal-result-summary.detailed .helper {
@@ -476,7 +476,7 @@ textarea.input {
 .result-donut-inner {
   width: 100%;
   height: 100%;
-  background: #1f1f1d;
+  background: #2b2a37;
   border-radius: 50%;
   display: grid;
   place-content: center;
@@ -512,7 +512,7 @@ textarea.input {
   display: flex;
   gap: 1.2rem;
   flex-wrap: wrap;
-  color: #d9d8e4;
+  color: #ece9ff;
 }
 
 .result-legend span {
@@ -533,7 +533,7 @@ textarea.input {
 }
 
 .dot.partner {
-  background: #d9d8e4;
+  background: #c6c6d4;
 }
 
 .category-list {
@@ -543,7 +543,7 @@ textarea.input {
 
 .category-progress-row {
   display: grid;
-  grid-template-columns: minmax(140px, 230px) 1fr auto;
+  grid-template-columns: minmax(140px, 230px) 1fr 70px;
   align-items: center;
   gap: 1rem;
 }
@@ -572,6 +572,9 @@ textarea.input {
 
 .category-value {
   color: #7d74e8;
+  justify-self: end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .category-row {
