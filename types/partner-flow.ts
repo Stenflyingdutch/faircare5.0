@@ -19,6 +19,13 @@ export interface FamilyDocument {
   initiatorUserId: string;
   partnerUserId?: string | null;
   status: FamilyStatus;
+  initiatorCompleted?: boolean;
+  partnerCompleted?: boolean;
+  initiatorRegistered?: boolean;
+  partnerRegistered?: boolean;
+  resultsUnlocked?: boolean;
+  unlockedAt?: string | null;
+  unlockedBy?: string | null;
   invitationId?: string | null;
   createdAt: string;
   activatedAt?: string | null;
@@ -88,4 +95,5 @@ export interface JointResultDocument {
   status: JointResultStatus;
   createdAt: string;
   activatedAt?: string | null;
+  updatedAt?: string;
 }

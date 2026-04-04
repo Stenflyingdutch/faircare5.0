@@ -3,6 +3,8 @@ import { firestoreCollections } from '@/types/domain';
 export type MailType =
   | 'partner_invitation'
   | 'joint_result_ready_for_activation'
+  | 'partner_completed_notify_initiator'
+  | 'results_unlocked_notify_partner'
   | 'resend_invitation'
   | 'reminder';
 
@@ -189,7 +191,6 @@ export async function dispatchMail(input: SendMailInput) {
     env: runtimeEnv,
     hasOriginalRecipient: Boolean(input.originalRecipient),
     configuredProvider,
-    hasResendKey,
     hasSendgridKey,
     hasTestOverride: Boolean(process.env.TEST_EMAIL_OVERRIDE),
     ...mailDiagnostics,

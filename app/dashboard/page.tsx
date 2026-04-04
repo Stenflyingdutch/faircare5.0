@@ -6,24 +6,14 @@ import { useRouter } from 'next/navigation';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import { observeAuthState } from '@/services/auth.service';
 import {
-  type InviteDebugDetails,
   ensureUserProfile,
   fetchDashboardBundle,
   fetchAppUserProfile,
   sendPartnerInvitation,
-  triggerJointPreparationByPartner,
+  unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
 import type { JointInsight } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
-
-const analyzeSteps = [
-  'Eure Antworten werden abgeglichen',
-  'Kategorien werden einander zugeordnet',
-  'Wahrnehmungen werden verglichen',
-  'Gemeinsamkeiten und Unterschiede werden vorbereitet',
-  'Gesamtauswertung wird erstellt',
-  'Ergebnisansicht wird vorbereitet',
-];
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -33,12 +23,9 @@ export default function DashboardPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
   const [inviteMessage, setInviteMessage] = useState('');
-  const [inviteDetails, setInviteDetails] = useState<InviteDebugDetails | null>(null);
 
-  const [jointState, setJointState] = useState<'idle' | 'analyzing' | 'success' | 'error'>('idle');
-  const [jointMessage, setJointMessage] = useState('');
-  const [jointProgress, setJointProgress] = useState(0);
-  const [stepIndex, setStepIndex] = useState(0);
+  const [unlockState, setUnlockState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [unlockMessage, setUnlockMessage] = useState('');
 
   async function refreshDashboard(userId: string) {
     const fresh = await fetchDashboardBundle(userId);
@@ -67,45 +54,24 @@ export default function DashboardPage() {
     if (!email) {
       setInviteState('error');
       setInviteMessage('Bitte gib eine E-Mail-Adresse ein.');
-      setInviteDetails({
-        headline: 'Eingabefehler',
-        userErrors: ['Die E-Mail-Adresse darf nicht leer sein.'],
-        configErrors: [],
-        serverErrors: [],
-      });
       return;
     }
     if (!emailPattern.test(email)) {
       setInviteState('error');
       setInviteMessage('Bitte gib eine gültige E-Mail-Adresse ein.');
-      setInviteDetails({
-        headline: 'Ungültige E-Mail-Adresse',
-        userErrors: ['Bitte korrigiere das Format, z. B. name@example.com.'],
-        configErrors: [],
-        serverErrors: [],
-      });
       return;
     }
 
     setInviteState('loading');
     setInviteMessage('');
-    setInviteDetails(null);
     try {
       const result = await sendPartnerInvitation(email);
       if (result.delivery === 'saved_without_email') {
         setInviteState('warning');
         setInviteMessage('Einladung gespeichert. Es wurde keine echte E-Mail verschickt, weil der Mail-Provider auf noop steht.');
-        setInviteDetails({
-          headline: 'Kein echter Versand aktiv',
-          userErrors: [],
-          configErrors: ['MAIL_PROVIDER ist auf noop/console konfiguriert.'],
-          serverErrors: [],
-          technicalDetails: [`provider=${result.provider ?? 'unknown'}`],
-        });
       } else {
         setInviteState('success');
         setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
-        setInviteDetails(null);
       }
       if (currentUserId) {
         const profile = await fetchAppUserProfile(currentUserId);
@@ -114,62 +80,32 @@ export default function DashboardPage() {
         }
       }
     } catch (error) {
-      const errorObject = error as { code?: string; message?: string; details?: InviteDebugDetails };
+      const errorObject = error as { code?: string; message?: string };
       console.error('sendPartnerInvite failed', error);
       console.error('code', errorObject?.code);
       console.error('message', errorObject?.message);
-      console.error('details', errorObject?.details);
       setInviteState('error');
       setInviteMessage(errorObject?.message || 'Einladung konnte nicht gesendet werden.');
-      setInviteDetails(errorObject?.details ?? {
-        headline: 'Unbekannter Fehler',
-        userErrors: [],
-        configErrors: [],
-        serverErrors: ['Der Server hat keinen verwertbaren Fehler geliefert.'],
-        technicalDetails: [
-          `code=${errorObject?.code ?? 'unknown'}`,
-          errorObject?.message ?? 'keine message',
-        ],
-      });
     }
   }
 
-  async function triggerJointPreparation() {
+  async function unlockSharedResults() {
     const userId = currentUserId;
     if (!userId) return;
-
-    setJointState('analyzing');
-    setJointProgress(0);
-    setStepIndex(0);
-    setJointMessage('');
-
-    let done = false;
-    const progressTicker = window.setInterval(() => {
-      setJointProgress((value) => {
-        if (done) return value;
-        const next = Math.min(90, value + Math.random() * 6 + 4);
-        return Number(next.toFixed(0));
-      });
-      setStepIndex((index) => (index + 1) % analyzeSteps.length);
-    }, 650);
-
+    setUnlockState('loading');
+    setUnlockMessage('');
     try {
-      const outcome = await triggerJointPreparationByPartner(userId);
-      done = true;
-      window.clearInterval(progressTicker);
-      setJointProgress(100);
-      setJointState('success');
-      setJointMessage(
-        outcome.initiatorName
-          ? `Wir haben ${outcome.initiatorName} benachrichtigt. Sobald das Gesamtergebnis freigeschaltet wird, erscheint die gemeinsame Auswertung bei euch beiden im Dashboard.`
-          : 'Wir haben den Initiator benachrichtigt. Sobald das Gesamtergebnis freigeschaltet wird, erscheint die gemeinsame Auswertung bei euch beiden im Dashboard.',
+      const result = await unlockPartnerAndJointResults(userId);
+      setUnlockState('success');
+      setUnlockMessage(
+        result.alreadyActive
+          ? 'Eure gemeinsamen Ergebnisse sind bereits freigeschaltet.'
+          : 'Eure gemeinsamen Ergebnisse sind jetzt verfügbar.',
       );
       await refreshDashboard(userId);
     } catch (error) {
-      done = true;
-      window.clearInterval(progressTicker);
-      setJointState('error');
-      setJointMessage(error instanceof Error ? error.message : 'Die Analyse konnte nicht vorbereitet werden.');
+      setUnlockState('error');
+      setUnlockMessage(error instanceof Error ? error.message : 'Freischaltung fehlgeschlagen.');
     }
   }
 
@@ -216,32 +152,7 @@ export default function DashboardPage() {
           </article>
 
           <article className="card stack">
-            {bundle?.profile?.role === 'partner' ? (
-              <>
-                <h2 className="card-title">Gesamtergebnis generieren</h2>
-                <p className="card-description">Sobald du startest, bereiten wir die gemeinsame Auswertung vor und benachrichtigen den Initiator zur Freischaltung.</p>
-
-                {jointState === 'analyzing' && (
-                  <div className="stack">
-                    <div className="result-bar"><div className="result-bar-me" style={{ width: `${jointProgress}%`, transition: 'width 500ms ease' }} /></div>
-                    <p>{jointProgress}%</p>
-                    <p className="helper">{analyzeSteps[stepIndex]}</p>
-                  </div>
-                )}
-
-                {jointState === 'success' && <p className="helper">{jointMessage}</p>}
-                {jointState === 'error' && <p className="inline-error">{jointMessage}</p>}
-
-                <button
-                  className="button primary"
-                  type="button"
-                  onClick={triggerJointPreparation}
-                  disabled={jointState === 'analyzing' || bundle.family?.status === 'joint_pending' || bundle.family?.status === 'joint_active'}
-                >
-                  {jointState === 'analyzing' ? 'Analyse läuft …' : 'Gesamtergebnis generieren'}
-                </button>
-              </>
-            ) : (
+            {!bundle?.family?.partnerUserId && bundle?.profile?.role !== 'partner' ? (
               <>
                 <h2 className="card-title">Partner einladen</h2>
                 <p className="card-description">Lade deinen Partner per E-Mail ein. Er erhält exakt denselben Fragenkatalog – ohne Filterfragen.</p>
@@ -257,77 +168,59 @@ export default function DashboardPage() {
                       if (inviteState !== 'loading') {
                         setInviteState('idle');
                         setInviteMessage('');
-                        setInviteDetails(null);
                       }
                     }}
-                    disabled={inviteState === 'loading' || Boolean(bundle?.family?.partnerUserId)}
+                    disabled={inviteState === 'loading'}
                   />
-                  <button
-                    type="submit"
-                    className="button primary"
-                    disabled={inviteState === 'loading' || Boolean(bundle?.family?.partnerUserId)}
-                  >
+                  <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
                     {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung senden'}
                   </button>
                 </form>
-                {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
-                {inviteState === 'warning' && (
-                  <div className="report-block">
-                    <p className="inline-error"><strong>{inviteMessage}</strong></p>
-                    {inviteDetails?.headline && <p className="helper">{inviteDetails.headline}</p>}
-                  </div>
+              </>
+            ) : bundle?.family?.resultsUnlocked ? (
+              <>
+                <h2 className="card-title">Freigabe abgeschlossen</h2>
+                <p className="card-description">Eure gemeinsamen Ergebnisse sind jetzt verfügbar.</p>
+              </>
+            ) : bundle?.profile?.role === 'partner' ? (
+              <>
+                <h2 className="card-title">Status</h2>
+                <p className="card-description">
+                  {bundle?.family?.partnerRegistered
+                    ? 'Dein Test ist abgeschlossen. Der Initiator wurde informiert und kann jetzt die gemeinsamen Ergebnisse freischalten.'
+                    : 'Warte auf Abschluss der Registrierung.'}
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="card-title">Status</h2>
+                <p className="card-description">
+                  {bundle?.family?.partnerRegistered
+                    ? 'Dein Partner hat den Test abgeschlossen. Du kannst jetzt die Partner- und Gesamtergebnisse freischalten.'
+                    : 'Sobald dein Partner Test und Registrierung abgeschlossen hat, kannst du die gemeinsamen Ergebnisse freischalten.'}
+                </p>
+                {bundle?.family?.partnerRegistered && (
+                  <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
+                    {unlockState === 'loading' ? 'Freischaltung läuft …' : 'Partner- und Gesamtergebnis freischalten'}
+                  </button>
                 )}
-                {inviteState === 'error' && (
-                  <div className="report-block">
-                    <p className="inline-error"><strong>{inviteMessage}</strong></p>
-                    {inviteDetails?.headline && <p className="helper">{inviteDetails.headline}</p>}
-                    {Boolean(inviteDetails?.userErrors?.length) && (
-                      <div>
-                        <strong>Benutzerfehler</strong>
-                        <ul>
-                          {inviteDetails?.userErrors.map((item) => <li key={`user-${item}`}>{item}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    {Boolean(inviteDetails?.configErrors?.length) && (
-                      <div>
-                        <strong>Konfigurationsfehler</strong>
-                        <ul>
-                          {inviteDetails?.configErrors.map((item) => <li key={`cfg-${item}`}>{item}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    {Boolean(inviteDetails?.serverErrors?.length) && (
-                      <div>
-                        <strong>Serverfehler</strong>
-                        <ul>
-                          {inviteDetails?.serverErrors.map((item) => <li key={`srv-${item}`}>{item}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    {Boolean(inviteDetails?.technicalDetails?.length) && (
-                      <details>
-                        <summary>Technische Details</summary>
-                        <ul>
-                          {inviteDetails?.technicalDetails.map((item) => <li key={`tech-${item}`}>{item}</li>)}
-                        </ul>
-                      </details>
-                    )}
-                  </div>
-                )}
-                {bundle?.family?.partnerUserId && <p className="helper">Es ist bereits ein Partner mit deiner Familie verbunden.</p>}
+                {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
+                {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
               </>
             )}
+            {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
+            {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
+            {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
           </article>
         </div>
 
-        {bundle?.family?.status !== 'joint_active' ? (
+        {!bundle?.family?.resultsUnlocked ? (
           <article className="card stack">
             <h2 className="card-title">Status</h2>
             <p className="helper">
               {bundle?.profile?.role === 'partner'
-                ? 'Sobald der Initiator die Freischaltung bestätigt, erscheint hier eure gemeinsame Auswertung.'
-                : 'Das gemeinsame Ergebnis wird erst sichtbar, nachdem dein Partner abgeschlossen und du die Freischaltung aktiviert hast.'}
+                ? 'Vor der Freischaltung siehst du nur dein eigenes Ergebnis.'
+                : 'Vor der Freischaltung siehst du nur dein eigenes Ergebnis.'}
             </p>
           </article>
         ) : (

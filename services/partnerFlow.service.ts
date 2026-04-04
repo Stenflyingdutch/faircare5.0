@@ -241,6 +241,13 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
         initiatorUserId: userId,
         partnerUserId: null,
         status: 'invited',
+        initiatorCompleted: true,
+        partnerCompleted: false,
+        initiatorRegistered: true,
+        partnerRegistered: false,
+        resultsUnlocked: false,
+        unlockedAt: null,
+        unlockedBy: null,
         invitationId: null,
         createdAt: nowIso(),
         updatedAt: serverTimestamp(),
@@ -277,6 +284,13 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
     await setDoc(doc(db, firestoreCollections.families, familyId), {
       invitationId: invitationRef.id,
       status: 'invited',
+      initiatorCompleted: true,
+      initiatorRegistered: true,
+      partnerCompleted: false,
+      partnerRegistered: false,
+      resultsUnlocked: false,
+      unlockedAt: null,
+      unlockedBy: null,
       updatedAt: serverTimestamp(),
     }, { merge: true });
     console.info('[sendPartnerInvite:fallback] Invitation erstellt', { invitationId: invitationRef.id });
@@ -499,9 +513,40 @@ export async function finalizePartnerRegistration(params: {
     transaction.set(doc(db, firestoreCollections.families, invitation.familyId), {
       partnerUserId: params.userId,
       status: 'partner_completed',
+      initiatorRegistered: true,
+      initiatorCompleted: true,
+      partnerCompleted: true,
+      partnerRegistered: true,
+      resultsUnlocked: false,
+      unlockedAt: null,
+      unlockedBy: null,
       updatedAt: serverTimestamp(),
     }, { merge: true });
   });
+
+  const familyRef = doc(db, firestoreCollections.families, invitation.familyId);
+  const familySnapshot = await getDoc(familyRef);
+  if (familySnapshot.exists()) {
+    const family = familySnapshot.data() as FamilyDocument;
+    const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const loginUrl = `${baseUrl}/login`;
+
+    if (initiatorProfile?.email) {
+      await sendAppMail({
+        type: 'partner_completed_notify_initiator',
+        to: initiatorProfile.email,
+        subject: 'Dein Partner hat FairCare abgeschlossen',
+        familyId: family.id,
+        html: `
+          <h2>Dein Partner hat FairCare abgeschlossen</h2>
+          <p>Dein Partner hat den Test und die Registrierung erfolgreich abgeschlossen.</p>
+          <p>Melde dich jetzt an, um die Partner- und Gesamtergebnisse freizuschalten.</p>
+          <p><a href="${loginUrl}">Zum Login</a></p>
+        `,
+      });
+    }
+  }
 
   return { familyId: invitation.familyId };
 }
@@ -514,6 +559,35 @@ async function fetchResultByRole(familyId: string, role: FamilyRole) {
     limit(1),
   ));
   return snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as QuizResultDocument);
+}
+
+async function upsertJointResult(familyId: string, initiatorResult: QuizResultDocument, partnerResult: QuizResultDocument) {
+  const jointSnap = await getDocs(query(
+    collection(db, firestoreCollections.jointResults),
+    where('familyId', '==', familyId),
+    limit(1),
+  ));
+  const jointId = jointSnap.empty ? doc(collection(db, firestoreCollections.jointResults)).id : jointSnap.docs[0].id;
+  const comparison = buildJointInsights(initiatorResult.categoryScores, partnerResult.categoryScores);
+
+  await setDoc(doc(db, firestoreCollections.jointResults, jointId), {
+    id: jointId,
+    familyId,
+    initiatorResultId: initiatorResult.id,
+    partnerResultId: partnerResult.id,
+    comparison: {
+      initiatorTotal: initiatorResult.totalScore,
+      partnerTotal: partnerResult.totalScore,
+      averageDifference: comparison.averageDifference,
+    },
+    categoryDifferences: comparison.categoryDifferences,
+    insights: comparison.insights,
+    status: 'pending_activation',
+    createdAt: nowIso(),
+    activatedAt: null,
+  } satisfies JointResultDocument, { merge: true });
+
+  return jointId;
 }
 
 export async function buildOrUpdateInitiatorResult(userId: string) {
@@ -559,54 +633,22 @@ export async function triggerJointPreparationByPartner(userId: string) {
   if (!familySnapshot.exists()) throw new Error('Familie nicht gefunden.');
   const family = familySnapshot.data() as FamilyDocument;
 
-  const partnerResult = await fetchResultByRole(profile.familyId, 'partner');
-  if (!partnerResult) throw new Error('Partner-Ergebnis fehlt.');
-
-  const initiatorResultId = await buildOrUpdateInitiatorResult(family.initiatorUserId);
-  if (!initiatorResultId) throw new Error('Initiator-Ergebnis fehlt.');
-
-  const initiatorResult = await fetchResultByRole(profile.familyId, 'initiator');
-  if (!initiatorResult) throw new Error('Initiator-Ergebnis konnte nicht geladen werden.');
-
-  const comparison = buildJointInsights(initiatorResult.categoryScores, partnerResult.categoryScores);
-  const jointId = doc(collection(db, firestoreCollections.jointResults)).id;
-
-  await setDoc(doc(db, firestoreCollections.jointResults, jointId), {
-    id: jointId,
-    familyId: profile.familyId,
-    initiatorResultId,
-    partnerResultId: partnerResult.id,
-    comparison: {
-      initiatorTotal: initiatorResult.totalScore,
-      partnerTotal: partnerResult.totalScore,
-      averageDifference: comparison.averageDifference,
-    },
-    categoryDifferences: comparison.categoryDifferences,
-    insights: comparison.insights,
-    status: 'pending_activation',
-    createdAt: nowIso(),
-    activatedAt: null,
-  } satisfies JointResultDocument);
-
-  await setDoc(familyRef, { status: 'joint_pending', updatedAt: serverTimestamp() }, { merge: true });
-
   const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
-  const activationUrl = `${baseUrl}/joint-result/activate/${jointId}`;
+  const loginUrl = `${baseUrl}/login`;
 
   if (initiatorProfile?.email) {
     const recipient = initiatorProfile.email;
     await sendAppMail({
-      type: 'joint_result_ready_for_activation',
+      type: 'partner_completed_notify_initiator',
       to: recipient,
-      subject: 'Gemeinsames Ergebnis bereit zur Freischaltung',
+      subject: 'Dein Partner hat FairCare abgeschlossen',
       familyId: family.id,
       html: `
-        <h2>Euer gemeinsames Ergebnis ist vorbereitet</h2>
-        <p>Dein Partner hat den Fragenkatalog abgeschlossen.</p>
-        <p>Du kannst die gemeinsame Auswertung jetzt freischalten.</p>
-        <p><a href="${activationUrl}">Gesamtergebnis freischalten</a></p>
-        <p>Alternativer Link: ${activationUrl}</p>
+        <h2>Dein Partner hat FairCare abgeschlossen</h2>
+        <p>Dein Partner hat den Test und die Registrierung erfolgreich abgeschlossen.</p>
+        <p>Melde dich jetzt an, um die Partner- und Gesamtergebnisse freizuschalten.</p>
+        <p><a href="${loginUrl}">Zum Login</a></p>
       `,
     });
   }
@@ -629,25 +671,71 @@ export async function activateJointResult(jointResultId: string, userId: string)
     throw new Error('Nur der Initiator darf das Gesamtergebnis aktivieren.');
   }
 
-  if (joint.status === 'active' || family.status === 'joint_active') {
+  if (joint.status === 'active' || family.resultsUnlocked || family.status === 'joint_active') {
     return { alreadyActive: true };
   }
 
   await runTransaction(db, async (transaction) => {
+    const activatedAt = nowIso();
     transaction.set(jointRef, {
       status: 'active',
-      activatedAt: nowIso(),
+      activatedAt,
       updatedAt: serverTimestamp(),
     }, { merge: true });
 
     transaction.set(familyRef, {
       status: 'joint_active',
-      activatedAt: nowIso(),
+      resultsUnlocked: true,
+      unlockedAt: activatedAt,
+      unlockedBy: userId,
+      activatedAt,
       updatedAt: serverTimestamp(),
     }, { merge: true });
   });
 
+  const partnerProfile = family.partnerUserId ? await fetchAppUserProfile(family.partnerUserId) : null;
+  if (partnerProfile?.email) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const loginUrl = `${baseUrl}/login`;
+    await sendAppMail({
+      type: 'results_unlocked_notify_partner',
+      to: partnerProfile.email,
+      subject: 'Euer gemeinsames FairCare-Ergebnis ist bereit',
+      familyId: family.id,
+      html: `
+        <h2>Euer gemeinsames FairCare-Ergebnis ist bereit</h2>
+        <p>Das gemeinsame Ergebnis wurde freigeschaltet.</p>
+        <p>Melde dich an, um eure individuellen Ergebnisse und das Gesamtergebnis anzusehen.</p>
+        <p><a href="${loginUrl}">Zum Login</a></p>
+      `,
+    });
+  }
+
   return { alreadyActive: false };
+}
+
+export async function unlockPartnerAndJointResults(userId: string) {
+  const profile = await fetchAppUserProfile(userId);
+  if (!profile?.familyId) throw new Error('Keine Familie verknüpft.');
+
+  const familyRef = doc(db, firestoreCollections.families, profile.familyId);
+  const familySnapshot = await getDoc(familyRef);
+  if (!familySnapshot.exists()) throw new Error('Familie nicht gefunden.');
+  const family = familySnapshot.data() as FamilyDocument;
+  if (family.initiatorUserId !== userId) throw new Error('Nur der Initiator darf freischalten.');
+  if (!family.partnerUserId || !family.partnerRegistered || !family.partnerCompleted) {
+    throw new Error('Der Partner ist noch nicht vollständig registriert.');
+  }
+  if (family.resultsUnlocked) return { alreadyActive: true };
+
+  const initiatorResultId = await buildOrUpdateInitiatorResult(userId);
+  if (!initiatorResultId) throw new Error('Initiator-Ergebnis fehlt.');
+  const initiatorResult = await fetchResultByRole(profile.familyId, 'initiator');
+  const partnerResult = await fetchResultByRole(profile.familyId, 'partner');
+  if (!initiatorResult || !partnerResult) throw new Error('Ergebnisse sind noch nicht vollständig.');
+  const jointId = await upsertJointResult(profile.familyId, initiatorResult, partnerResult);
+
+  return activateJointResult(jointId, userId);
 }
 
 export async function fetchDashboardBundle(userId: string) {
@@ -667,16 +755,16 @@ export async function fetchDashboardBundle(userId: string) {
     const familySnap = await getDoc(doc(db, firestoreCollections.families, profile.familyId));
     family = familySnap.exists() ? (familySnap.data() as FamilyDocument) : null;
 
-    const jointSnap = await getDocs(query(
-      collection(db, firestoreCollections.jointResults),
-      where('familyId', '==', profile.familyId),
-      limit(1),
-    ));
-    if (!jointSnap.empty) {
-      joint = { id: jointSnap.docs[0].id, ...jointSnap.docs[0].data() } as JointResultDocument;
-    }
-
-    if (family?.status === 'joint_active') {
+    const canSeeSharedResults = Boolean(family?.resultsUnlocked || family?.status === 'joint_active');
+    if (canSeeSharedResults) {
+      const jointSnap = await getDocs(query(
+        collection(db, firestoreCollections.jointResults),
+        where('familyId', '==', profile.familyId),
+        limit(1),
+      ));
+      if (!jointSnap.empty) {
+        joint = { id: jointSnap.docs[0].id, ...jointSnap.docs[0].data() } as JointResultDocument;
+      }
       initiatorResult = await fetchResultByRole(profile.familyId, 'initiator');
       partnerResult = await fetchResultByRole(profile.familyId, 'partner');
     }
