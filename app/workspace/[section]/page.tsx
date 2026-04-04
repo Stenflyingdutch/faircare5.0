@@ -189,7 +189,45 @@ export default function WorkspacePage() {
         )}
 
         {section === 'weekly-review' && <article className="card"><h2 className="card-title">Weekly Review</h2></article>}
-        {section === 'test-results' && <article className="card"><h2 className="card-title">Testergebnisse</h2><p className="helper">Siehe Dashboard für Details.</p></article>}
+        {section === 'test-results' && (
+          <article className="card stack">
+            <h2 className="card-title">Testergebnisse</h2>
+
+            {bundle.ownResult && (
+              <div className="report-block stack">
+                <strong>Mein Ergebnis</strong>
+                <p className="helper" style={{ margin: 0 }}>
+                  Gesamtanteil: {bundle.ownResult.totalScore}% · Interpretation: {bundle.ownResult.interpretation}
+                </p>
+                {(Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>).map(([category, value]) => (
+                  <div key={`own-${category}`}>
+                    <p className="helper" style={{ margin: '0 0 0.3rem' }}>{categoryLabelMap[category]} · {value}%</p>
+                    <div className="result-bar"><div className="result-bar-me" style={{ width: `${value}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {bundle.initiatorResult && bundle.partnerResult && (
+              <div className="report-block stack">
+                <strong>Gemeinsamer Vergleich</strong>
+                {(Object.keys(bundle.initiatorResult.categoryScores) as QuizCategory[]).map((category) => {
+                  const initiator = bundle.initiatorResult?.categoryScores[category] ?? 0;
+                  const partner = bundle.partnerResult?.categoryScores[category] ?? 0;
+                  const diff = Math.abs(initiator - partner);
+                  return (
+                    <div key={`cmp-${category}`} className="stack" style={{ gap: '0.35rem' }}>
+                      <p className="helper" style={{ margin: 0 }}>
+                        {categoryLabelMap[category]} · {personOneName}: {initiator}% · {personTwoName}: {partner}% · Differenz: {diff}%
+                      </p>
+                      <div className="result-bar"><div className="result-bar-me" style={{ width: `${Math.max(initiator, partner)}%` }} /></div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </article>
+        )}
       </div>
 
       {editCard && (
