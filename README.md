@@ -93,3 +93,40 @@ Damit ändert sich die sichtbare Kennung nach neuem Commit/Merge zuverlässig (b
 npm run lint
 npm run typecheck
 ```
+
+## Feature-Doku (Action Categories + Shared Responsibility Boards)
+
+### Recommendation Engine
+- Implementiert in `services/actionCategories.ts`.
+- Eingaben: Kategorien-Scores beider Personen, belastende Bereiche (falls vorhanden), Klarheitsantworten.
+- Ausgabe:
+  - `suggestedActionCategories` (max. 2 aktive Empfehlungen),
+  - `optionalActionCategories`,
+  - `actionCategoryReasons` (Reason Codes),
+  - `actionCategoryPriority`,
+  - `actionCategorySummaryText`.
+- Rule-Set: hohe Priorität bei gemeinsamer Belastung, dual hohen Scores und bei niedriger Klarheit; mittlere Priorität bei einseitiger Last + hohem Score oder klarer Score-Lücke.
+
+### Datenmodell
+- `JointResultDocument` erweitert um:
+  - `selectedActionCategories`
+  - `suggestedActionCategories`
+  - `actionCategoryReasons`
+  - `actionCategoryPriority`
+  - `actionBoardsInitializedAt`
+- Neue Dokumenttypen in `types/partner-flow.ts`:
+  - `ActionBoardDocument`
+  - `BoardCardDocument`
+- Neue Firestore Collections:
+  - `actionBoards`
+  - `actionBoardCards`
+
+### Board-Logik
+- Initialisierung über `initializeActionBoards` in `services/actionBoards.service.ts`.
+- Pro gewählter Kategorie wird genau ein Board angelegt und mit exakt 10 vordefinierten Aufgabenpaketen befüllt.
+- Realtime-Sync für beide Partner über `observeActionBoards` und `observeBoardCards` (Firestore `onSnapshot`).
+- Bearbeitung:
+  - Karten verschieben (Katalog / Person 1 / Person 2),
+  - Karten umbenennen (`customTitle`),
+  - Notizen pflegen (`notes`),
+  - Katalog ein-/ausklappen (`catalogCollapsed`).

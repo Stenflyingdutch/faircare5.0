@@ -80,6 +80,8 @@ export const firestoreCollections = {
   userResults: 'userResults',
   couples: 'couples',
   taskAssignments: 'taskAssignments',
+  actionBoards: 'actionBoards',
+  actionBoardCards: 'actionBoardCards',
   weeklyCheckins: 'weeklyCheckins',
   newsletterSubscribers: 'newsletterSubscribers',
 } as const;

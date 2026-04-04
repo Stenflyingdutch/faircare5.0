@@ -4,18 +4,27 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
+import { buildCategoryComparisons } from '@/services/resultInsights';
 import {
-  buildCategoryComparisons,
-} from '@/services/resultInsights';
+  fetchActionBurdenCategoriesByFamily,
+  initializeActionBoards,
+  moveBoardCard,
+  observeActionBoards,
+  observeBoardCards,
+  setCatalogCollapsed,
+  updateBoardCard,
+} from '@/services/actionBoards.service';
+import { mapReasonCodeToUiText, recommendActionCategories } from '@/services/actionCategories';
 import { observeAuthState, signOutUser } from '@/services/auth.service';
 import {
   ensureUserProfile,
-  fetchDashboardBundle,
   fetchAppUserProfile,
-  sendPartnerInvitation,
+  fetchDashboardBundle,
   openSharedResultsView,
+  sendPartnerInvitation,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
+import type { ActionBoardDocument, BoardCardDocument } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
 
 function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
@@ -31,7 +40,6 @@ function deriveNameFromEmail(email?: string | null) {
   const local = email.split('@')[0]?.trim();
   return local || null;
 }
-
 
 function buildNeutralDistributionStatement(selfPercent: number) {
   if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
@@ -56,6 +64,16 @@ export default function DashboardPage() {
   const [openSharedState, setOpenSharedState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [openSharedMessage, setOpenSharedMessage] = useState('');
 
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<QuizCategory[]>([]);
+  const [boardCategory, setBoardCategory] = useState<QuizCategory | null>(null);
+  const [boards, setBoards] = useState<ActionBoardDocument[]>([]);
+  const [cards, setCards] = useState<BoardCardDocument[]>([]);
+  const [burdenInput, setBurdenInput] = useState<{ initiator: QuizCategory[]; partner: QuizCategory[] }>({ initiator: [], partner: [] });
+  const [editCard, setEditCard] = useState<BoardCardDocument | null>(null);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftNotes, setDraftNotes] = useState('');
+
   async function refreshDashboard(userId: string) {
     const fresh = await fetchDashboardBundle(userId);
     setBundle(fresh);
@@ -75,6 +93,44 @@ export default function DashboardPage() {
 
     return () => unsubscribe();
   }, [router]);
+
+  useEffect(() => {
+    if (!bundle?.family?.id || !bundle.family.resultsUnlocked || !bundle.family.sharedResultsOpened) return;
+    fetchActionBurdenCategoriesByFamily(bundle.family.id).then(setBurdenInput).catch(() => setBurdenInput({ initiator: [], partner: [] }));
+  }, [bundle?.family?.id, bundle?.family?.resultsUnlocked, bundle?.family?.sharedResultsOpened]);
+
+  useEffect(() => {
+    if (!bundle?.family?.id || !bundle.family.resultsUnlocked || !bundle.family.sharedResultsOpened) return;
+    return observeActionBoards(bundle.family.id, (nextBoards) => {
+      setBoards(nextBoards);
+      if (!boardCategory && nextBoards.length) {
+        setBoardCategory(nextBoards[0].categoryKey);
+      }
+    });
+  }, [bundle?.family?.id, bundle?.family?.resultsUnlocked, bundle?.family?.sharedResultsOpened, boardCategory]);
+
+  useEffect(() => {
+    if (!bundle?.family?.id || !boardCategory) return;
+    return observeBoardCards(bundle.family.id, boardCategory, setCards);
+  }, [bundle?.family?.id, boardCategory]);
+
+  const recommendation = useMemo(() => {
+    if (!bundle?.initiatorResult?.categoryScores || !bundle?.partnerResult?.categoryScores) return null;
+
+    return recommendActionCategories({
+      initiatorScores: bundle.initiatorResult.categoryScores,
+      partnerScores: bundle.partnerResult.categoryScores,
+      initiatorBurdenCategories: burdenInput.initiator,
+      partnerBurdenCategories: burdenInput.partner,
+      initiatorClarity: bundle.initiatorResult.filterPerceptionAnswer,
+      partnerClarity: bundle.partnerResult.filterPerceptionAnswer,
+    });
+  }, [bundle?.initiatorResult?.categoryScores, bundle?.partnerResult?.categoryScores, bundle?.initiatorResult?.filterPerceptionAnswer, bundle?.partnerResult?.filterPerceptionAnswer, burdenInput]);
+
+  useEffect(() => {
+    if (!recommendation) return;
+    setSelectedCategories((current) => (current.length ? current : recommendation.suggestedActionCategories));
+  }, [recommendation]);
 
   async function onInviteSubmit(event: FormEvent) {
     event.preventDefault();
@@ -153,6 +209,29 @@ export default function DashboardPage() {
     }
   }
 
+  async function startBoards() {
+    if (!currentUserId || !bundle?.family?.id || !recommendation) return;
+    const selected = selectedCategories.length ? selectedCategories : recommendation.suggestedActionCategories;
+    const result = await initializeActionBoards({
+      userId: currentUserId,
+      familyId: bundle.family.id,
+      selectedCategories: selected,
+      suggestedCategories: recommendation.suggestedActionCategories,
+      actionCategoryReasons: recommendation.actionCategoryReasons,
+      actionCategoryPriority: recommendation.actionCategoryPriority,
+    });
+    setBoardCategory(result.firstCategory);
+    setSetupOpen(false);
+  }
+
+  async function saveCardEdit() {
+    if (!currentUserId || !editCard) return;
+    await updateBoardCard(currentUserId, editCard.id, {
+      customTitle: draftTitle.trim() || null,
+      notes: draftNotes.trim() || null,
+    });
+    setEditCard(null);
+  }
 
   async function logout() {
     await signOutUser();
@@ -277,9 +356,230 @@ export default function DashboardPage() {
             </p>
           </article>
         ) : (
-          <JointResultPanel bundle={bundle} />
+          <>
+            <JointResultPanel bundle={bundle} />
+            {recommendation && (
+              <article className="card stack">
+                <h3 className="card-title">Nächster Schritt</h3>
+                <p className="helper">{recommendation.actionCategorySummaryText}</p>
+                {!setupOpen && (
+                  <button type="button" className="button primary" onClick={() => setSetupOpen(true)}>Nächsten Schritt starten</button>
+                )}
+                {setupOpen && (
+                  <CategorySelectionView
+                    recommendation={recommendation}
+                    selectedCategories={selectedCategories}
+                    onChange={setSelectedCategories}
+                    onConfirm={startBoards}
+                  />
+                )}
+              </article>
+            )}
+
+            {boards.length > 0 && boardCategory && (
+              <SharedResponsibilityBoard
+                boards={boards}
+                cards={cards}
+                currentCategory={boardCategory}
+                onCategoryChange={setBoardCategory}
+                onMove={async (cardId, ownerColumn) => {
+                  if (!currentUserId) return;
+                  await moveBoardCard(currentUserId, cardId, ownerColumn);
+                }}
+                onToggleCatalog={async (boardId, collapsed) => {
+                  if (!currentUserId) return;
+                  await setCatalogCollapsed(currentUserId, boardId, collapsed);
+                }}
+                onEdit={(card) => {
+                  setEditCard(card);
+                  setDraftTitle(card.customTitle ?? '');
+                  setDraftNotes(card.notes ?? '');
+                }}
+                personOneName={resolveDisplayName(bundle.initiatorDisplayName, 'Person 1')}
+                personTwoName={resolveDisplayName(bundle.partnerDisplayName, 'Person 2')}
+              />
+            )}
+          </>
         )}
       </div>
+
+      {editCard && (
+        <div className="board-drawer-backdrop" role="presentation" onClick={() => setEditCard(null)}>
+          <div className="board-drawer" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+            <h3 className="card-title">Karte bearbeiten</h3>
+            <p className="helper">{editCard.baseTitle}</p>
+            <input className="input" placeholder="Eigener Kartentitel" value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+            <textarea className="input" rows={5} placeholder="Notizen" value={draftNotes} onChange={(event) => setDraftNotes(event.target.value)} />
+            <div className="stack" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <button type="button" className="button" onClick={() => setEditCard(null)}>Abbrechen</button>
+              <button type="button" className="button primary" onClick={saveCardEdit}>Speichern</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function CategorySelectionView({ recommendation, selectedCategories, onChange, onConfirm }: {
+  recommendation: NonNullable<ReturnType<typeof recommendActionCategories>>;
+  selectedCategories: QuizCategory[];
+  onChange: (next: QuizCategory[]) => void;
+  onConfirm: () => void;
+}) {
+  function toggleCategory(category: QuizCategory) {
+    const exists = selectedCategories.includes(category);
+    if (exists) {
+      onChange(selectedCategories.filter((item) => item !== category));
+      return;
+    }
+    onChange([...selectedCategories, category]);
+  }
+
+  return (
+    <div className="stack board-selection-shell">
+      <h4 className="card-title">Wo lohnt es sich, mit klareren Aufgabenpaketen zu starten?</h4>
+      <p className="helper">Eure Ergebnisse deuten darauf hin, dass in manchen Bereichen klarere Zuständigkeiten helfen könnten. Ein Aufgabenpaket bedeutet immer beides: daran denken und es umsetzen. Fangt am besten klein an und startet mit 1 oder 2 Bereichen.</p>
+      <p className="helper">Ihr könnt weitere Bereiche zusätzlich auswählen, wenn ihr möchtet.</p>
+
+      <div className="stack">
+        {recommendation.suggestedActionCategories.map((category) => {
+          const reasonCode = recommendation.actionCategoryReasons[category]?.[0];
+          return (
+            <label key={category} className="board-choice-card recommended">
+              <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} />
+              <div>
+                <strong>{categoryLabelMap[category]}</strong>
+                <p className="helper">{reasonCode ? mapReasonCodeToUiText(reasonCode) : 'Hier wirken klarere Zuständigkeiten entlastend.'}</p>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+
+      {!!recommendation.optionalActionCategories.length && (
+        <div className="stack">
+          <p className="helper" style={{ margin: 0 }}><strong>Weitere optionale Bereiche</strong></p>
+          {recommendation.optionalActionCategories.map((category) => (
+            <label key={category} className="board-choice-card">
+              <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} />
+              <strong>{categoryLabelMap[category]}</strong>
+            </label>
+          ))}
+        </div>
+      )}
+
+      <button type="button" className="button primary" onClick={onConfirm} disabled={!selectedCategories.length}>Mit diesen Bereichen starten</button>
+    </div>
+  );
+}
+
+function SharedResponsibilityBoard({
+  boards,
+  cards,
+  currentCategory,
+  onCategoryChange,
+  onMove,
+  onToggleCatalog,
+  onEdit,
+  personOneName,
+  personTwoName,
+}: {
+  boards: ActionBoardDocument[];
+  cards: BoardCardDocument[];
+  currentCategory: QuizCategory;
+  onCategoryChange: (category: QuizCategory) => void;
+  onMove: (cardId: string, ownerColumn: BoardCardDocument['ownerColumn']) => Promise<void>;
+  onToggleCatalog: (boardId: string, collapsed: boolean) => Promise<void>;
+  onEdit: (card: BoardCardDocument) => void;
+  personOneName: string;
+  personTwoName: string;
+}) {
+  const board = boards.find((item) => item.categoryKey === currentCategory);
+  if (!board) return null;
+
+  const catalog = cards.filter((item) => item.ownerColumn === 'catalog');
+  const first = cards.filter((item) => item.ownerColumn === 'user1');
+  const second = cards.filter((item) => item.ownerColumn === 'user2');
+
+  return (
+    <article className="card stack">
+      <h3 className="card-title">Shared Responsibility Boards</h3>
+      <p className="helper">Ein Aufgabenpaket bedeutet immer beides: daran denken und es umsetzen. Ziel ist nicht, jede Kleinigkeit einzeln zu verteilen, sondern Verantwortungsbereiche klarer zu bündeln.</p>
+
+      <div className="board-tabs">
+        {boards.map((entry) => (
+          <button key={entry.id} type="button" className={`button ${entry.categoryKey === currentCategory ? 'primary' : ''}`} onClick={() => onCategoryChange(entry.categoryKey)}>
+            {entry.categoryLabel}
+          </button>
+        ))}
+      </div>
+
+      <div className="board-columns">
+        <BoardColumn
+          title="Aufgabenkatalog"
+          columnKey="catalog"
+          ownerLabels={{ user1: personOneName, user2: personTwoName }}
+          cards={catalog}
+          collapsed={board.catalogCollapsed}
+          onCollapse={() => onToggleCatalog(board.id, !board.catalogCollapsed)}
+          onMove={onMove}
+          onEdit={onEdit}
+        />
+        <BoardColumn title={personOneName} columnKey="user1" ownerLabels={{ user1: personOneName, user2: personTwoName }} cards={first} onMove={onMove} onEdit={onEdit} />
+        <BoardColumn title={personTwoName} columnKey="user2" ownerLabels={{ user1: personOneName, user2: personTwoName }} cards={second} onMove={onMove} onEdit={onEdit} />
+      </div>
+    </article>
+  );
+}
+
+function BoardColumn({ title, columnKey, ownerLabels, cards, onMove, onEdit, collapsed = false, onCollapse }: {
+  title: string;
+  columnKey: BoardCardDocument['ownerColumn'];
+  ownerLabels: { user1: string; user2: string };
+  cards: BoardCardDocument[];
+  onMove: (cardId: string, ownerColumn: BoardCardDocument['ownerColumn']) => Promise<void>;
+  onEdit: (card: BoardCardDocument) => void;
+  collapsed?: boolean;
+  onCollapse?: () => void;
+}) {
+  return (
+    <section className="board-column" onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
+      const cardId = event.dataTransfer.getData('text/plain');
+      if (!cardId) return;
+      onMove(cardId, columnKey);
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <strong>{title}</strong>
+        {onCollapse && (
+          <button type="button" className="button" style={{ padding: '0.35rem 0.9rem', minHeight: 34 }} onClick={onCollapse}>
+            {collapsed ? 'Aufklappen' : 'Einklappen'}
+          </button>
+        )}
+      </div>
+      {!collapsed && cards.map((card) => (
+        <article
+          key={card.id}
+          className="report-block stack"
+          draggable
+          onDragStart={(event) => event.dataTransfer.setData('text/plain', card.id)}
+        >
+          <strong>{card.customTitle?.trim() || card.baseTitle}</strong>
+          {card.notes && <p className="helper">{card.notes}</p>}
+          <div className="board-card-actions">
+            <button type="button" className="button" onClick={() => onEdit(card)}>Bearbeiten</button>
+            <select
+              className="input"
+              value={card.ownerColumn}
+              onChange={(event) => onMove(card.id, event.target.value as BoardCardDocument['ownerColumn'])}
+            >
+              <option value="catalog">Aufgabenkatalog</option>
+              <option value="user1">{ownerLabels.user1}</option>
+              <option value="user2">{ownerLabels.user2}</option>
+            </select>
+          </div>
+        </article>
+      ))}
     </section>
   );
 }

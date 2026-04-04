@@ -623,3 +623,76 @@ textarea.input {
   margin: 0.25rem 0 0;
   font-size: 0.8rem;
 }
+
+.board-selection-shell {
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.board-choice-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  padding: 0.8rem;
+}
+
+.board-choice-card.recommended {
+  border-color: var(--color-primary);
+  background: rgba(108, 76, 241, 0.06);
+}
+
+.board-choice-card p {
+  margin: 0.2rem 0 0;
+}
+
+.board-tabs {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.board-columns {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: 1fr;
+}
+
+.board-column {
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #fcfcff;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.board-card-actions {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.board-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: grid;
+  align-items: end;
+  z-index: 70;
+}
+
+.board-drawer {
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 860px) {
+  .board-columns {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

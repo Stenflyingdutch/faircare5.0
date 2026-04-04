@@ -102,6 +102,28 @@ service cloud.firestore {
       allow read: if false;
     }
 
+    match /actionBoards/{boardId} {
+      allow read: if isSignedIn() &&
+        isFamilyMember(resource.data.pairId) &&
+        familyResultsUnlocked(resource.data.pairId) &&
+        familySharedResultsOpened(resource.data.pairId);
+      allow create, update: if isSignedIn() &&
+        isFamilyMember(request.resource.data.pairId) &&
+        familyResultsUnlocked(request.resource.data.pairId) &&
+        familySharedResultsOpened(request.resource.data.pairId);
+    }
+
+    match /actionBoardCards/{cardId} {
+      allow read: if isSignedIn() &&
+        isFamilyMember(resource.data.pairId) &&
+        familyResultsUnlocked(resource.data.pairId) &&
+        familySharedResultsOpened(resource.data.pairId);
+      allow create, update: if isSignedIn() &&
+        isFamilyMember(request.resource.data.pairId) &&
+        familyResultsUnlocked(request.resource.data.pairId) &&
+        familySharedResultsOpened(request.resource.data.pairId);
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

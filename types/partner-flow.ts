@@ -98,7 +98,35 @@ export interface JointResultDocument {
   categoryDifferences: Record<QuizCategory, number>;
   insights: JointInsight[];
   status: JointResultStatus;
+  selectedActionCategories?: QuizCategory[];
+  suggestedActionCategories?: QuizCategory[];
+  actionCategoryReasons?: Partial<Record<QuizCategory, string[]>>;
+  actionCategoryPriority?: Partial<Record<QuizCategory, 'high' | 'medium' | 'low'>>;
+  actionBoardsInitializedAt?: string | null;
   createdAt: string;
   activatedAt?: string | null;
+  updatedAt?: string;
+}
+
+export interface ActionBoardDocument {
+  id: string;
+  pairId: string;
+  categoryKey: QuizCategory;
+  categoryLabel: string;
+  createdAt: string;
+  updatedAt?: string;
+  catalogCollapsed: boolean;
+}
+
+export interface BoardCardDocument {
+  id: string;
+  pairId: string;
+  categoryKey: QuizCategory;
+  baseTitle: string;
+  customTitle?: string | null;
+  notes?: string | null;
+  ownerColumn: 'catalog' | 'user1' | 'user2';
+  sortOrder: number;
+  createdAt: string;
   updatedAt?: string;
 }
