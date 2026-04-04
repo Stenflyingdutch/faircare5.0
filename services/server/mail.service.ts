@@ -16,7 +16,7 @@ interface SendMailInput {
   invitationId?: string;
 }
 
-const TEST_RECIPIENT = 'pa4sten@gmail.com';
+const DEFAULT_TEST_RECIPIENT = 'pa4sten@gmail.com';
 
 function resolveAppEnvironment() {
   const appEnv = (process.env.APP_ENV ?? process.env.NEXT_PUBLIC_APP_ENV ?? '').toLowerCase();
@@ -36,10 +36,11 @@ function isProduction() {
 }
 
 export function resolveRecipient(email: string) {
+  const overrideRecipient = process.env.TEST_EMAIL_OVERRIDE?.trim() || DEFAULT_TEST_RECIPIENT;
   if (isProduction()) {
     return { actualRecipient: email, subjectPrefix: '' };
   }
-  return { actualRecipient: TEST_RECIPIENT, subjectPrefix: '[TEST] ' };
+  return { actualRecipient: overrideRecipient, subjectPrefix: '[TEST] ' };
 }
 
 async function sendViaResend(to: string, subject: string, html: string) {
@@ -92,6 +93,7 @@ async function sendViaSendgrid(to: string, subject: string, html: string) {
 }
 
 async function sendViaProvider(to: string, subject: string, html: string) {
+  const environment = resolveAppEnvironment();
   const configuredProvider = (process.env.MAIL_PROVIDER ?? '').toLowerCase();
   if (configuredProvider === 'noop' || configuredProvider === 'console') {
     console.warn('[mail.dispatch] MAIL_PROVIDER=noop aktiv – Mail wird nicht extern versendet.', {
@@ -104,6 +106,12 @@ async function sendViaProvider(to: string, subject: string, html: string) {
   if (configuredProvider === 'sendgrid') return sendViaSendgrid(to, subject, html);
   if (process.env.RESEND_API_KEY) return sendViaResend(to, subject, html);
   if (process.env.SENDGRID_API_KEY) return sendViaSendgrid(to, subject, html);
+  if (environment !== 'production') {
+    console.warn('[mail.dispatch] Kein Provider gesetzt, fallback auf noop in non-production.', {
+      environment,
+    });
+    return { ok: true, reason: 'noop-auto', provider: 'noop' };
+  }
   return {
     ok: false,
     reason: 'Kein Mail-Provider konfiguriert. Setze MAIL_PROVIDER=resend mit RESEND_API_KEY oder MAIL_PROVIDER=sendgrid mit SENDGRID_API_KEY. Für lokale Smoke-Tests optional MAIL_PROVIDER=noop.',
@@ -112,17 +120,25 @@ async function sendViaProvider(to: string, subject: string, html: string) {
 }
 
 export async function dispatchMail(input: SendMailInput) {
+  const runtimeEnv = resolveAppEnvironment();
+  const configuredProvider = (process.env.MAIL_PROVIDER ?? 'auto').toLowerCase();
+  const hasResendKey = Boolean(process.env.RESEND_API_KEY);
+  const hasSendgridKey = Boolean(process.env.SENDGRID_API_KEY);
   console.info('[mail.dispatch] gestartet', {
     type: input.type,
-    env: resolveAppEnvironment(),
+    env: runtimeEnv,
     hasOriginalRecipient: Boolean(input.originalRecipient),
+    configuredProvider,
+    hasResendKey,
+    hasSendgridKey,
+    hasTestOverride: Boolean(process.env.TEST_EMAIL_OVERRIDE),
   });
   const resolved = resolveRecipient(input.to);
   const subject = `${resolved.subjectPrefix}${input.subject}`;
   console.info('[mail.dispatch] empfänger aufgelöst', {
     originalRecipient: input.originalRecipient,
     actualRecipient: resolved.actualRecipient,
-    providerHint: (process.env.MAIL_PROVIDER ?? 'auto').toLowerCase(),
+    providerHint: configuredProvider,
   });
 
   const footer = `

@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
-import { app, auth, db } from '@/lib/firebase';
+import { app, auth, db, firebaseProjectId } from '@/lib/firebase';
 import { sendAppMail } from '@/services/mail-client.service';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
 import { firestoreCollections } from '@/types/domain';
@@ -139,6 +139,19 @@ export async function sendPartnerInvitation(partnerEmail: string) {
       userErrors: ['Bitte gib die E-Mail-Adresse deines Partners ein (nicht deine eigene).'],
     });
   }
+  if (firebaseProjectId !== 'carefair5') {
+    throw buildInviteError(
+      'failed-precondition',
+      'Falsches Firebase-Projekt konfiguriert.',
+      {
+        configErrors: [
+          `Aktiv ist "${firebaseProjectId}", erwartet wird "carefair5".`,
+          'Bitte NEXT_PUBLIC_FIREBASE_PROJECT_ID in .env.local prüfen und Dev-Server neu starten.',
+        ],
+      },
+      [`firebaseProjectId=${firebaseProjectId}`],
+    );
+  }
 
   const functions = getFunctions(app, 'europe-west3');
   const sendPartnerInvite = httpsCallable<{ partnerEmail: string }, { partnerEmail?: string }>(functions, 'sendPartnerInvite');
@@ -171,10 +184,15 @@ export async function sendPartnerInvitation(partnerEmail: string) {
     throw buildInviteError(
       callableError?.code ?? 'internal',
       'Einladung konnte serverseitig nicht verarbeitet werden.',
-      { serverErrors: ['Die Firebase Function sendPartnerInvite hat einen Fehler zurückgegeben.'] },
+      {
+        serverErrors: ['Die Firebase Function sendPartnerInvite hat einen Fehler zurückgegeben.'],
+        configErrors: ['Bitte Firebase Functions Logs für sendPartnerInvite (Region europe-west3) prüfen.'],
+      },
       [
         `code=${callableError?.code ?? 'unknown'}`,
         callableError?.message ?? 'keine message',
+        'region=europe-west3',
+        `project=${firebaseProjectId}`,
       ],
     );
   }
