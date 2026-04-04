@@ -10,6 +10,7 @@ import {
   fetchDashboardBundle,
   fetchAppUserProfile,
   sendPartnerInvitation,
+  openSharedResultsView,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
 import type { JointInsight } from '@/types/partner-flow';
@@ -29,7 +30,8 @@ export default function DashboardPage() {
 
   const [unlockState, setUnlockState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [unlockMessage, setUnlockMessage] = useState('');
-  const [sharedViewOpen, setSharedViewOpen] = useState(false);
+  const [openSharedState, setOpenSharedState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [openSharedMessage, setOpenSharedMessage] = useState('');
 
   async function refreshDashboard(userId: string) {
     const fresh = await fetchDashboardBundle(userId);
@@ -113,11 +115,20 @@ export default function DashboardPage() {
     }
   }
 
-  useEffect(() => {
-    if (!bundle?.family?.resultsUnlocked) {
-      setSharedViewOpen(false);
+  async function openSharedViewForBoth() {
+    const userId = currentUserId;
+    if (!userId) return;
+    setOpenSharedState('loading');
+    setOpenSharedMessage('');
+    try {
+      await openSharedResultsView(userId);
+      setOpenSharedState('idle');
+      await refreshDashboard(userId);
+    } catch (error) {
+      setOpenSharedState('error');
+      setOpenSharedMessage(error instanceof Error ? error.message : 'Gemeinsame Ansicht konnte nicht geöffnet werden.');
     }
-  }, [bundle?.family?.resultsUnlocked]);
+  }
 
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
@@ -195,14 +206,17 @@ export default function DashboardPage() {
                   </button>
                 </form>
               </>
+            ) : bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened ? (
+              <PartnerResultCard bundle={bundle} />
             ) : bundle?.family?.resultsUnlocked ? (
               <>
                 <h2 className="card-title">Freigabe</h2>
                 <p className="card-description">Eure gemeinsamen Ergebnisse sind bereit.</p>
-                <button className="button primary" type="button" onClick={() => setSharedViewOpen(true)}>
+                <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
                   Ergebnisse jetzt ansehen
                 </button>
                 <p className="helper">Es kann spannend sein, die Ergebnisse gemeinsam anzuschauen.</p>
+                {openSharedState === 'error' && <p className="inline-error">{openSharedMessage}</p>}
               </>
             ) : bundle?.profile?.role === 'partner' ? (
               <>
@@ -236,13 +250,15 @@ export default function DashboardPage() {
           </article>
         </div>
 
-        {!bundle?.family?.resultsUnlocked || !sharedViewOpen ? (
+        {!bundle?.family?.resultsUnlocked || !bundle?.family?.sharedResultsOpened ? (
           <article className="card stack">
             <h2 className="card-title">Status</h2>
             <p className="helper">
-              {bundle?.profile?.role === 'partner'
-                ? 'Vor der Freischaltung siehst du nur dein eigenes Ergebnis.'
-                : 'Vor der Freischaltung siehst du nur dein eigenes Ergebnis.'}
+              {bundle?.family?.resultsUnlocked
+                ? 'Die gemeinsamen Ergebnisse wurden freigegeben. Öffnet jetzt gemeinsam die Ansicht.'
+                : bundle?.profile?.role === 'partner'
+                  ? 'Die gemeinsamen Ergebnisse werden sichtbar, sobald der Initiator sie freigegeben hat.'
+                  : 'Vor der Freischaltung siehst du nur dein eigenes Ergebnis.'}
             </p>
           </article>
         ) : (
@@ -295,5 +311,27 @@ function JointResultPanel({ insights, bundle }: {
         ))}
       </div>
     </article>
+  );
+}
+
+function PartnerResultCard({ bundle }: { bundle: Awaited<ReturnType<typeof fetchDashboardBundle>> }) {
+  if (!bundle.initiatorResult || !bundle.partnerResult) return null;
+  const otherRole = bundle.profile?.role === 'partner' ? 'initiator' : 'partner';
+  const otherResult = otherRole === 'initiator' ? bundle.initiatorResult : bundle.partnerResult;
+  const otherLabel = otherRole === 'initiator' ? (bundle.initiatorDisplayName ?? 'Initiator') : 'Partner';
+
+  return (
+    <>
+      <h2 className="card-title">{otherLabel}</h2>
+      <p className="card-description">Ergebnisse der anderen Person</p>
+      <div className="stack">
+        {Object.entries(otherResult.categoryScores).map(([category, value]) => (
+          <div key={category} className="report-block">
+            <strong>{categoryLabelMap[category as QuizCategory]}</strong>
+            <p>{value}%</p>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

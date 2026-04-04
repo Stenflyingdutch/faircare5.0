@@ -24,8 +24,11 @@ export interface FamilyDocument {
   initiatorRegistered?: boolean;
   partnerRegistered?: boolean;
   resultsUnlocked?: boolean;
+  sharedResultsOpened?: boolean;
   unlockedAt?: string | null;
   unlockedBy?: string | null;
+  sharedResultsOpenedAt?: string | null;
+  sharedResultsOpenedBy?: string | null;
   invitationId?: string | null;
   createdAt: string;
   activatedAt?: string | null;

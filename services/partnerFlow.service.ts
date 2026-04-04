@@ -246,8 +246,11 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
         initiatorRegistered: true,
         partnerRegistered: false,
         resultsUnlocked: false,
+        sharedResultsOpened: false,
         unlockedAt: null,
         unlockedBy: null,
+        sharedResultsOpenedAt: null,
+        sharedResultsOpenedBy: null,
         invitationId: null,
         createdAt: nowIso(),
         updatedAt: serverTimestamp(),
@@ -290,8 +293,11 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       partnerCompleted: false,
       partnerRegistered: false,
       resultsUnlocked: false,
+      sharedResultsOpened: false,
       unlockedAt: null,
       unlockedBy: null,
+      sharedResultsOpenedAt: null,
+      sharedResultsOpenedBy: null,
       updatedAt: serverTimestamp(),
     }, { merge: true });
     console.info('[sendPartnerInvite:fallback] Invitation erstellt', { invitationId: invitationRef.id });
@@ -530,8 +536,11 @@ export async function finalizePartnerRegistration(params: {
       partnerCompleted: true,
       partnerRegistered: true,
       resultsUnlocked: false,
+      sharedResultsOpened: false,
       unlockedAt: null,
       unlockedBy: null,
+      sharedResultsOpenedAt: null,
+      sharedResultsOpenedBy: null,
       updatedAt: serverTimestamp(),
     }, { merge: true });
   });
@@ -683,7 +692,7 @@ export async function activateJointResult(jointResultId: string, userId: string)
     throw new Error('Nur der Initiator darf das Gesamtergebnis aktivieren.');
   }
 
-  if (joint.status === 'active' || family.resultsUnlocked || family.status === 'joint_active') {
+  if (joint.status === 'active' || family.resultsUnlocked) {
     return { alreadyActive: true };
   }
 
@@ -696,10 +705,13 @@ export async function activateJointResult(jointResultId: string, userId: string)
     }, { merge: true });
 
     transaction.set(familyRef, {
-      status: 'joint_active',
+      status: 'joint_pending',
       resultsUnlocked: true,
+      sharedResultsOpened: false,
       unlockedAt: activatedAt,
       unlockedBy: userId,
+      sharedResultsOpenedAt: null,
+      sharedResultsOpenedBy: null,
       activatedAt,
       updatedAt: serverTimestamp(),
     }, { merge: true });
@@ -750,6 +762,29 @@ export async function unlockPartnerAndJointResults(userId: string) {
   return activateJointResult(jointId, userId);
 }
 
+export async function openSharedResultsView(userId: string) {
+  const profile = await fetchAppUserProfile(userId);
+  if (!profile?.familyId) throw new Error('Keine Familie verknüpft.');
+  const familyRef = doc(db, firestoreCollections.families, profile.familyId);
+  const familySnapshot = await getDoc(familyRef);
+  if (!familySnapshot.exists()) throw new Error('Familie nicht gefunden.');
+  const family = familySnapshot.data() as FamilyDocument;
+  const isMember = family.initiatorUserId === userId || family.partnerUserId === userId;
+  if (!isMember) throw new Error('Kein Zugriff auf diese Familie.');
+  if (!family.resultsUnlocked) throw new Error('Die Ergebnisse wurden noch nicht freigegeben.');
+  if (family.sharedResultsOpened) return { alreadyOpened: true };
+
+  await setDoc(familyRef, {
+    status: 'joint_active',
+    sharedResultsOpened: true,
+    sharedResultsOpenedAt: nowIso(),
+    sharedResultsOpenedBy: userId,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  return { alreadyOpened: false };
+}
+
 export async function fetchDashboardBundle(userId: string) {
   const profile = await fetchAppUserProfile(userId);
   if (!profile) return { profile: null };
@@ -772,7 +807,7 @@ export async function fetchDashboardBundle(userId: string) {
       initiatorDisplayName = initiatorProfile?.displayName || initiatorProfile?.email || 'der Initiator';
     }
 
-    const canSeeSharedResults = Boolean(family?.resultsUnlocked || family?.status === 'joint_active');
+    const canSeeSharedResults = Boolean(family?.resultsUnlocked && family?.sharedResultsOpened);
     if (canSeeSharedResults) {
       const jointSnap = await getDocs(query(
         collection(db, firestoreCollections.jointResults),
