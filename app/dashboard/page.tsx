@@ -37,12 +37,6 @@ function deriveNameFromEmail(email?: string | null) {
 }
 
 
-function shortGapDescription(diff: number) {
-  if (diff >= 25) return 'Deutlich unterschiedliche Wahrnehmung – hier lohnt ein klares Gespräch.';
-  if (diff >= 12) return 'Spürbare Differenz in der Wahrnehmung.';
-  return 'Ähnliche Wahrnehmung in diesem Bereich.';
-}
-
 function buildNeutralDistributionStatement(selfPercent: number) {
   if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
   if (selfPercent < 45) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei deinem Partner.';
@@ -293,15 +287,14 @@ function JointResultPanel({ insights, bundle }: {
   bundle: Awaited<ReturnType<typeof fetchDashboardBundle>>;
 }) {
   if (!bundle.initiatorResult || !bundle.partnerResult) return null;
-  const ownRole = bundle.profile?.role === 'partner' ? 'partner' : 'initiator';
-  const ownResult = ownRole === 'partner' ? bundle.partnerResult : bundle.initiatorResult;
-  const otherResult = ownRole === 'partner' ? bundle.initiatorResult : bundle.partnerResult;
-  const ownLabel = bundle.profile?.displayName || 'Du';
-  const otherLabel = ownRole === 'partner'
-    ? (bundle.initiatorDisplayName ?? 'Initiator')
-    : (bundle.partnerDisplayName ?? 'Partner');
 
-  const comparisons = buildCategoryComparisons(ownResult.categoryScores, otherResult.categoryScores);
+  const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, 'Initiator');
+  const partnerName = resolveDisplayName(bundle.partnerDisplayName, 'Partner');
+
+  const initiatorScores = bundle.initiatorResult.categoryScores;
+  const partnerScores = bundle.partnerResult.categoryScores;
+
+  const comparisons = buildCategoryComparisons(initiatorScores, partnerScores);
   const recommendations = buildJointRecommendations(comparisons);
   const perceptionOutcome = buildPerceptionOutcome(comparisons);
   const averageDifference = comparisons.length
@@ -324,25 +317,41 @@ function JointResultPanel({ insights, bundle }: {
       </div>
       <div className="stack">
         <h3 className="card-title">Block 2 · Gemeinsame Bewertung</h3>
-        <p className="helper" style={{ marginTop: -6 }}>Kurz erklärt: Je größer die Differenz, desto stärker weicht eure Wahrnehmung in der Kategorie voneinander ab.</p>
-        {comparisons.map((entry) => (
-          <div className="report-block" key={`cmp-${entry.category}`}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <strong>{categoryLabelMap[entry.category]}</strong>
-              {entry.difference >= 12 && <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>Lücke erkannt</span>}
+        {comparisons.map((entry) => {
+          const initiatorSelf = initiatorScores[entry.category] ?? 0;
+          const partnerSeesInitiator = 100 - (partnerScores[entry.category] ?? 0);
+          const partnerSelf = partnerScores[entry.category] ?? 0;
+          const initiatorSeesPartner = 100 - (initiatorScores[entry.category] ?? 0);
+
+          const gapInitiator = Math.abs(initiatorSelf - partnerSeesInitiator);
+          const gapPartner = Math.abs(partnerSelf - initiatorSeesPartner);
+          const hasGap = gapInitiator >= 12 || gapPartner >= 12;
+
+          return (
+            <div className="report-block" key={`cmp-${entry.category}`}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <strong>{categoryLabelMap[entry.category]}</strong>
+                {hasGap && <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>Lücke erkannt</span>}
+              </div>
+              <p className="helper" style={{ marginBottom: 4 }}>{initiatorName} selbst</p>
+              <div className="result-bar"><div className="result-bar-me" style={{ width: `${initiatorSelf}%` }} /></div>
+              <p className="helper" style={{ marginTop: 2 }}>{initiatorSelf}%</p>
+
+              <p className="helper" style={{ marginBottom: 4 }}>{partnerName} sieht {initiatorName}</p>
+              <div className="result-bar"><div className="result-bar-me" style={{ width: `${partnerSeesInitiator}%`, opacity: 0.8 }} /></div>
+              <p className="helper" style={{ marginTop: 2 }}>{partnerSeesInitiator}%</p>
+
+              <p className="helper" style={{ marginBottom: 4 }}>{partnerName} selbst</p>
+              <div className="result-bar"><div className="result-bar-me" style={{ width: `${partnerSelf}%` }} /></div>
+              <p className="helper" style={{ marginTop: 2 }}>{partnerSelf}%</p>
+
+              <p className="helper" style={{ marginBottom: 4 }}>{initiatorName} sieht {partnerName}</p>
+              <div className="result-bar"><div className="result-bar-me" style={{ width: `${initiatorSeesPartner}%`, opacity: 0.8 }} /></div>
+              <p className="helper" style={{ marginTop: 2 }}>{initiatorSeesPartner}%</p>
+
             </div>
-            <p>{ownLabel} {entry.own}% · {otherLabel} {entry.partner}% · Differenz {entry.difference}%</p>
-            <p className="helper" style={{ marginTop: -6 }}>{shortGapDescription(entry.difference)}</p>
-            <p className="helper" style={{ marginBottom: 4 }}>{ownLabel}</p>
-            <div className="result-bar">
-              <div className="result-bar-me" style={{ width: `${entry.own}%` }} />
-            </div>
-            <p className="helper" style={{ marginBottom: 4 }}>{otherLabel}</p>
-            <div className="result-bar">
-              <div className="result-bar-me" style={{ width: `${entry.partner}%`, opacity: 0.55 }} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div className="stack">
         {insights.map((insight) => (
