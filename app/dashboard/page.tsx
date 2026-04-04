@@ -9,8 +9,8 @@ import {
   fetchActionBurdenCategoriesByFamily,
   initializeActionBoards,
   moveBoardCard,
+  observeAllBoardCards,
   observeActionBoards,
-  observeBoardCards,
   setCatalogCollapsed,
   updateBoardCard,
 } from '@/services/actionBoards.service';
@@ -69,10 +69,12 @@ export default function DashboardPage() {
   const [boardCategory, setBoardCategory] = useState<QuizCategory | null>(null);
   const [boards, setBoards] = useState<ActionBoardDocument[]>([]);
   const [cards, setCards] = useState<BoardCardDocument[]>([]);
+  const [allBoardCards, setAllBoardCards] = useState<BoardCardDocument[]>([]);
   const [burdenInput, setBurdenInput] = useState<{ initiator: QuizCategory[]; partner: QuizCategory[] }>({ initiator: [], partner: [] });
   const [editCard, setEditCard] = useState<BoardCardDocument | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftNotes, setDraftNotes] = useState('');
+  const [dashboardArea, setDashboardArea] = useState<'my_packages' | 'shared_board' | 'weekly_review' | 'history'>('shared_board');
 
   async function refreshDashboard(userId: string) {
     const fresh = await fetchDashboardBundle(userId);
@@ -110,8 +112,15 @@ export default function DashboardPage() {
   }, [bundle?.family?.id, bundle?.family?.resultsUnlocked, bundle?.family?.sharedResultsOpened, boardCategory]);
 
   useEffect(() => {
-    if (!bundle?.family?.id || !boardCategory) return;
-    return observeBoardCards(bundle.family.id, boardCategory, setCards);
+    if (!bundle?.family?.id) return;
+    return observeAllBoardCards(bundle.family.id, (allCards) => {
+      setAllBoardCards(allCards);
+      if (!boardCategory) {
+        setCards(allCards);
+        return;
+      }
+      setCards(allCards.filter((item) => item.categoryKey === boardCategory));
+    });
   }, [bundle?.family?.id, boardCategory]);
 
   const recommendation = useMemo(() => {
@@ -348,48 +357,79 @@ export default function DashboardPage() {
 
         {!bundle?.family?.resultsUnlocked || !bundle?.family?.sharedResultsOpened ? null : (
           <>
-            <JointResultPanel bundle={bundle} />
-            {recommendation && (
-              <article className="card stack">
-                <h3 className="card-title">Nächster Schritt</h3>
-                <p className="helper">{recommendation.actionCategorySummaryText}</p>
-                {!setupOpen && (
-                  <button type="button" className="button primary" onClick={() => setSetupOpen(true)}>Nächsten Schritt starten</button>
-                )}
-                {setupOpen && (
-                  <CategorySelectionView
-                    recommendation={recommendation}
-                    selectedCategories={selectedCategories}
-                    onChange={setSelectedCategories}
-                    onConfirm={startBoards}
-                  />
-                )}
-              </article>
-            )}
+            <article className="card stack">
+              <h3 className="card-title">Arbeitsbereiche</h3>
+              <div className="board-tabs">
+                <button type="button" className={`button ${dashboardArea === 'my_packages' ? 'primary' : ''}`} onClick={() => setDashboardArea('my_packages')}>Meine Aufgabenpakete</button>
+                <button type="button" className={`button ${dashboardArea === 'shared_board' ? 'primary' : ''}`} onClick={() => setDashboardArea('shared_board')}>Shared Responsibility Board</button>
+                <button type="button" className={`button ${dashboardArea === 'weekly_review' ? 'primary' : ''}`} onClick={() => setDashboardArea('weekly_review')}>Weekly Review</button>
+                <button type="button" className={`button ${dashboardArea === 'history' ? 'primary' : ''}`} onClick={() => setDashboardArea('history')}>Bisherige Testergebnisse</button>
+              </div>
+            </article>
 
-            {boards.length > 0 && boardCategory && (
-              <SharedResponsibilityBoard
-                boards={boards}
-                cards={cards}
-                currentCategory={boardCategory}
-                onCategoryChange={setBoardCategory}
-                onMove={async (cardId, ownerColumn) => {
-                  if (!currentUserId) return;
-                  await moveBoardCard(currentUserId, cardId, ownerColumn);
-                }}
-                onToggleCatalog={async (boardId, collapsed) => {
-                  if (!currentUserId) return;
-                  await setCatalogCollapsed(currentUserId, boardId, collapsed);
-                }}
-                onEdit={(card) => {
-                  setEditCard(card);
-                  setDraftTitle(card.customTitle ?? '');
-                  setDraftNotes(card.notes ?? '');
-                }}
+            {dashboardArea === 'my_packages' && (
+              <MyPackagesPanel
+                cards={allBoardCards}
+                role={bundle.profile?.role}
                 personOneName={boardPersonOneName}
                 personTwoName={boardPersonTwoName}
               />
             )}
+
+            {dashboardArea === 'shared_board' && (
+              <>
+                {recommendation && (
+                  <article className="card stack">
+                    <h3 className="card-title">Nächster Schritt</h3>
+                    <p className="helper">{recommendation.actionCategorySummaryText}</p>
+                    {!setupOpen && (
+                      <button type="button" className="button primary" onClick={() => setSetupOpen(true)}>Nächsten Schritt starten</button>
+                    )}
+                    {setupOpen && (
+                      <CategorySelectionView
+                        recommendation={recommendation}
+                        selectedCategories={selectedCategories}
+                        onChange={setSelectedCategories}
+                        onConfirm={startBoards}
+                      />
+                    )}
+                  </article>
+                )}
+
+                {boards.length > 0 && boardCategory && (
+                  <SharedResponsibilityBoard
+                    boards={boards}
+                    cards={cards}
+                    currentCategory={boardCategory}
+                    onCategoryChange={setBoardCategory}
+                    onMove={async (cardId, ownerColumn) => {
+                      if (!currentUserId) return;
+                      await moveBoardCard(currentUserId, cardId, ownerColumn);
+                    }}
+                    onToggleCatalog={async (boardId, collapsed) => {
+                      if (!currentUserId) return;
+                      await setCatalogCollapsed(currentUserId, boardId, collapsed);
+                    }}
+                    onEdit={(card) => {
+                      setEditCard(card);
+                      setDraftTitle(card.customTitle ?? '');
+                      setDraftNotes(card.notes ?? '');
+                    }}
+                    personOneName={boardPersonOneName}
+                    personTwoName={boardPersonTwoName}
+                  />
+                )}
+              </>
+            )}
+
+            {dashboardArea === 'weekly_review' && (
+              <article className="card stack">
+                <h3 className="card-title">Weekly Review</h3>
+                <p className="helper">Hier überprüft ihr wöchentlich kurz, ob eure Aufgabenpakete noch passen und ob ihr etwas neu verteilen wollt.</p>
+              </article>
+            )}
+
+            {dashboardArea === 'history' && <JointResultPanel bundle={bundle} />}
           </>
         )}
       </div>
@@ -489,10 +529,6 @@ function SharedResponsibilityBoard({
   const board = boards.find((item) => item.categoryKey === currentCategory);
   if (!board) return null;
 
-  const catalog = cards.filter((item) => item.ownerColumn === 'catalog');
-  const first = cards.filter((item) => item.ownerColumn === 'user1');
-  const second = cards.filter((item) => item.ownerColumn === 'user2');
-
   return (
     <article className="card stack">
       <h3 className="card-title">Shared Responsibility Boards</h3>
@@ -507,31 +543,25 @@ function SharedResponsibilityBoard({
       </div>
       <div className="board-columns-head">
         <strong>Aufgabenpakete</strong>
-        <strong>{personOneName}</strong>
-        <strong>{personTwoName}</strong>
       </div>
 
       <div className="board-columns">
         <BoardColumn
           title="Aufgabenkatalog"
-          columnKey="catalog"
           ownerLabels={{ user1: personOneName, user2: personTwoName }}
-          cards={catalog}
+          cards={cards}
           collapsed={board.catalogCollapsed}
           onCollapse={() => onToggleCatalog(board.id, !board.catalogCollapsed)}
           onMove={onMove}
           onEdit={onEdit}
         />
-        <BoardColumn title={personOneName} columnKey="user1" ownerLabels={{ user1: personOneName, user2: personTwoName }} cards={first} onMove={onMove} onEdit={onEdit} />
-        <BoardColumn title={personTwoName} columnKey="user2" ownerLabels={{ user1: personOneName, user2: personTwoName }} cards={second} onMove={onMove} onEdit={onEdit} />
       </div>
     </article>
   );
 }
 
-function BoardColumn({ title, columnKey, ownerLabels, cards, onMove, onEdit, collapsed = false, onCollapse }: {
+function BoardColumn({ title, ownerLabels, cards, onMove, onEdit, collapsed = false, onCollapse }: {
   title: string;
-  columnKey: BoardCardDocument['ownerColumn'];
   ownerLabels: { user1: string; user2: string };
   cards: BoardCardDocument[];
   onMove: (cardId: string, ownerColumn: BoardCardDocument['ownerColumn']) => Promise<void>;
@@ -540,11 +570,7 @@ function BoardColumn({ title, columnKey, ownerLabels, cards, onMove, onEdit, col
   onCollapse?: () => void;
 }) {
   return (
-    <section className="board-column" onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
-      const cardId = event.dataTransfer.getData('text/plain');
-      if (!cardId) return;
-      onMove(cardId, columnKey);
-    }}>
+    <section className="board-column" onDragOver={(event) => event.preventDefault()}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <strong>{title}</strong>
         {onCollapse && (
@@ -562,17 +588,53 @@ function BoardColumn({ title, columnKey, ownerLabels, cards, onMove, onEdit, col
         >
           <strong>{card.customTitle?.trim() || card.baseTitle}</strong>
           {card.notes && <p className="helper">{card.notes}</p>}
+          <p className="helper" style={{ margin: 0 }}>
+            {card.ownerColumn === 'user1' ? `Zugeteilt: ${ownerLabels.user1}` : card.ownerColumn === 'user2' ? `Zugeteilt: ${ownerLabels.user2}` : 'Noch nicht zugeteilt'}
+          </p>
           <div className="board-card-actions">
             <button type="button" className="button board-edit-button" onClick={() => onEdit(card)}>Bearbeiten</button>
             <div className="board-move-row">
-              <button type="button" className="button board-move-button" onClick={() => onMove(card.id, 'catalog')}>Aufgabenpakete</button>
-              <button type="button" className="button board-move-button" onClick={() => onMove(card.id, 'user1')}>{ownerLabels.user1}</button>
-              <button type="button" className="button board-move-button" onClick={() => onMove(card.id, 'user2')}>{ownerLabels.user2}</button>
+              <button type="button" className={`button board-move-button ${card.ownerColumn === 'user1' ? 'active' : ''}`} onClick={() => onMove(card.id, 'user1')}>{ownerLabels.user1}</button>
+              <button type="button" className={`button board-move-button ${card.ownerColumn === 'user2' ? 'active' : ''}`} onClick={() => onMove(card.id, 'user2')}>{ownerLabels.user2}</button>
             </div>
           </div>
         </article>
       ))}
     </section>
+  );
+}
+
+function MyPackagesPanel({ cards, role, personOneName, personTwoName }: {
+  cards: BoardCardDocument[];
+  role?: string;
+  personOneName: string;
+  personTwoName: string;
+}) {
+  const ownColumn = role === 'partner' ? 'user2' : 'user1';
+  const ownName = ownColumn === 'user1' ? personOneName : personTwoName;
+  const ownCards = cards.filter((card) => card.ownerColumn === ownColumn);
+
+  const grouped = ownCards.reduce((acc, card) => {
+    const existing = acc[card.categoryKey] ?? [];
+    acc[card.categoryKey] = [...existing, card];
+    return acc;
+  }, {} as Partial<Record<QuizCategory, BoardCardDocument[]>>);
+
+  return (
+    <article className="card stack">
+      <h3 className="card-title">Meine Aufgabenpakete ({ownName})</h3>
+      {!ownCards.length && <p className="helper">Dir ist aktuell noch kein Aufgabenpaket zugeordnet.</p>}
+      {Object.entries(grouped).map(([category, categoryCards]) => (
+        <div key={category} className="report-block stack">
+          <strong>{categoryLabelMap[category as QuizCategory]}</strong>
+          <ul style={{ margin: 0, paddingLeft: '1rem' }}>
+            {(categoryCards ?? []).map((card) => (
+              <li key={card.id}>{card.customTitle?.trim() || card.baseTitle}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </article>
   );
 }
 

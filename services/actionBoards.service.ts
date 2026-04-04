@@ -151,6 +151,24 @@ export function observeBoardCards(familyId: string, categoryKey: QuizCategory, c
   );
 }
 
+export function observeAllBoardCards(familyId: string, callback: (cards: BoardCardDocument[]) => void) {
+  return onSnapshot(
+    query(
+      collection(db, firestoreCollections.actionBoardCards),
+      where('pairId', '==', familyId),
+    ),
+    (snapshot) => {
+      const cards = snapshot.docs
+        .map((entry) => entry.data() as BoardCardDocument)
+        .sort((a, b) => {
+          if (a.categoryKey !== b.categoryKey) return String(a.categoryKey).localeCompare(String(b.categoryKey));
+          return a.sortOrder - b.sortOrder;
+        });
+      callback(cards);
+    },
+  );
+}
+
 export async function updateBoardCard(userId: string, cardId: string, payload: Partial<Pick<BoardCardDocument, 'customTitle' | 'notes'>>) {
   const cardRef = doc(db, firestoreCollections.actionBoardCards, cardId);
   const cardSnapshot = await getDoc(cardRef);

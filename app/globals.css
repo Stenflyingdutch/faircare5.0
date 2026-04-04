@@ -667,7 +667,9 @@ textarea.input {
 }
 
 .board-columns-head {
-  display: none;
+  display: grid;
+  grid-template-columns: 1fr;
+  color: var(--color-text-secondary);
 }
 
 .board-column {
@@ -706,6 +708,12 @@ textarea.input {
   font-size: 0.82rem;
   border: 1px solid var(--color-line);
   background: #fff;
+}
+
+.board-move-button.active {
+  background: rgba(108, 76, 241, 0.12);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .board-drawer-backdrop {
@@ -780,14 +788,7 @@ textarea.input {
 }
 
 @media (min-width: 860px) {
-  .board-columns-head {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.9rem;
-    color: var(--color-text-secondary);
-  }
-
   .board-columns {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 }
