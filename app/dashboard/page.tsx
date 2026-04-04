@@ -253,6 +253,8 @@ export default function DashboardPage() {
     : bundle?.partnerDisplayName;
   const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
   const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
+  const boardPersonOneName = resolveDisplayName(bundle?.initiatorDisplayName, deriveNameFromEmail(bundle?.profile?.email) ?? 'Person 1');
+  const boardPersonTwoName = resolveDisplayName(bundle?.partnerDisplayName, invitationPartnerName ?? 'Person 2');
 
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
 
@@ -344,18 +346,7 @@ export default function DashboardPage() {
           {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
         </article>
 
-        {!bundle?.family?.resultsUnlocked || !bundle?.family?.sharedResultsOpened ? (
-          <article className="card stack">
-            <h2 className="card-title">Status</h2>
-            <p className="helper">
-              {bundle?.family?.resultsUnlocked
-                ? 'Die gemeinsamen Ergebnisse wurden freigegeben. Öffnet jetzt gemeinsam die Ansicht.'
-                : bundle?.profile?.role === 'partner'
-                  ? 'Die gemeinsamen Ergebnisse werden sichtbar, sobald der Initiator sie freigegeben hat.'
-                  : 'Vor der Freischaltung siehst du nur dein eigenes Ergebnis.'}
-            </p>
-          </article>
-        ) : (
+        {!bundle?.family?.resultsUnlocked || !bundle?.family?.sharedResultsOpened ? null : (
           <>
             <JointResultPanel bundle={bundle} />
             {recommendation && (
@@ -395,8 +386,8 @@ export default function DashboardPage() {
                   setDraftTitle(card.customTitle ?? '');
                   setDraftNotes(card.notes ?? '');
                 }}
-                personOneName={resolveDisplayName(bundle.initiatorDisplayName, 'Person 1')}
-                personTwoName={resolveDisplayName(bundle.partnerDisplayName, 'Person 2')}
+                personOneName={boardPersonOneName}
+                personTwoName={boardPersonTwoName}
               />
             )}
           </>
@@ -446,8 +437,8 @@ function CategorySelectionView({ recommendation, selectedCategories, onChange, o
         {recommendation.suggestedActionCategories.map((category) => {
           const reasonCode = recommendation.actionCategoryReasons[category]?.[0];
           return (
-            <label key={category} className="board-choice-card recommended">
-              <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} />
+            <label key={category} className={`board-choice-card recommended ${selectedCategories.includes(category) ? 'selected' : ''}`}>
+              <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} hidden />
               <div>
                 <strong>{categoryLabelMap[category]}</strong>
                 <p className="helper">{reasonCode ? mapReasonCodeToUiText(reasonCode) : 'Hier wirken klarere Zuständigkeiten entlastend.'}</p>
@@ -461,8 +452,8 @@ function CategorySelectionView({ recommendation, selectedCategories, onChange, o
         <div className="stack">
           <p className="helper" style={{ margin: 0 }}><strong>Weitere optionale Bereiche</strong></p>
           {recommendation.optionalActionCategories.map((category) => (
-            <label key={category} className="board-choice-card">
-              <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} />
+            <label key={category} className={`board-choice-card ${selectedCategories.includes(category) ? 'selected' : ''}`}>
+              <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} hidden />
               <strong>{categoryLabelMap[category]}</strong>
             </label>
           ))}
@@ -513,6 +504,11 @@ function SharedResponsibilityBoard({
             {entry.categoryLabel}
           </button>
         ))}
+      </div>
+      <div className="board-columns-head">
+        <strong>Aufgabenpakete</strong>
+        <strong>{personOneName}</strong>
+        <strong>{personTwoName}</strong>
       </div>
 
       <div className="board-columns">
@@ -567,16 +563,12 @@ function BoardColumn({ title, columnKey, ownerLabels, cards, onMove, onEdit, col
           <strong>{card.customTitle?.trim() || card.baseTitle}</strong>
           {card.notes && <p className="helper">{card.notes}</p>}
           <div className="board-card-actions">
-            <button type="button" className="button" onClick={() => onEdit(card)}>Bearbeiten</button>
-            <select
-              className="input"
-              value={card.ownerColumn}
-              onChange={(event) => onMove(card.id, event.target.value as BoardCardDocument['ownerColumn'])}
-            >
-              <option value="catalog">Aufgabenkatalog</option>
-              <option value="user1">{ownerLabels.user1}</option>
-              <option value="user2">{ownerLabels.user2}</option>
-            </select>
+            <button type="button" className="button board-edit-button" onClick={() => onEdit(card)}>Bearbeiten</button>
+            <div className="board-move-row">
+              <button type="button" className="button board-move-button" onClick={() => onMove(card.id, 'catalog')}>Aufgabenpakete</button>
+              <button type="button" className="button board-move-button" onClick={() => onMove(card.id, 'user1')}>{ownerLabels.user1}</button>
+              <button type="button" className="button board-move-button" onClick={() => onMove(card.id, 'user2')}>{ownerLabels.user2}</button>
+            </div>
           </div>
         </article>
       ))}
