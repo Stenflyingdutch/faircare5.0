@@ -3,33 +3,19 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { categoryLabelMap } from '@/services/resultCalculator';
-import { buildCategoryComparisons } from '@/services/resultInsights';
-import {
-  fetchActionBurdenCategoriesByFamily,
-  initializeActionBoards,
-  moveBoardCard,
-  observeAllBoardCards,
-  observeActionBoards,
-  setCatalogCollapsed,
-  updateBoardCard,
-} from '@/services/actionBoards.service';
-import { mapReasonCodeToUiText, recommendActionCategories } from '@/services/actionCategories';
+import { fetchActionBurdenCategoriesByFamily } from '@/services/actionBoards.service';
+import { recommendActionCategories } from '@/services/actionCategories';
 import { observeAuthState, signOutUser } from '@/services/auth.service';
 import {
   ensureUserProfile,
-  fetchAppUserProfile,
   fetchDashboardBundle,
   openSharedResultsView,
   sendPartnerInvitation,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
-import type { ActionBoardDocument, BoardCardDocument } from '@/types/partner-flow';
+import { categoryLabelMap } from '@/services/resultCalculator';
+import { buildCategoryComparisons } from '@/services/resultInsights';
 import type { QuizCategory } from '@/types/quiz';
-
-function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
-  return [...categories].sort(([, valueA], [, valueB]) => valueA - valueB);
-}
 
 function resolveDisplayName(value?: string | null, fallback = 'Nutzer') {
   return value?.trim() || fallback;
@@ -41,40 +27,20 @@ function deriveNameFromEmail(email?: string | null) {
   return local || null;
 }
 
-function buildNeutralDistributionStatement(selfPercent: number) {
-  if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
-  if (selfPercent < 45) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei deinem Partner.';
-  return 'Aus deiner Sicht ist die Mental Load aktuell eher gleich verteilt.';
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [invitePersonalMessage, setInvitePersonalMessage] = useState(
-    'Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.',
-  );
+  const [invitePersonalMessage, setInvitePersonalMessage] = useState('Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.');
   const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
   const [inviteMessage, setInviteMessage] = useState('');
-
   const [unlockState, setUnlockState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [unlockMessage, setUnlockMessage] = useState('');
   const [openSharedState, setOpenSharedState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [openSharedMessage, setOpenSharedMessage] = useState('');
-
-  const [setupOpen, setSetupOpen] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState<QuizCategory[]>([]);
-  const [boardCategory, setBoardCategory] = useState<QuizCategory | null>(null);
-  const [boards, setBoards] = useState<ActionBoardDocument[]>([]);
-  const [cards, setCards] = useState<BoardCardDocument[]>([]);
-  const [allBoardCards, setAllBoardCards] = useState<BoardCardDocument[]>([]);
   const [burdenInput, setBurdenInput] = useState<{ initiator: QuizCategory[]; partner: QuizCategory[] }>({ initiator: [], partner: [] });
-  const [editCard, setEditCard] = useState<BoardCardDocument | null>(null);
-  const [draftTitle, setDraftTitle] = useState('');
-  const [draftNotes, setDraftNotes] = useState('');
-  const [dashboardArea, setDashboardArea] = useState<'my_packages' | 'shared_board' | 'weekly_review' | 'history'>('shared_board');
 
   async function refreshDashboard(userId: string) {
     const fresh = await fetchDashboardBundle(userId);
@@ -101,31 +67,8 @@ export default function DashboardPage() {
     fetchActionBurdenCategoriesByFamily(bundle.family.id).then(setBurdenInput).catch(() => setBurdenInput({ initiator: [], partner: [] }));
   }, [bundle?.family?.id, bundle?.family?.resultsUnlocked, bundle?.family?.sharedResultsOpened]);
 
-  useEffect(() => {
-    if (!bundle?.family?.id || !bundle.family.resultsUnlocked || !bundle.family.sharedResultsOpened) return;
-    return observeActionBoards(bundle.family.id, (nextBoards) => {
-      setBoards(nextBoards);
-      if (!boardCategory && nextBoards.length) {
-        setBoardCategory(nextBoards[0].categoryKey);
-      }
-    });
-  }, [bundle?.family?.id, bundle?.family?.resultsUnlocked, bundle?.family?.sharedResultsOpened, boardCategory]);
-
-  useEffect(() => {
-    if (!bundle?.family?.id) return;
-    return observeAllBoardCards(bundle.family.id, (allCards) => {
-      setAllBoardCards(allCards);
-      if (!boardCategory) {
-        setCards(allCards);
-        return;
-      }
-      setCards(allCards.filter((item) => item.categoryKey === boardCategory));
-    });
-  }, [bundle?.family?.id, boardCategory]);
-
   const recommendation = useMemo(() => {
     if (!bundle?.initiatorResult?.categoryScores || !bundle?.partnerResult?.categoryScores) return null;
-
     return recommendActionCategories({
       initiatorScores: bundle.initiatorResult.categoryScores,
       partnerScores: bundle.partnerResult.categoryScores,
@@ -134,69 +77,38 @@ export default function DashboardPage() {
       initiatorClarity: bundle.initiatorResult.filterPerceptionAnswer,
       partnerClarity: bundle.partnerResult.filterPerceptionAnswer,
     });
-  }, [bundle?.initiatorResult?.categoryScores, bundle?.partnerResult?.categoryScores, bundle?.initiatorResult?.filterPerceptionAnswer, bundle?.partnerResult?.filterPerceptionAnswer, burdenInput]);
-
-  useEffect(() => {
-    if (!recommendation) return;
-    setSelectedCategories((current) => (current.length ? current : recommendation.suggestedActionCategories));
-  }, [recommendation]);
+  }, [bundle?.initiatorResult?.categoryScores, bundle?.partnerResult?.categoryScores, burdenInput, bundle?.initiatorResult?.filterPerceptionAnswer, bundle?.partnerResult?.filterPerceptionAnswer]);
 
   async function onInviteSubmit(event: FormEvent) {
     event.preventDefault();
     const email = inviteEmail.trim();
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email) {
-      setInviteState('error');
-      setInviteMessage('Bitte gib eine E-Mail-Adresse ein.');
-      return;
-    }
-    if (!emailPattern.test(email)) {
+    if (!email || !emailPattern.test(email)) {
       setInviteState('error');
       setInviteMessage('Bitte gib eine gültige E-Mail-Adresse ein.');
       return;
     }
 
     setInviteState('loading');
-    setInviteMessage('');
     try {
       const result = await sendPartnerInvitation(email, invitePersonalMessage);
-      if (result.delivery === 'saved_without_email') {
-        setInviteState('warning');
-        setInviteMessage('Einladung gespeichert. Es wurde keine echte E-Mail verschickt, weil der Mail-Provider auf noop steht.');
-      } else {
-        setInviteState('success');
-        setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
-      }
-      if (currentUserId) {
-        const profile = await fetchAppUserProfile(currentUserId);
-        if (profile?.id) {
-          await refreshDashboard(profile.id);
-        }
-      }
+      setInviteState(result.delivery === 'saved_without_email' ? 'warning' : 'success');
+      setInviteMessage(result.delivery === 'saved_without_email' ? 'Einladung gespeichert (kein Mailversand im noop Modus).' : `Einladung an ${result.partnerEmail} versendet.`);
+      if (currentUserId) await refreshDashboard(currentUserId);
     } catch (error) {
-      const errorObject = error as { code?: string; message?: string };
-      console.error('sendPartnerInvite failed', error);
-      console.error('code', errorObject?.code);
-      console.error('message', errorObject?.message);
       setInviteState('error');
-      setInviteMessage(errorObject?.message || 'Einladung konnte nicht gesendet werden.');
+      setInviteMessage(error instanceof Error ? error.message : 'Einladung konnte nicht gesendet werden.');
     }
   }
 
   async function unlockSharedResults() {
-    const userId = currentUserId;
-    if (!userId) return;
+    if (!currentUserId) return;
     setUnlockState('loading');
-    setUnlockMessage('');
     try {
-      const result = await unlockPartnerAndJointResults(userId);
+      const result = await unlockPartnerAndJointResults(currentUserId);
       setUnlockState('success');
-      setUnlockMessage(
-        result.alreadyActive
-          ? 'Eure gemeinsamen Ergebnisse sind bereits freigeschaltet.'
-          : 'Eure gemeinsamen Ergebnisse sind jetzt verfügbar.',
-      );
-      await refreshDashboard(userId);
+      setUnlockMessage(result.alreadyActive ? 'Bereits freigeschaltet.' : 'Gemeinsame Ergebnisse freigeschaltet.');
+      await refreshDashboard(currentUserId);
     } catch (error) {
       setUnlockState('error');
       setUnlockMessage(error instanceof Error ? error.message : 'Freischaltung fehlgeschlagen.');
@@ -204,568 +116,87 @@ export default function DashboardPage() {
   }
 
   async function openSharedViewForBoth() {
-    const userId = currentUserId;
-    if (!userId) return;
+    if (!currentUserId) return;
     setOpenSharedState('loading');
-    setOpenSharedMessage('');
     try {
-      await openSharedResultsView(userId);
+      await openSharedResultsView(currentUserId);
+      await refreshDashboard(currentUserId);
       setOpenSharedState('idle');
-      await refreshDashboard(userId);
     } catch (error) {
       setOpenSharedState('error');
-      setOpenSharedMessage(error instanceof Error ? error.message : 'Gemeinsame Ansicht konnte nicht geöffnet werden.');
+      setOpenSharedMessage(error instanceof Error ? error.message : 'Öffnen fehlgeschlagen.');
     }
   }
 
-  async function startBoards() {
-    if (!currentUserId || !bundle?.family?.id || !recommendation) return;
-    const selected = selectedCategories.length ? selectedCategories : recommendation.suggestedActionCategories;
-    const result = await initializeActionBoards({
-      userId: currentUserId,
-      familyId: bundle.family.id,
-      selectedCategories: selected,
-      suggestedCategories: recommendation.suggestedActionCategories,
-      actionCategoryReasons: recommendation.actionCategoryReasons,
-      actionCategoryPriority: recommendation.actionCategoryPriority,
-    });
-    setBoardCategory(result.firstCategory);
-    setSetupOpen(false);
-  }
-
-  async function saveCardEdit() {
-    if (!currentUserId || !editCard) return;
-    await updateBoardCard(currentUserId, editCard.id, {
-      customTitle: draftTitle.trim() || null,
-      notes: draftNotes.trim() || null,
-    });
-    setEditCard(null);
-  }
-
-  async function logout() {
-    await signOutUser();
-    router.push('/login');
-  }
-
-  const ownResultText = useMemo(() => {
-    if (!bundle?.ownResult) return null;
-    return {
-      selfPercent: bundle.ownResult.totalScore,
-      statement: buildNeutralDistributionStatement(bundle.ownResult.totalScore),
-      categories: sortCategoriesByOwnShareAscending(
-        Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
-      ),
-    };
-  }, [bundle?.ownResult]);
-  const resolvedPartnerName = bundle?.profile?.role === 'partner'
-    ? bundle?.initiatorDisplayName
-    : bundle?.partnerDisplayName;
-  const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
-  const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
-  const boardPersonOneName = resolveDisplayName(bundle?.initiatorDisplayName, deriveNameFromEmail(bundle?.profile?.email) ?? 'Person 1');
-  const boardPersonTwoName = resolveDisplayName(bundle?.partnerDisplayName, invitationPartnerName ?? 'Person 2');
-
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
+
+  const partnerLabel = resolveDisplayName(bundle?.partnerDisplayName, deriveNameFromEmail(bundle?.invitationPartnerEmail) ?? 'Partner');
 
   return (
     <section className="section">
       <div className="container stack">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 className="test-title">Dashboard</h1>
-          <button type="button" className="button" onClick={logout}>Logout</button>
+          <button type="button" className="button" onClick={async () => { await signOutUser(); router.push('/login'); }}>Logout</button>
         </div>
 
         <article className="card stack">
-          {!ownResultText
-            ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
-            : (
-              <ResultBreakdown
-                title={resolveDisplayName(bundle?.profile?.displayName, 'Du')}
-                partnerName={partnerLabel}
-                result={ownResultText}
-              />
-            )}
-        </article>
-
-        <article className="card stack">
+          <h2 className="card-title">Status</h2>
           {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
-            <>
-              <h2 className="card-title">Status</h2>
-              <p className="card-description">Dein Ergebnis ist bereits da. Lade jetzt deinen Partner ein, damit ihr später auch euer gemeinsames Ergebnis sehen könnt.</p>
-              <div className="report-block stack">
-                <p className="helper">Partner-Ergebnis wird nach Freischaltung hier ergänzt.</p>
-                {(ownResultText?.categories ?? []).map(([category]) => (
-                  <div key={`ghost-${category}`} className="report-block" style={{ opacity: 0.5 }}>
-                    <strong>{categoryLabelMap[category]}</strong>
-                    <div className="result-bar" />
-                  </div>
-                ))}
-              </div>
-              <form className="stack" onSubmit={onInviteSubmit}>
-                <input type="email" className="input" required placeholder="E-Mail deines Partners" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} disabled={inviteState === 'loading'} />
-                <textarea className="input" rows={5} value={invitePersonalMessage} onChange={(event) => setInvitePersonalMessage(event.target.value)} aria-label="Persönliche Nachricht" placeholder="Persönliche Nachricht" />
-                <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
-                  {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung senden'}
-                </button>
-              </form>
-            </>
+            <form className="stack" onSubmit={onInviteSubmit}>
+              <p className="helper">Dein Ergebnis ist da. Lade jetzt deinen Partner ein.</p>
+              <input type="email" className="input" required placeholder="E-Mail deines Partners" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} disabled={inviteState === 'loading'} />
+              <textarea className="input" rows={4} value={invitePersonalMessage} onChange={(event) => setInvitePersonalMessage(event.target.value)} />
+              <button type="submit" className="button primary">Einladung senden</button>
+              {inviteState !== 'idle' && <p className={inviteState === 'error' ? 'inline-error' : 'helper'}>{inviteMessage}</p>}
+            </form>
           ) : bundle?.family?.resultsUnlocked ? (
             <>
-              <h2 className="card-title">Status</h2>
-              <p className="card-description">
-                {bundle?.family?.sharedResultsOpened
-                  ? 'Eure gemeinsamen Ergebnisse werden unten angezeigt.'
-                  : 'Eure gemeinsamen Ergebnisse sind bereit.'}
-              </p>
-              {!bundle?.family?.sharedResultsOpened && (
-                <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
-                  Gemeinsame Ergebnisse anschauen
-                </button>
-              )}
+              <p className="helper">{bundle.family.sharedResultsOpened ? 'Gemeinsame Ergebnisse sind geöffnet.' : 'Gemeinsame Ergebnisse sind bereit.'}</p>
+              {!bundle.family.sharedResultsOpened && <button className="button primary" type="button" onClick={openSharedViewForBoth}>Gemeinsame Ergebnisse anschauen</button>}
               {openSharedState === 'error' && <p className="inline-error">{openSharedMessage}</p>}
             </>
           ) : bundle?.profile?.role === 'partner' ? (
-            <>
-              <h2 className="card-title">Status</h2>
-              <p className="card-description">
-                {bundle?.family?.partnerRegistered
-                  ? `${bundle?.initiatorDisplayName ?? 'Der Initiator'} hat eine E-Mail erhalten und kann jetzt euer gemeinsames Ergebnis freischalten.`
-                  : 'Warte auf Abschluss der Registrierung.'}
-              </p>
-            </>
+            <p className="helper">Warte auf Freischaltung durch den Initiator.</p>
           ) : (
             <>
-              <h2 className="card-title">Status</h2>
-              <p className="card-description">
-                {bundle?.family?.partnerRegistered
-                  ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die Ergebnisse jetzt freigeben.'
-                  : 'Warte auf die Bewertung deines Partners.'}
-              </p>
-              {bundle?.family?.partnerRegistered && (
-                <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
-                  {unlockState === 'loading' ? 'Freischaltung läuft …' : 'Partner- und Gesamtergebnis freischalten'}
-                </button>
-              )}
-              {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
-              {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
+              <p className="helper">Partner fertig? Dann jetzt freischalten.</p>
+              <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>{unlockState === 'loading' ? 'Freischaltung läuft …' : 'Partner- und Gesamtergebnis freischalten'}</button>
+              {unlockState !== 'idle' && <p className={unlockState === 'error' ? 'inline-error' : 'helper'}>{unlockMessage}</p>}
             </>
           )}
-          {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
-          {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
-          {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
         </article>
 
-        {!bundle?.family?.resultsUnlocked || !bundle?.family?.sharedResultsOpened ? null : (
+        {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && (
           <>
-            <article className="card stack">
-              <h3 className="card-title">Arbeitsbereiche</h3>
-              <div className="board-tabs">
-                <button type="button" className={`button ${dashboardArea === 'my_packages' ? 'primary' : ''}`} onClick={() => setDashboardArea('my_packages')}>Meine Aufgabenpakete</button>
-                <button type="button" className={`button ${dashboardArea === 'shared_board' ? 'primary' : ''}`} onClick={() => setDashboardArea('shared_board')}>Shared Responsibility Board</button>
-                <button type="button" className={`button ${dashboardArea === 'weekly_review' ? 'primary' : ''}`} onClick={() => setDashboardArea('weekly_review')}>Weekly Review</button>
-                <button type="button" className={`button ${dashboardArea === 'history' ? 'primary' : ''}`} onClick={() => setDashboardArea('history')}>Bisherige Testergebnisse</button>
-              </div>
-            </article>
-
-            {dashboardArea === 'my_packages' && (
-              <MyPackagesPanel
-                cards={allBoardCards}
-                role={bundle.profile?.role}
-                personOneName={boardPersonOneName}
-                personTwoName={boardPersonTwoName}
-              />
-            )}
-
-            {dashboardArea === 'shared_board' && (
-              <>
-                {recommendation && (
-                  <article className="card stack">
-                    <h3 className="card-title">Nächster Schritt</h3>
-                    <p className="helper">{recommendation.actionCategorySummaryText}</p>
-                    {!setupOpen && (
-                      <button type="button" className="button primary" onClick={() => setSetupOpen(true)}>Nächsten Schritt starten</button>
-                    )}
-                    {setupOpen && (
-                      <CategorySelectionView
-                        recommendation={recommendation}
-                        selectedCategories={selectedCategories}
-                        onChange={setSelectedCategories}
-                        onConfirm={startBoards}
-                      />
-                    )}
-                  </article>
-                )}
-
-                {boards.length > 0 && boardCategory && (
-                  <SharedResponsibilityBoard
-                    boards={boards}
-                    cards={cards}
-                    currentCategory={boardCategory}
-                    onCategoryChange={setBoardCategory}
-                    onMove={async (cardId, ownerColumn) => {
-                      if (!currentUserId) return;
-                      await moveBoardCard(currentUserId, cardId, ownerColumn);
-                    }}
-                    onToggleCatalog={async (boardId, collapsed) => {
-                      if (!currentUserId) return;
-                      await setCatalogCollapsed(currentUserId, boardId, collapsed);
-                    }}
-                    onEdit={(card) => {
-                      setEditCard(card);
-                      setDraftTitle(card.customTitle ?? '');
-                      setDraftNotes(card.notes ?? '');
-                    }}
-                    personOneName={boardPersonOneName}
-                    personTwoName={boardPersonTwoName}
-                  />
-                )}
-              </>
-            )}
-
-            {dashboardArea === 'weekly_review' && (
+            <JointResultPanel bundle={bundle} partnerLabel={partnerLabel} />
+            {recommendation && (
               <article className="card stack">
-                <h3 className="card-title">Weekly Review</h3>
-                <p className="helper">Hier überprüft ihr wöchentlich kurz, ob eure Aufgabenpakete noch passen und ob ihr etwas neu verteilen wollt.</p>
+                <h3 className="card-title">Nächster Schritt</h3>
+                <p className="helper">{recommendation.actionCategorySummaryText}</p>
+                <button type="button" className="button primary" onClick={() => router.push('/workspace/ownership-board?setup=1')}>Nächsten Schritt starten</button>
               </article>
             )}
-
-            {dashboardArea === 'history' && <JointResultPanel bundle={bundle} />}
           </>
         )}
       </div>
-
-      {editCard && (
-        <div className="board-drawer-backdrop" role="presentation" onClick={() => setEditCard(null)}>
-          <div className="board-drawer" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <h3 className="card-title">Karte bearbeiten</h3>
-            <p className="helper">{editCard.baseTitle}</p>
-            <input className="input" placeholder="Eigener Kartentitel" value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
-            <textarea className="input" rows={5} placeholder="Notizen" value={draftNotes} onChange={(event) => setDraftNotes(event.target.value)} />
-            <div className="stack" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <button type="button" className="button" onClick={() => setEditCard(null)}>Abbrechen</button>
-              <button type="button" className="button primary" onClick={saveCardEdit}>Speichern</button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
 
-function CategorySelectionView({ recommendation, selectedCategories, onChange, onConfirm }: {
-  recommendation: NonNullable<ReturnType<typeof recommendActionCategories>>;
-  selectedCategories: QuizCategory[];
-  onChange: (next: QuizCategory[]) => void;
-  onConfirm: () => void;
-}) {
-  function toggleCategory(category: QuizCategory) {
-    const exists = selectedCategories.includes(category);
-    if (exists) {
-      onChange(selectedCategories.filter((item) => item !== category));
-      return;
-    }
-    onChange([...selectedCategories, category]);
-  }
-
-  return (
-    <div className="stack board-selection-shell">
-      <h4 className="card-title">Wo lohnt es sich, mit klareren Aufgabenpaketen zu starten?</h4>
-      <p className="helper">Eure Ergebnisse deuten darauf hin, dass in manchen Bereichen klarere Zuständigkeiten helfen könnten. Ein Aufgabenpaket bedeutet immer beides: daran denken und es umsetzen. Fangt am besten klein an und startet mit 1 oder 2 Bereichen.</p>
-      <p className="helper">Ihr könnt weitere Bereiche zusätzlich auswählen, wenn ihr möchtet.</p>
-
-      <div className="stack">
-        {recommendation.suggestedActionCategories.map((category) => {
-          const reasonCode = recommendation.actionCategoryReasons[category]?.[0];
-          return (
-            <label key={category} className={`board-choice-card recommended ${selectedCategories.includes(category) ? 'selected' : ''}`}>
-              <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} hidden />
-              <div>
-                <strong>{categoryLabelMap[category]}</strong>
-                <p className="helper">{reasonCode ? mapReasonCodeToUiText(reasonCode) : 'Hier wirken klarere Zuständigkeiten entlastend.'}</p>
-              </div>
-            </label>
-          );
-        })}
-      </div>
-
-      {!!recommendation.optionalActionCategories.length && (
-        <div className="stack">
-          <p className="helper" style={{ margin: 0 }}><strong>Weitere optionale Bereiche</strong></p>
-          {recommendation.optionalActionCategories.map((category) => (
-            <label key={category} className={`board-choice-card ${selectedCategories.includes(category) ? 'selected' : ''}`}>
-              <input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} hidden />
-              <strong>{categoryLabelMap[category]}</strong>
-            </label>
-          ))}
-        </div>
-      )}
-
-      <button type="button" className="button primary" onClick={onConfirm} disabled={!selectedCategories.length}>Mit diesen Bereichen starten</button>
-    </div>
-  );
-}
-
-function SharedResponsibilityBoard({
-  boards,
-  cards,
-  currentCategory,
-  onCategoryChange,
-  onMove,
-  onToggleCatalog,
-  onEdit,
-  personOneName,
-  personTwoName,
-}: {
-  boards: ActionBoardDocument[];
-  cards: BoardCardDocument[];
-  currentCategory: QuizCategory;
-  onCategoryChange: (category: QuizCategory) => void;
-  onMove: (cardId: string, ownerColumn: BoardCardDocument['ownerColumn']) => Promise<void>;
-  onToggleCatalog: (boardId: string, collapsed: boolean) => Promise<void>;
-  onEdit: (card: BoardCardDocument) => void;
-  personOneName: string;
-  personTwoName: string;
-}) {
-  const board = boards.find((item) => item.categoryKey === currentCategory);
-  if (!board) return null;
-
-  return (
-    <article className="card stack">
-      <h3 className="card-title">Shared Responsibility Boards</h3>
-      <p className="helper">Ein Aufgabenpaket bedeutet immer beides: daran denken und es umsetzen. Ziel ist nicht, jede Kleinigkeit einzeln zu verteilen, sondern Verantwortungsbereiche klarer zu bündeln.</p>
-
-      <div className="board-tabs">
-        {boards.map((entry) => (
-          <button key={entry.id} type="button" className={`button ${entry.categoryKey === currentCategory ? 'primary' : ''}`} onClick={() => onCategoryChange(entry.categoryKey)}>
-            {entry.categoryLabel}
-          </button>
-        ))}
-      </div>
-      <div className="board-columns-head">
-        <strong>Aufgabenpakete</strong>
-      </div>
-
-      <div className="board-columns">
-        <BoardColumn
-          title="Aufgabenkatalog"
-          ownerLabels={{ user1: personOneName, user2: personTwoName }}
-          cards={cards}
-          collapsed={board.catalogCollapsed}
-          onCollapse={() => onToggleCatalog(board.id, !board.catalogCollapsed)}
-          onMove={onMove}
-          onEdit={onEdit}
-        />
-      </div>
-    </article>
-  );
-}
-
-function BoardColumn({ title, ownerLabels, cards, onMove, onEdit, collapsed = false, onCollapse }: {
-  title: string;
-  ownerLabels: { user1: string; user2: string };
-  cards: BoardCardDocument[];
-  onMove: (cardId: string, ownerColumn: BoardCardDocument['ownerColumn']) => Promise<void>;
-  onEdit: (card: BoardCardDocument) => void;
-  collapsed?: boolean;
-  onCollapse?: () => void;
-}) {
-  return (
-    <section className="board-column" onDragOver={(event) => event.preventDefault()}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <strong>{title}</strong>
-        {onCollapse && (
-          <button type="button" className="button" style={{ padding: '0.35rem 0.9rem', minHeight: 34 }} onClick={onCollapse}>
-            {collapsed ? 'Aufklappen' : 'Einklappen'}
-          </button>
-        )}
-      </div>
-      {!collapsed && cards.map((card) => (
-        <article
-          key={card.id}
-          className="report-block stack"
-          draggable
-          onDragStart={(event) => event.dataTransfer.setData('text/plain', card.id)}
-        >
-          <strong>{card.customTitle?.trim() || card.baseTitle}</strong>
-          {card.notes && <p className="helper">{card.notes}</p>}
-          <p className="helper" style={{ margin: 0 }}>
-            {card.ownerColumn === 'user1' ? `Zugeteilt: ${ownerLabels.user1}` : card.ownerColumn === 'user2' ? `Zugeteilt: ${ownerLabels.user2}` : 'Noch nicht zugeteilt'}
-          </p>
-          <div className="board-card-actions">
-            <button type="button" className="button board-edit-button" onClick={() => onEdit(card)}>Bearbeiten</button>
-            <div className="board-move-row">
-              <button type="button" className={`button board-move-button ${card.ownerColumn === 'user1' ? 'active' : ''}`} onClick={() => onMove(card.id, 'user1')}>{ownerLabels.user1}</button>
-              <button type="button" className={`button board-move-button ${card.ownerColumn === 'user2' ? 'active' : ''}`} onClick={() => onMove(card.id, 'user2')}>{ownerLabels.user2}</button>
-            </div>
-          </div>
-        </article>
-      ))}
-    </section>
-  );
-}
-
-function MyPackagesPanel({ cards, role, personOneName, personTwoName }: {
-  cards: BoardCardDocument[];
-  role?: string;
-  personOneName: string;
-  personTwoName: string;
-}) {
-  const ownColumn = role === 'partner' ? 'user2' : 'user1';
-  const ownName = ownColumn === 'user1' ? personOneName : personTwoName;
-  const ownCards = cards.filter((card) => card.ownerColumn === ownColumn);
-
-  const grouped = ownCards.reduce((acc, card) => {
-    const existing = acc[card.categoryKey] ?? [];
-    acc[card.categoryKey] = [...existing, card];
-    return acc;
-  }, {} as Partial<Record<QuizCategory, BoardCardDocument[]>>);
-
-  return (
-    <article className="card stack">
-      <h3 className="card-title">Meine Aufgabenpakete ({ownName})</h3>
-      {!ownCards.length && <p className="helper">Dir ist aktuell noch kein Aufgabenpaket zugeordnet.</p>}
-      {Object.entries(grouped).map(([category, categoryCards]) => (
-        <div key={category} className="report-block stack">
-          <strong>{categoryLabelMap[category as QuizCategory]}</strong>
-          <ul style={{ margin: 0, paddingLeft: '1rem' }}>
-            {(categoryCards ?? []).map((card) => (
-              <li key={card.id}>{card.customTitle?.trim() || card.baseTitle}</li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </article>
-  );
-}
-
-function JointResultPanel({ bundle }: {
-  bundle: Awaited<ReturnType<typeof fetchDashboardBundle>>;
-}) {
+function JointResultPanel({ bundle, partnerLabel }: { bundle: Awaited<ReturnType<typeof fetchDashboardBundle>>; partnerLabel: string }) {
   if (!bundle.initiatorResult || !bundle.partnerResult) return null;
-
-  const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, deriveNameFromEmail(bundle.profile?.email) ?? 'Unbekannt');
-  const partnerName = resolveDisplayName(bundle.partnerDisplayName, deriveNameFromEmail(bundle.invitationPartnerEmail) ?? 'Unbekannt');
-
-  const initiatorScores = bundle.initiatorResult.categoryScores;
-  const partnerScores = bundle.partnerResult.categoryScores;
-
-  const comparisons = buildCategoryComparisons(initiatorScores, partnerScores);
+  const comparisons = buildCategoryComparisons(bundle.initiatorResult.categoryScores, bundle.partnerResult.categoryScores);
 
   return (
     <article className="card stack">
       <h2 className="card-title">Gemeinsames Ergebnis</h2>
-      <div className="stack">
-        {comparisons.map((entry) => {
-          const initiatorSelf = initiatorScores[entry.category] ?? 0;
-          const partnerSeesInitiator = 100 - (partnerScores[entry.category] ?? 0);
-          const partnerSelf = partnerScores[entry.category] ?? 0;
-          const initiatorSeesPartner = 100 - (initiatorScores[entry.category] ?? 0);
-
-          const gapInitiator = Math.abs(initiatorSelf - partnerSeesInitiator);
-          const gapPartner = Math.abs(partnerSelf - initiatorSeesPartner);
-          const hasGap = gapInitiator >= 12 || gapPartner >= 12;
-
-          return (
-            <div className="report-block" key={`cmp-${entry.category}`}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <strong>{categoryLabelMap[entry.category]}</strong>
-                {hasGap && <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>Lücke erkannt</span>}
-              </div>
-              <p className="helper" style={{ marginBottom: 4 }}>{initiatorName} selbst</p>
-              <div className="result-bar"><div className="result-bar-me" style={{ width: `${initiatorSelf}%` }} /></div>
-              <p className="helper" style={{ marginTop: 2 }}>{initiatorSelf}%</p>
-
-              <p className="helper" style={{ marginBottom: 4 }}>{partnerName} sieht {initiatorName}</p>
-              <div className="result-bar"><div className="result-bar-me" style={{ width: `${partnerSeesInitiator}%`, opacity: 0.8 }} /></div>
-              <p className="helper" style={{ marginTop: 2 }}>{partnerSeesInitiator}%</p>
-
-              <p className="helper" style={{ marginBottom: 4 }}>{partnerName} selbst</p>
-              <div className="result-bar"><div className="result-bar-me" style={{ width: `${partnerSelf}%` }} /></div>
-              <p className="helper" style={{ marginTop: 2 }}>{partnerSelf}%</p>
-
-              <p className="helper" style={{ marginBottom: 4 }}>{initiatorName} sieht {partnerName}</p>
-              <div className="result-bar"><div className="result-bar-me" style={{ width: `${initiatorSeesPartner}%`, opacity: 0.8 }} /></div>
-              <p className="helper" style={{ marginTop: 2 }}>{initiatorSeesPartner}%</p>
-
-            </div>
-          );
-        })}
-      </div>
+      {comparisons.map((entry) => (
+        <div className="report-block" key={entry.category}>
+          <strong>{categoryLabelMap[entry.category]}</strong>
+          <p className="helper">{resolveDisplayName(bundle.initiatorDisplayName, 'Du')} vs. {partnerLabel} · Differenz {entry.difference}%</p>
+        </div>
+      ))}
     </article>
-  );
-}
-
-function ResultBreakdown({
-  title,
-  partnerName,
-  result,
-}: {
-  title: string;
-  partnerName: string;
-  result: {
-    selfPercent: number;
-    statement: string;
-    categories: Array<[QuizCategory, number]>;
-  };
-}) {
-  const displayName = resolveDisplayName(title, 'Nicole');
-  const sortedCategories = [...result.categories].sort((a, b) => b[1] - a[1]);
-  const highestLoad = sortedCategories[0];
-  const mostBalanced = [...result.categories].sort((a, b) => Math.abs(a[1] - 50) - Math.abs(b[1] - 50))[0];
-
-  return (
-    <>
-      <h2 className="card-title">Persönliches Ergebnis {displayName}</h2>
-      <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
-      <p className="helper" style={{ margin: 0 }}>
-        Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise des Partners helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
-      </p>
-      <div className="personal-result-summary detailed individual-result-panel">
-        <div className="result-overview-grid">
-          <div className="result-donut-wrap">
-            <div
-              className="result-donut"
-              style={{ background: `conic-gradient(#7d74e8 0 ${result.selfPercent}%, #d9d8e4 ${result.selfPercent}% 100%)` }}
-            >
-              <div className="result-donut-inner">
-                <strong>{result.selfPercent}%</strong>
-                <span>{displayName}</span>
-              </div>
-            </div>
-            <p className="helper"><strong>Gesamtanteil</strong></p>
-          </div>
-          <div className="result-highlight-grid">
-            <div>
-              <p className="helper">Höchste Last</p>
-              <p className="result-highlight-primary">
-                {categoryLabelMap[highestLoad[0]]} · {highestLoad[1]}%
-              </p>
-            </div>
-            <div>
-              <p className="helper">Ausgeglichen</p>
-              <p className="result-highlight-accent">
-                {categoryLabelMap[mostBalanced[0]]} · {mostBalanced[1]}%
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="result-legend">
-          <span><i className="dot self" />{displayName}</span>
-          <span><i className="dot partner" />{partnerName}</span>
-        </div>
-      </div>
-      <div className="stack category-list individual-result-categories">
-        {sortedCategories.map(([category, value]) => (
-          <div key={category} className="category-progress-row">
-            <strong>{categoryLabelMap[category]}</strong>
-            <div className="category-progress-track">
-              <div className="category-progress-self" style={{ width: `${value}%` }} />
-              <div className="category-progress-partner" style={{ width: `${100 - value}%` }} />
-            </div>
-            <strong className="category-value">{value}%</strong>
-          </div>
-        ))}
-      </div>
-    </>
   );
 }
