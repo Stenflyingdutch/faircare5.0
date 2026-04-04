@@ -10,7 +10,7 @@ import {
   buildJointRecommendations,
   buildPerceptionOutcome,
 } from '@/services/resultInsights';
-import { observeAuthState } from '@/services/auth.service';
+import { observeAuthState, signOutUser } from '@/services/auth.service';
 import {
   ensureUserProfile,
   fetchDashboardBundle,
@@ -156,6 +156,12 @@ export default function DashboardPage() {
     }
   }
 
+
+  async function logout() {
+    await signOutUser();
+    router.push('/login');
+  }
+
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
     return {
@@ -177,7 +183,10 @@ export default function DashboardPage() {
   return (
     <section className="section">
       <div className="container stack">
-        <h1 className="test-title">Dashboard</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 className="test-title">Dashboard</h1>
+          <button type="button" className="button" onClick={logout}>Logout</button>
+        </div>
 
         <article className="card stack">
           {!ownResultText

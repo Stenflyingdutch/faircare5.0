@@ -1,4 +1,4 @@
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, type User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, type User } from 'firebase/auth';
 
 import { auth } from '@/lib/firebase';
 
@@ -16,4 +16,8 @@ export async function loginUser(email: string, password: string) {
 
 export async function signOutUser() {
   await auth.signOut();
+}
+
+export async function requestPasswordReset(email: string) {
+  return sendPasswordResetEmail(auth, email);
 }
