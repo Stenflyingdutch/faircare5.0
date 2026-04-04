@@ -30,6 +30,12 @@ function resolveDisplayName(value?: string | null, fallback = 'Nutzer') {
   return value?.trim() || fallback;
 }
 
+function deriveNameFromEmail(email?: string | null) {
+  if (!email) return null;
+  const local = email.split('@')[0]?.trim();
+  return local || null;
+}
+
 function buildNeutralDistributionStatement(selfPercent: number) {
   if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
   if (selfPercent < 45) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei deinem Partner.';
@@ -160,10 +166,11 @@ export default function DashboardPage() {
       ),
     };
   }, [bundle?.ownResult]);
-  const partnerLabel = resolveDisplayName(
-    bundle?.profile?.role === 'partner' ? bundle?.initiatorDisplayName : bundle?.partnerDisplayName,
-    'Partner',
-  );
+  const resolvedPartnerName = bundle?.profile?.role === 'partner'
+    ? bundle?.initiatorDisplayName
+    : bundle?.partnerDisplayName;
+  const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
+  const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
 
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
 

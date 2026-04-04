@@ -446,7 +446,7 @@ textarea.input {
 }
 
 .personal-result-summary.detailed {
-  background: linear-gradient(130deg, #2c2a39 0%, #2a313a 45%, #2f2e38 100%);
+  background: linear-gradient(130deg, #4d4a67 0%, #465867 45%, #555369 100%);
   color: #f5f3ff;
 }
 
@@ -482,7 +482,7 @@ textarea.input {
 .result-donut-inner {
   width: 100%;
   height: 100%;
-  background: #2b2a37;
+  background: #4a4860;
   border-radius: 50%;
   display: grid;
   place-content: center;

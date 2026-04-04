@@ -811,6 +811,7 @@ export async function fetchDashboardBundle(userId: string) {
   let partnerResult: QuizResultDocument | null = null;
   let initiatorDisplayName: string | null = null;
   let partnerDisplayName: string | null = null;
+  let invitationPartnerEmail: string | null = null;
 
   if (profile.familyId) {
     const familySnap = await getDoc(doc(db, firestoreCollections.families, profile.familyId));
@@ -822,6 +823,13 @@ export async function fetchDashboardBundle(userId: string) {
     if (family?.partnerUserId) {
       const partnerProfile = await fetchAppUserProfile(family.partnerUserId);
       partnerDisplayName = partnerProfile?.displayName || 'Partner';
+    }
+    if (family?.invitationId) {
+      const invitationSnap = await getDoc(doc(db, firestoreCollections.invitations, family.invitationId));
+      if (invitationSnap.exists()) {
+        const invitation = invitationSnap.data() as InvitationDocument;
+        invitationPartnerEmail = invitation.partnerEmail ?? null;
+      }
     }
 
     const canSeeSharedResults = Boolean(family?.resultsUnlocked && family?.sharedResultsOpened);
@@ -860,7 +868,17 @@ export async function fetchDashboardBundle(userId: string) {
     }
   }
 
-  return { profile, ownResult, family, joint, initiatorResult, partnerResult, initiatorDisplayName, partnerDisplayName };
+  return {
+    profile,
+    ownResult,
+    family,
+    joint,
+    initiatorResult,
+    partnerResult,
+    initiatorDisplayName,
+    partnerDisplayName,
+    invitationPartnerEmail,
+  };
 }
 
 export async function persistMailDebugLog(entry: Record<string, unknown>) {
