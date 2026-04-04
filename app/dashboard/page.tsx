@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import { observeAuthState } from '@/services/auth.service';
 import {
+  type InviteDebugDetails,
   ensureUserProfile,
   fetchDashboardBundle,
   fetchAppUserProfile,
@@ -32,6 +33,7 @@ export default function DashboardPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [inviteMessage, setInviteMessage] = useState('');
+  const [inviteDetails, setInviteDetails] = useState<InviteDebugDetails | null>(null);
 
   const [jointState, setJointState] = useState<'idle' | 'analyzing' | 'success' | 'error'>('idle');
   const [jointMessage, setJointMessage] = useState('');
@@ -65,20 +67,34 @@ export default function DashboardPage() {
     if (!email) {
       setInviteState('error');
       setInviteMessage('Bitte gib eine E-Mail-Adresse ein.');
+      setInviteDetails({
+        headline: 'Eingabefehler',
+        userErrors: ['Die E-Mail-Adresse darf nicht leer sein.'],
+        configErrors: [],
+        serverErrors: [],
+      });
       return;
     }
     if (!emailPattern.test(email)) {
       setInviteState('error');
       setInviteMessage('Bitte gib eine gültige E-Mail-Adresse ein.');
+      setInviteDetails({
+        headline: 'Ungültige E-Mail-Adresse',
+        userErrors: ['Bitte korrigiere das Format, z. B. name@example.com.'],
+        configErrors: [],
+        serverErrors: [],
+      });
       return;
     }
 
     setInviteState('loading');
     setInviteMessage('');
+    setInviteDetails(null);
     try {
       const result = await sendPartnerInvitation(email);
       setInviteState('success');
       setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
+      setInviteDetails(null);
       if (currentUserId) {
         const profile = await fetchAppUserProfile(currentUserId);
         if (profile?.id) {
@@ -86,13 +102,23 @@ export default function DashboardPage() {
         }
       }
     } catch (error) {
-      const errorObject = error as { code?: string; message?: string; details?: unknown };
+      const errorObject = error as { code?: string; message?: string; details?: InviteDebugDetails };
       console.error('sendPartnerInvite failed', error);
       console.error('code', errorObject?.code);
       console.error('message', errorObject?.message);
       console.error('details', errorObject?.details);
       setInviteState('error');
-      setInviteMessage(errorObject?.message || 'Einladung konnte nicht gesendet werden. Bitte versuche es erneut.');
+      setInviteMessage(errorObject?.message || 'Einladung konnte nicht gesendet werden.');
+      setInviteDetails(errorObject?.details ?? {
+        headline: 'Unbekannter Fehler',
+        userErrors: [],
+        configErrors: [],
+        serverErrors: ['Der Server hat keinen verwertbaren Fehler geliefert.'],
+        technicalDetails: [
+          `code=${errorObject?.code ?? 'unknown'}`,
+          errorObject?.message ?? 'keine message',
+        ],
+      });
     }
   }
 
@@ -219,6 +245,7 @@ export default function DashboardPage() {
                       if (inviteState !== 'loading') {
                         setInviteState('idle');
                         setInviteMessage('');
+                        setInviteDetails(null);
                       }
                     }}
                     disabled={inviteState === 'loading' || Boolean(bundle?.family?.partnerUserId)}
@@ -232,7 +259,44 @@ export default function DashboardPage() {
                   </button>
                 </form>
                 {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
-                {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
+                {inviteState === 'error' && (
+                  <div className="report-block">
+                    <p className="inline-error"><strong>{inviteMessage}</strong></p>
+                    {inviteDetails?.headline && <p className="helper">{inviteDetails.headline}</p>}
+                    {Boolean(inviteDetails?.userErrors?.length) && (
+                      <div>
+                        <strong>Benutzerfehler</strong>
+                        <ul>
+                          {inviteDetails?.userErrors.map((item) => <li key={`user-${item}`}>{item}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {Boolean(inviteDetails?.configErrors?.length) && (
+                      <div>
+                        <strong>Konfigurationsfehler</strong>
+                        <ul>
+                          {inviteDetails?.configErrors.map((item) => <li key={`cfg-${item}`}>{item}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {Boolean(inviteDetails?.serverErrors?.length) && (
+                      <div>
+                        <strong>Serverfehler</strong>
+                        <ul>
+                          {inviteDetails?.serverErrors.map((item) => <li key={`srv-${item}`}>{item}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {Boolean(inviteDetails?.technicalDetails?.length) && (
+                      <details>
+                        <summary>Technische Details</summary>
+                        <ul>
+                          {inviteDetails?.technicalDetails.map((item) => <li key={`tech-${item}`}>{item}</li>)}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                )}
                 {bundle?.family?.partnerUserId && <p className="helper">Es ist bereits ein Partner mit deiner Familie verbunden.</p>}
               </>
             )}

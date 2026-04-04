@@ -48,6 +48,40 @@ function randomToken() {
   return Array.from(arr).map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
+export interface InviteDebugDetails {
+  headline: string;
+  userErrors: string[];
+  configErrors: string[];
+  serverErrors: string[];
+  technicalDetails?: string[];
+}
+
+export class InviteFlowError extends Error {
+  code: string;
+  details: InviteDebugDetails;
+
+  constructor(code: string, message: string, details: InviteDebugDetails) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
+
+function buildInviteError(
+  code: string,
+  headline: string,
+  buckets: Partial<Omit<InviteDebugDetails, 'headline'>>,
+  technicalDetails?: string[],
+) {
+  return new InviteFlowError(code, headline, {
+    headline,
+    userErrors: buckets.userErrors ?? [],
+    configErrors: buckets.configErrors ?? [],
+    serverErrors: buckets.serverErrors ?? [],
+    technicalDetails,
+  });
+}
+
 export async function ensureUserProfile(params: { userId: string; email: string; displayName?: string; role?: FamilyRole }) {
   const userRef = doc(db, firestoreCollections.users, params.userId);
   await setDoc(userRef, {
@@ -85,14 +119,177 @@ async function getQuestionSnapshot(questionIds: string[]): Promise<QuestionTempl
 
 export async function sendPartnerInvitation(partnerEmail: string) {
   const user = auth.currentUser;
-  if (!user?.email) throw new Error('Bitte zuerst einloggen.');
-  
+  if (!user?.email) {
+    throw buildInviteError(
+      'unauthenticated',
+      'Du bist nicht eingeloggt.',
+      { userErrors: ['Bitte melde dich neu an und versuche es erneut.'] },
+      ['request.auth fehlt'],
+    );
+  }
+
+  const normalizedPartnerEmail = normalizeEmail(partnerEmail);
+  if (!normalizedPartnerEmail) {
+    throw buildInviteError('invalid-argument', 'Die E-Mail-Adresse fehlt.', {
+      userErrors: ['Bitte gib eine E-Mail-Adresse ein.'],
+    });
+  }
+  if (normalizedPartnerEmail === normalizeEmail(user.email)) {
+    throw buildInviteError('invalid-argument', 'Diese E-Mail-Adresse kann nicht eingeladen werden.', {
+      userErrors: ['Bitte gib die E-Mail-Adresse deines Partners ein (nicht deine eigene).'],
+    });
+  }
+
   const functions = getFunctions(app, 'europe-west3');
   const sendPartnerInvite = httpsCallable<{ partnerEmail: string }, { partnerEmail?: string }>(functions, 'sendPartnerInvite');
-  const response = await sendPartnerInvite({ partnerEmail });
-  return {
-    partnerEmail: response.data?.partnerEmail ?? partnerEmail,
-  };
+  try {
+    const response = await sendPartnerInvite({ partnerEmail: normalizedPartnerEmail });
+    return {
+      partnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
+    };
+  } catch (error) {
+    const callableError = error as { code?: string; message?: string; details?: unknown };
+    console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
+      code: callableError?.code,
+      message: callableError?.message,
+      details: callableError?.details,
+    });
+
+    const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
+    const allowLocalFallback = appEnv !== 'production';
+    const fallbackEligible = ['functions/internal', 'internal', 'functions/unavailable', 'functions/unimplemented']
+      .includes(callableError?.code ?? '');
+
+    if (allowLocalFallback && fallbackEligible) {
+      console.info('[sendPartnerInvitation] Falling back to local invite flow', {
+        appEnv,
+        code: callableError?.code,
+      });
+      return sendPartnerInvitationFallback(normalizedPartnerEmail, user.uid);
+    }
+
+    throw buildInviteError(
+      callableError?.code ?? 'internal',
+      'Einladung konnte serverseitig nicht verarbeitet werden.',
+      { serverErrors: ['Die Firebase Function sendPartnerInvite hat einen Fehler zurückgegeben.'] },
+      [
+        `code=${callableError?.code ?? 'unknown'}`,
+        callableError?.message ?? 'keine message',
+      ],
+    );
+  }
+}
+
+async function sendPartnerInvitationFallback(partnerEmail: string, userId: string) {
+  console.info('[sendPartnerInvite:fallback] Function gestartet');
+  console.info('[sendPartnerInvite:fallback] request.auth vorhanden', { hasAuth: Boolean(userId) });
+  console.info('[sendPartnerInvite:fallback] partnerEmail vorhanden', { hasPartnerEmail: Boolean(partnerEmail) });
+
+  try {
+    const userProfile = await fetchAppUserProfile(userId);
+    console.info('[sendPartnerInvite:fallback] User geladen', { userId, hasUserProfile: Boolean(userProfile) });
+
+    const latestResult = await getLatestInitiatorResult(userId);
+    if (!latestResult?.questionIds?.length) {
+      throw buildInviteError(
+        'failed-precondition',
+        'Kein Initiator-Ergebnis gefunden.',
+        { serverErrors: ['Der Fragenkatalog wurde noch nicht abgeschlossen oder konnte nicht geladen werden.'] },
+      );
+    }
+
+    const questionSetSnapshot = await getQuestionSnapshot(latestResult.questionIds);
+    if (!questionSetSnapshot.length) {
+      throw buildInviteError(
+        'failed-precondition',
+        'Fragenkatalog konnte nicht geladen werden.',
+        { serverErrors: ['Die Fragenliste ist leer oder ungültig.'] },
+      );
+    }
+
+    const familyId = userProfile?.familyId ?? doc(collection(db, firestoreCollections.families)).id;
+    if (userProfile?.familyId) {
+      console.info('[sendPartnerInvite:fallback] Family geladen', { familyId });
+    } else {
+      await setDoc(doc(db, firestoreCollections.families, familyId), {
+        id: familyId,
+        initiatorUserId: userId,
+        partnerUserId: null,
+        status: 'invited',
+        invitationId: null,
+        createdAt: nowIso(),
+        updatedAt: serverTimestamp(),
+      });
+      await setDoc(doc(db, firestoreCollections.users, userId), {
+        familyId,
+        role: 'initiator',
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      console.info('[sendPartnerInvite:fallback] Family erstellt', { familyId });
+    }
+
+    const invitationRef = doc(collection(db, firestoreCollections.invitations));
+    const token = randomToken();
+    const tokenHash = await sha256(token);
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14).toISOString();
+
+    await setDoc(invitationRef, {
+      id: invitationRef.id,
+      familyId,
+      initiatorUserId: userId,
+      partnerEmail,
+      tokenHash,
+      status: 'sent',
+      sentAt: nowIso(),
+      acceptedAt: null,
+      expiresAt,
+      questionSetId: `initiator-${userId}`,
+      questionSetSnapshot,
+      createdAt: nowIso(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await setDoc(doc(db, firestoreCollections.families, familyId), {
+      invitationId: invitationRef.id,
+      status: 'invited',
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    console.info('[sendPartnerInvite:fallback] Invitation erstellt', { invitationId: invitationRef.id });
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const inviteUrl = `${baseUrl}/invite/${token}`;
+    console.info('[sendPartnerInvite:fallback] Mail-Provider gewählt', {
+      provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'none'),
+    });
+
+    await sendAppMail({
+      type: 'partner_invitation',
+      to: partnerEmail,
+      subject: 'Du wurdest zu FairCare eingeladen',
+      familyId,
+      invitationId: invitationRef.id,
+      html: `
+        <h2>Dein Partner hat dich zu FairCare eingeladen</h2>
+        <p>Bitte öffne den folgenden Link, um den Partner-Test zu starten:</p>
+        <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+      `,
+    });
+    console.info('[sendPartnerInvite:fallback] Mailversand erfolgreich', {
+      originalRecipient: partnerEmail,
+      testRecipient: 'pa4sten@gmail.com (nicht-production in /api/mail)',
+    });
+
+    return { partnerEmail };
+  } catch (error) {
+    console.error('[sendPartnerInvite:fallback] Fehler im lokalen Invite-Flow', error);
+    if (error instanceof InviteFlowError) throw error;
+    throw buildInviteError(
+      'internal',
+      'Unbekannter Serverfehler im Invite-Flow.',
+      { serverErrors: ['Ein unerwarteter Fehler ist aufgetreten.'] },
+      [error instanceof Error ? error.message : String(error)],
+    );
+  }
 }
 
 export async function resolveInvitationByToken(token: string) {

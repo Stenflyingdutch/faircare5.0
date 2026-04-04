@@ -92,14 +92,27 @@ async function sendViaSendgrid(to: string, subject: string, html: string) {
 }
 
 async function sendViaProvider(to: string, subject: string, html: string) {
+  const configuredProvider = (process.env.MAIL_PROVIDER ?? '').toLowerCase();
+  if (configuredProvider === 'resend') return sendViaResend(to, subject, html);
+  if (configuredProvider === 'sendgrid') return sendViaSendgrid(to, subject, html);
   if (process.env.RESEND_API_KEY) return sendViaResend(to, subject, html);
   if (process.env.SENDGRID_API_KEY) return sendViaSendgrid(to, subject, html);
   return { ok: false, reason: 'Kein Mail-Provider konfiguriert (RESEND_API_KEY oder SENDGRID_API_KEY).', provider: 'none' };
 }
 
 export async function dispatchMail(input: SendMailInput) {
+  console.info('[mail.dispatch] gestartet', {
+    type: input.type,
+    env: resolveAppEnvironment(),
+    hasOriginalRecipient: Boolean(input.originalRecipient),
+  });
   const resolved = resolveRecipient(input.to);
   const subject = `${resolved.subjectPrefix}${input.subject}`;
+  console.info('[mail.dispatch] empfänger aufgelöst', {
+    originalRecipient: input.originalRecipient,
+    actualRecipient: resolved.actualRecipient,
+    providerHint: (process.env.MAIL_PROVIDER ?? 'auto').toLowerCase(),
+  });
 
   const footer = `
     <hr />
@@ -111,8 +124,13 @@ export async function dispatchMail(input: SendMailInput) {
 
   const result = await sendViaProvider(resolved.actualRecipient, subject, `${input.html}${footer}`);
   if (!result.ok) {
+    console.error('[mail.dispatch] Mailversand fehlgeschlagen', {
+      provider: result.provider,
+      reason: result.reason,
+    });
     throw new Error(`Mail provider error: ${result.reason}`);
   }
+  console.info('[mail.dispatch] Mailversand erfolgreich', { provider: result.provider });
 
   return {
     collection: firestoreCollections.mailLogs,
