@@ -8,6 +8,14 @@ import { persistQuizSession } from '@/services/firestoreQuiz';
 import { loadSessionFromStorage, saveSessionToStorage } from '@/services/sessionStorage';
 import type { StressCategory, TempQuizSession } from '@/types/quiz';
 
+const stressCategoryDescriptions: Record<StressCategory, string> = {
+  betreuung_entwicklung: 'Schlaf, Entwicklung und Begleitung im Alltag des Babys.',
+  gesundheit: 'Vorsorge, Symptome, Medikamente und gesundheitliche Entscheidungen.',
+  babyalltag_pflege: 'Essen, Wickeln, Baden, Kleidung und tägliche Pflege.',
+  haushalt_einkaeufe_vorraete: 'Einkäufe, Vorräte, Wäsche und laufende Besorgungen.',
+  termine_planung_absprachen: 'Kalender, Organisation, Absprachen und Zuständigkeiten.',
+};
+
 export default function QuizStressPage() {
   const router = useRouter();
   const [session, setSession] = useState<TempQuizSession | null>(null);
@@ -59,7 +67,8 @@ export default function QuizStressPage() {
         <div className="stack">
           {stressOptions.map((option) => (
             <button key={option.value} type="button" className={`answer-button ${session.stressCategories.includes(option.value) ? 'selected' : ''}`} onClick={() => toggleCategory(option.value)}>
-              {option.label}
+              <strong>{option.label}</strong>
+              <span className="helper" style={{ marginTop: 4, display: 'block' }}>{stressCategoryDescriptions[option.value]}</span>
             </button>
           ))}
         </div>

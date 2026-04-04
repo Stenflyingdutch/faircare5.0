@@ -36,6 +36,13 @@ function deriveNameFromEmail(email?: string | null) {
   return local || null;
 }
 
+
+function shortGapDescription(diff: number) {
+  if (diff >= 25) return 'Deutlich unterschiedliche Wahrnehmung – hier lohnt ein klares Gespräch.';
+  if (diff >= 12) return 'Spürbare Differenz in der Wahrnehmung.';
+  return 'Ähnliche Wahrnehmung in diesem Bereich.';
+}
+
 function buildNeutralDistributionStatement(selfPercent: number) {
   if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
   if (selfPercent < 45) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei deinem Partner.';
@@ -316,19 +323,24 @@ function JointResultPanel({ insights, bundle }: {
         {clarityInsight && <p>{clarityInsight}</p>}
       </div>
       <div className="stack">
-        <h3 className="card-title">Block 2 · Mental-Load-Verteilung</h3>
+        <h3 className="card-title">Block 2 · Gemeinsame Bewertung</h3>
+        <p className="helper" style={{ marginTop: -6 }}>Kurz erklärt: Je größer die Differenz, desto stärker weicht eure Wahrnehmung in der Kategorie voneinander ab.</p>
         {comparisons.map((entry) => (
           <div className="report-block" key={`cmp-${entry.category}`}>
-            <strong>{categoryLabelMap[entry.category]}</strong>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <strong>{categoryLabelMap[entry.category]}</strong>
+              {entry.difference >= 12 && <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>Lücke erkannt</span>}
+            </div>
             <p>{ownLabel} {entry.own}% · {otherLabel} {entry.partner}% · Differenz {entry.difference}%</p>
-            {entry.level === 'high' && <p>Spannweite: {Math.min(entry.own, entry.partner)}% bis {Math.max(entry.own, entry.partner)}%</p>}
+            <p className="helper" style={{ marginTop: -6 }}>{shortGapDescription(entry.difference)}</p>
+            <p className="helper" style={{ marginBottom: 4 }}>{ownLabel}</p>
             <div className="result-bar">
               <div className="result-bar-me" style={{ width: `${entry.own}%` }} />
             </div>
+            <p className="helper" style={{ marginBottom: 4 }}>{otherLabel}</p>
             <div className="result-bar">
               <div className="result-bar-me" style={{ width: `${entry.partner}%`, opacity: 0.55 }} />
             </div>
-            <p>{entry.text}</p>
           </div>
         ))}
       </div>
