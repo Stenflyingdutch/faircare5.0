@@ -9,6 +9,27 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function familyDoc(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId));
+    }
+
+    function isFamilyMember(familyId) {
+      return exists(/databases/$(database)/documents/families/$(familyId)) && (
+        familyDoc(familyId).data.initiatorUserId == request.auth.uid ||
+        familyDoc(familyId).data.partnerUserId == request.auth.uid
+      );
+    }
+
+    function familyResultsUnlocked(familyId) {
+      return exists(/databases/$(database)/documents/families/$(familyId)) &&
+        familyDoc(familyId).data.resultsUnlocked == true;
+    }
+
+    function familySharedResultsOpened(familyId) {
+      return exists(/databases/$(database)/documents/families/$(familyId)) &&
+        familyDoc(familyId).data.sharedResultsOpened == true;
+    }
+
     match /users/{userId} {
       allow read: if isSelf(userId);
       allow create, update: if isSelf(userId);
@@ -22,7 +43,22 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.initiatorUserId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.initiatorUserId == request.auth.uid ||
-        resource.data.partnerUserId == request.auth.uid
+        (
+          resource.data.partnerUserId == request.auth.uid &&
+          request.resource.data.resultsUnlocked == resource.data.resultsUnlocked &&
+          request.resource.data.unlockedBy == resource.data.unlockedBy &&
+          request.resource.data.unlockedAt == resource.data.unlockedAt &&
+          (
+            request.resource.data.sharedResultsOpened == resource.data.sharedResultsOpened ||
+            (
+              resource.data.sharedResultsOpened != true &&
+              request.resource.data.sharedResultsOpened == true &&
+              resource.data.resultsUnlocked == true &&
+              request.resource.data.sharedResultsOpenedBy == request.auth.uid
+            )
+          ) &&
+          request.resource.data.status != 'joint_active'
+        )
       );
     }
 
@@ -39,9 +75,10 @@ service cloud.firestore {
     match /quizResults/{resultId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        exists(/databases/$(database)/documents/families/$(resource.data.familyId)) && (
-          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.initiatorUserId == request.auth.uid ||
-          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.partnerUserId == request.auth.uid
+        (
+          isFamilyMember(resource.data.familyId) &&
+          familyResultsUnlocked(resource.data.familyId) &&
+          familySharedResultsOpened(resource.data.familyId)
         )
       );
       allow create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
@@ -49,14 +86,15 @@ service cloud.firestore {
 
     match /jointResults/{jointResultId} {
       allow read: if isSignedIn() && (
-        exists(/databases/$(database)/documents/families/$(resource.data.familyId)) && (
-          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.initiatorUserId == request.auth.uid ||
-          get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.partnerUserId == request.auth.uid
-        )
+        isFamilyMember(resource.data.familyId) && familyResultsUnlocked(resource.data.familyId)
+        && familySharedResultsOpened(resource.data.familyId)
       );
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && exists(/databases/$(database)/documents/families/$(resource.data.familyId)) &&
-        get(/databases/$(database)/documents/families/$(resource.data.familyId)).data.initiatorUserId == request.auth.uid;
+      allow create: if isSignedIn() &&
+        isFamilyMember(request.resource.data.familyId) &&
+        familyDoc(request.resource.data.familyId).data.initiatorUserId == request.auth.uid;
+      allow update: if isSignedIn() &&
+        isFamilyMember(resource.data.familyId) &&
+        familyDoc(resource.data.familyId).data.initiatorUserId == request.auth.uid;
     }
 
     match /mailLogs/{mailLogId} {

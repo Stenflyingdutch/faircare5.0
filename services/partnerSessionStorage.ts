@@ -8,6 +8,7 @@ export interface PartnerLocalSession {
   questionSetId: string;
   questions: QuestionTemplate[];
   answers: Partial<Record<string, OwnershipAnswer>>;
+  perceptionAnswer?: string;
   completedAt?: string;
 }
 

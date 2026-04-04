@@ -264,6 +264,11 @@ main {
   font: inherit;
 }
 
+textarea.input {
+  resize: vertical;
+  min-height: 120px;
+}
+
 .helper {
   color: var(--color-text-secondary);
 }
@@ -428,6 +433,13 @@ main {
 .report-block p {
   margin: 0.4rem 0 0;
   color: var(--color-text-secondary);
+  word-break: break-word;
+}
+
+@media (max-width: 767px) {
+  .card .button {
+    width: 100%;
+  }
 }
 
 .footer-version {
