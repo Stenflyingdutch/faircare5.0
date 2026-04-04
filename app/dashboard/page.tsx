@@ -30,6 +30,12 @@ function resolveDisplayName(value?: string | null, fallback = 'Nutzer') {
   return value?.trim() || fallback;
 }
 
+function deriveNameFromEmail(email?: string | null) {
+  if (!email) return null;
+  const local = email.split('@')[0]?.trim();
+  return local || null;
+}
+
 function buildNeutralDistributionStatement(selfPercent: number) {
   if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
   if (selfPercent < 45) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei deinem Partner.';
@@ -160,6 +166,11 @@ export default function DashboardPage() {
       ),
     };
   }, [bundle?.ownResult]);
+  const resolvedPartnerName = bundle?.profile?.role === 'partner'
+    ? bundle?.initiatorDisplayName
+    : bundle?.partnerDisplayName;
+  const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
+  const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
 
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
 
@@ -171,7 +182,13 @@ export default function DashboardPage() {
         <article className="card stack">
           {!ownResultText
             ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
-            : <ResultBreakdown title={resolveDisplayName(bundle?.profile?.displayName, 'Du')} result={ownResultText} />}
+            : (
+              <ResultBreakdown
+                title={resolveDisplayName(bundle?.profile?.displayName, 'Du')}
+                partnerName={partnerLabel}
+                result={ownResultText}
+              />
+            )}
         </article>
 
         <article className="card stack">
@@ -326,9 +343,11 @@ function JointResultPanel({ insights, bundle }: {
 
 function ResultBreakdown({
   title,
+  partnerName,
   result,
 }: {
   title: string;
+  partnerName: string;
   result: {
     selfPercent: number;
     statement: string;
@@ -336,6 +355,9 @@ function ResultBreakdown({
   };
 }) {
   const displayName = resolveDisplayName(title, 'Nicole');
+  const sortedCategories = [...result.categories].sort((a, b) => b[1] - a[1]);
+  const highestLoad = sortedCategories[0];
+  const mostBalanced = [...result.categories].sort((a, b) => Math.abs(a[1] - 50) - Math.abs(b[1] - 50))[0];
 
   return (
     <>
@@ -344,18 +366,49 @@ function ResultBreakdown({
       <p className="helper" style={{ margin: 0 }}>
         Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise des Partners helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
       </p>
-      <div className="personal-result-summary">
-        <p className="helper"><strong>Gesamtverteilung</strong></p>
-        <p className="result-title-line"><strong>{displayName} trägt {result.selfPercent}% vom Mental Load.</strong></p>
-        <div className="result-bar"><div className="result-bar-me" style={{ width: `${result.selfPercent}%` }} /></div>
+      <div className="personal-result-summary detailed individual-result-panel">
+        <div className="result-overview-grid">
+          <div className="result-donut-wrap">
+            <div
+              className="result-donut"
+              style={{ background: `conic-gradient(#7d74e8 0 ${result.selfPercent}%, #d9d8e4 ${result.selfPercent}% 100%)` }}
+            >
+              <div className="result-donut-inner">
+                <strong>{result.selfPercent}%</strong>
+                <span>{displayName}</span>
+              </div>
+            </div>
+            <p className="helper"><strong>Gesamtanteil</strong></p>
+          </div>
+          <div className="result-highlight-grid">
+            <div>
+              <p className="helper">Höchste Last</p>
+              <p className="result-highlight-primary">
+                {categoryLabelMap[highestLoad[0]]} · {highestLoad[1]}%
+              </p>
+            </div>
+            <div>
+              <p className="helper">Ausgeglichen</p>
+              <p className="result-highlight-accent">
+                {categoryLabelMap[mostBalanced[0]]} · {mostBalanced[1]}%
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="result-legend">
+          <span><i className="dot self" />{displayName}</span>
+          <span><i className="dot partner" />{partnerName}</span>
+        </div>
       </div>
-      <div className="stack">
-        <h3 className="card-title">Kategorienübersicht</h3>
-        {result.categories.map(([category, value]) => (
-          <div key={category} className="report-block category-row">
+      <div className="stack category-list individual-result-categories">
+        {sortedCategories.map(([category, value]) => (
+          <div key={category} className="category-progress-row">
             <strong>{categoryLabelMap[category]}</strong>
-            <p className="result-title-line"><strong>{displayName} trägt {value}% vom Mental Load.</strong></p>
-            <div className="result-bar"><div className="result-bar-me" style={{ width: `${value}%` }} /></div>
+            <div className="category-progress-track">
+              <div className="category-progress-self" style={{ width: `${value}%` }} />
+              <div className="category-progress-partner" style={{ width: `${100 - value}%` }} />
+            </div>
+            <strong className="category-value">{value}%</strong>
           </div>
         ))}
       </div>
