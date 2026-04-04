@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
+import { buildCategoryComparisons, buildIndividualInsights, buildJointRecommendations } from '@/services/resultInsights';
 import { observeAuthState } from '@/services/auth.service';
 import {
   ensureUserProfile,
@@ -145,6 +146,7 @@ export default function DashboardPage() {
       partnerPercent: 100 - bundle.ownResult.totalScore,
       interpretation: bundle.ownResult.interpretation,
       categories: sortCategories(Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>),
+      insights: buildIndividualInsights(bundle.ownResult.categoryScores),
     };
   }, [bundle?.ownResult]);
 
@@ -276,6 +278,8 @@ function JointResultPanel({ insights, bundle }: {
     ...Object.keys(ownResult.categoryScores),
     ...Object.keys(otherResult.categoryScores),
   ])).sort((a, b) => categoryLabelMap[a as QuizCategory].localeCompare(categoryLabelMap[b as QuizCategory])) as QuizCategory[];
+  const comparisons = buildCategoryComparisons(ownResult.categoryScores, otherResult.categoryScores);
+  const recommendations = buildJointRecommendations(comparisons);
 
   return (
     <article className="card stack">
@@ -295,11 +299,33 @@ function JointResultPanel({ insights, bundle }: {
         </div>
       </div>
       <div className="stack">
+        <h3 className="card-title">Vergleich nach Kategorien</h3>
+        {comparisons.map((entry) => (
+          <div className="report-block" key={`cmp-${entry.category}`}>
+            <strong>{categoryLabelMap[entry.category]}</strong>
+            <p>Du {entry.own}% · Partner {entry.partner}% · Differenz {entry.difference}%</p>
+            <div className="result-bar">
+              <div className="result-bar-me" style={{ width: `${entry.own}%` }} />
+            </div>
+            <div className="result-bar">
+              <div className="result-bar-me" style={{ width: `${entry.partner}%`, opacity: 0.55 }} />
+            </div>
+            <p>{entry.text}</p>
+          </div>
+        ))}
+      </div>
+      <div className="stack">
         {insights.map((insight) => (
           <div className="report-block" key={`${insight.category}-${insight.level}`}>
             <strong>{categoryLabelMap[insight.category]}</strong>
             <p>{insight.text}</p>
           </div>
+        ))}
+      </div>
+      <div className="stack">
+        <h3 className="card-title">Gemeinsame Empfehlungen</h3>
+        {recommendations.map((item) => (
+          <div key={item} className="report-block"><p>{item}</p></div>
         ))}
       </div>
     </article>
@@ -318,6 +344,7 @@ function PartnerResultCard({ bundle }: { bundle: Awaited<ReturnType<typeof fetch
     partnerPercent: 100 - otherResult.totalScore,
     interpretation: otherResult.interpretation,
     categories: sortCategories(Object.entries(otherResult.categoryScores) as Array<[QuizCategory, number]>),
+    insights: buildIndividualInsights(otherResult.categoryScores),
   };
 
   return (
@@ -330,7 +357,13 @@ function ResultBreakdown({
   result,
 }: {
   title: string;
-  result: { selfPercent: number; partnerPercent: number; interpretation: string; categories: Array<[QuizCategory, number]> };
+  result: {
+    selfPercent: number;
+    partnerPercent: number;
+    interpretation: string;
+    categories: Array<[QuizCategory, number]>;
+    insights: { summary: string; overloadIndex: number; focus: Array<{ category: QuizCategory; score: number; text: string }> };
+  };
 }) {
   return (
     <>
@@ -341,11 +374,25 @@ function ResultBreakdown({
         <p>Du {result.selfPercent}% · Partner {result.partnerPercent}%</p>
       </div>
       <p className="helper">{result.interpretation}</p>
+      <div className="report-block">
+        <strong>Einordnung</strong>
+        <p>{result.insights.summary}</p>
+        <p>Belastungsindex: {result.insights.overloadIndex}%</p>
+      </div>
       <div className="stack">
         {result.categories.map(([category, value]) => (
           <div key={category} className="report-block">
             <strong>{categoryLabelMap[category]}</strong>
             <p>{value}%</p>
+            <div className="result-bar"><div className="result-bar-me" style={{ width: `${value}%` }} /></div>
+          </div>
+        ))}
+      </div>
+      <div className="stack">
+        {result.insights.focus.map((item) => (
+          <div className="report-block" key={`insight-${item.category}`}>
+            <strong>{categoryLabelMap[item.category]}</strong>
+            <p>{item.text}</p>
           </div>
         ))}
       </div>
