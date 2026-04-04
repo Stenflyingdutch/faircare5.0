@@ -16,6 +16,10 @@ import {
 import type { JointInsight } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
 
+function sortCategories(categories: Array<[QuizCategory, number]>) {
+  return [...categories].sort(([a], [b]) => categoryLabelMap[a].localeCompare(categoryLabelMap[b]));
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -136,7 +140,7 @@ export default function DashboardPage() {
       selfPercent: bundle.ownResult.totalScore,
       partnerPercent: 100 - bundle.ownResult.totalScore,
       interpretation: bundle.ownResult.interpretation,
-      categories: Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
+      categories: sortCategories(Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>),
     };
   }, [bundle?.ownResult]);
 
@@ -277,13 +281,15 @@ function JointResultPanel({ insights, bundle }: {
   const ownRole = bundle.profile?.role === 'partner' ? 'partner' : 'initiator';
   const ownResult = ownRole === 'partner' ? bundle.partnerResult : bundle.initiatorResult;
   const otherResult = ownRole === 'partner' ? bundle.initiatorResult : bundle.partnerResult;
-  const ownLabel = ownRole === 'partner' ? 'Du' : 'Du';
-  const otherLabel = ownRole === 'partner' ? (bundle.initiatorDisplayName ?? 'Initiator') : 'Partner';
+  const ownLabel = bundle.profile?.displayName || bundle.profile?.email || 'Du';
+  const otherLabel = ownRole === 'partner'
+    ? (bundle.initiatorDisplayName ?? 'Initiator')
+    : (bundle.partnerDisplayName ?? 'Partner');
 
   const allCategories = Array.from(new Set([
     ...Object.keys(ownResult.categoryScores),
     ...Object.keys(otherResult.categoryScores),
-  ])) as QuizCategory[];
+  ])).sort((a, b) => categoryLabelMap[a as QuizCategory].localeCompare(categoryLabelMap[b as QuizCategory])) as QuizCategory[];
 
   return (
     <article className="card stack">
@@ -318,16 +324,18 @@ function PartnerResultCard({ bundle }: { bundle: Awaited<ReturnType<typeof fetch
   if (!bundle.initiatorResult || !bundle.partnerResult) return null;
   const otherRole = bundle.profile?.role === 'partner' ? 'initiator' : 'partner';
   const otherResult = otherRole === 'initiator' ? bundle.initiatorResult : bundle.partnerResult;
-  const otherLabel = otherRole === 'initiator' ? (bundle.initiatorDisplayName ?? 'Initiator') : 'Partner';
+  const otherLabel = otherRole === 'initiator'
+    ? (bundle.initiatorDisplayName ?? 'Initiator')
+    : (bundle.partnerDisplayName ?? 'Partner');
 
   return (
     <>
       <h2 className="card-title">{otherLabel}</h2>
       <p className="card-description">Ergebnisse der anderen Person</p>
       <div className="stack">
-        {Object.entries(otherResult.categoryScores).map(([category, value]) => (
+        {sortCategories(Object.entries(otherResult.categoryScores) as Array<[QuizCategory, number]>).map(([category, value]) => (
           <div key={category} className="report-block">
-            <strong>{categoryLabelMap[category as QuizCategory]}</strong>
+            <strong>{categoryLabelMap[category]}</strong>
             <p>{value}%</p>
           </div>
         ))}

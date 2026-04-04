@@ -3,18 +3,10 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { ownershipOptions } from '@/components/test/test-config';
+import { ownershipOptions, splitClarityOptions } from '@/components/test/test-config';
 import { completePartnerSession, resolveInvitationByToken, savePartnerFilterPerception, savePartnerSessionAnswer } from '@/services/partnerFlow.service';
 import { loadPartnerLocalSession, savePartnerLocalSession, type PartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { OwnershipAnswer } from '@/types/quiz';
-
-const perceptionOptions = [
-  { value: 'eher_ich', label: 'eher ich' },
-  { value: 'mehr_ich', label: 'mehr ich' },
-  { value: 'ungefaehr_gleich', label: 'ungefähr gleich' },
-  { value: 'mehr_partner', label: 'mehr Partner' },
-  { value: 'eher_partner', label: 'eher Partner' },
-];
 
 export default function PartnerTestPage() {
   const params = useParams<{ token: string }>();
@@ -99,11 +91,11 @@ export default function PartnerTestPage() {
         {!session.perceptionAnswer ? (
           <>
             <p className="helper">Schritt 1 von {totalSteps}</p>
-            <h1 className="test-title">Vor dem Partner-Quiz</h1>
+            <h1 className="test-title">Vor dem Quiz</h1>
             <fieldset className="quiz-fieldset stack">
-              <legend>Wie nimmst du die aktuelle Verteilung wahr?</legend>
+              <legend>Wie klar ist eure Aufteilung heute?</legend>
               <div className="stack">
-                {perceptionOptions.map((option) => (
+                {splitClarityOptions.map((option) => (
                   <button
                     key={option.value}
                     type="button"
