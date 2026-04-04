@@ -58,7 +58,8 @@ export function generateQuestionSetFromCatalog(catalog: QuizCatalog, params: {
     }
   }
 
-  return selected.slice(0, QUIZ_SIZE);
+  const mixed = seededSort(selected.slice(0, QUIZ_SIZE), `${tempSessionId}:final-mix`);
+  return mixed;
 }
 
 export function generateQuestionSet(params: {
