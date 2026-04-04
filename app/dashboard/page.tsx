@@ -208,7 +208,6 @@ export default function DashboardPage() {
               <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
                 Gemeinsame Ergebnisse anschauen
               </button>
-              <p className="helper">Vielleicht ist es spannend, die Ergebnisse gemeinsam anzuschauen.</p>
               {openSharedState === 'error' && <p className="inline-error">{openSharedMessage}</p>}
             </>
           ) : bundle?.profile?.role === 'partner' ? (
