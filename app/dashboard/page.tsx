@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
-import { buildCategoryComparisons, buildIndividualInsightsWithContext, buildJointRecommendations } from '@/services/resultInsights';
+import { buildCategoryComparisons, buildIndividualInsightsWithContext, buildJointRecommendations, buildPerceptionOutcome } from '@/services/resultInsights';
 import { observeAuthState } from '@/services/auth.service';
 import {
   ensureUserProfile,
@@ -160,90 +160,74 @@ export default function DashboardPage() {
       <div className="container stack">
         <h1 className="test-title">Dashboard</h1>
 
-        <div className="grid grid-2">
-          <article className="card stack">
-            {!ownResultText
-              ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
-              : <ResultBreakdown title={resolveDisplayName(bundle?.profile?.displayName, 'Du')} result={ownResultText} />}
-          </article>
+        <article className="card stack">
+          {!ownResultText
+            ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
+            : <ResultBreakdown title={resolveDisplayName(bundle?.profile?.displayName, 'Du')} result={ownResultText} />}
+        </article>
 
-          <article className="card stack">
-            {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
-              <>
-                <h2 className="card-title">Partner einladen</h2>
-                <p className="card-description">Dein Ergebnis ist bereits da. Lade jetzt deinen Partner ein, damit ihr später auch euer gemeinsames Ergebnis sehen könnt.</p>
-                <form className="stack" onSubmit={onInviteSubmit}>
-                  <input
-                    type="email"
-                    className="input"
-                    required
-                    placeholder="E-Mail deines Partners"
-                    value={inviteEmail}
-                    onChange={(event) => {
-                      setInviteEmail(event.target.value);
-                      if (inviteState !== 'loading') {
-                        setInviteState('idle');
-                        setInviteMessage('');
-                      }
-                    }}
-                    disabled={inviteState === 'loading'}
-                  />
-                  <textarea
-                    className="input"
-                    rows={5}
-                    value={invitePersonalMessage}
-                    onChange={(event) => setInvitePersonalMessage(event.target.value)}
-                    aria-label="Persönliche Nachricht"
-                    placeholder="Persönliche Nachricht"
-                  />
-                  <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
-                    {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung senden'}
-                  </button>
-                </form>
-              </>
-            ) : bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened ? (
-              <PartnerResultCard bundle={bundle} />
-            ) : bundle?.family?.resultsUnlocked ? (
-              <>
-                <h2 className="card-title">Freigabe</h2>
-                <p className="card-description">Eure gemeinsamen Ergebnisse sind bereit.</p>
-                <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
-                  Ergebnisse jetzt ansehen
+        <article className="card stack">
+          {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
+            <>
+              <h2 className="card-title">Status</h2>
+              <p className="card-description">Dein Ergebnis ist bereits da. Lade jetzt deinen Partner ein, damit ihr später auch euer gemeinsames Ergebnis sehen könnt.</p>
+              <div className="report-block stack">
+                <p className="helper">Partner-Ergebnis wird nach Freischaltung hier ergänzt.</p>
+                {(ownResultText?.categories ?? []).map(([category]) => (
+                  <div key={`ghost-${category}`} className="report-block" style={{ opacity: 0.5 }}>
+                    <strong>{categoryLabelMap[category]}</strong>
+                    <div className="result-bar" />
+                  </div>
+                ))}
+              </div>
+              <form className="stack" onSubmit={onInviteSubmit}>
+                <input type="email" className="input" required placeholder="E-Mail deines Partners" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} disabled={inviteState === 'loading'} />
+                <textarea className="input" rows={5} value={invitePersonalMessage} onChange={(event) => setInvitePersonalMessage(event.target.value)} aria-label="Persönliche Nachricht" placeholder="Persönliche Nachricht" />
+                <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
+                  {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung senden'}
                 </button>
-                <p className="helper">Es kann spannend sein, die Ergebnisse gemeinsam anzuschauen.</p>
-                {openSharedState === 'error' && <p className="inline-error">{openSharedMessage}</p>}
-              </>
-            ) : bundle?.profile?.role === 'partner' ? (
-              <>
-                <h2 className="card-title">Status</h2>
-                <p className="card-description">
-                  {bundle?.family?.partnerRegistered
-                    ? `${bundle?.initiatorDisplayName ?? 'Der Initiator'} hat eine E-Mail erhalten und kann jetzt euer gemeinsames Ergebnis freischalten.`
-                    : 'Warte auf Abschluss der Registrierung.'}
-                </p>
-              </>
-            ) : (
-              <>
-                <h2 className="card-title">Status</h2>
-                <p className="card-description">
-                  {bundle?.family?.partnerRegistered
-                    ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die Ergebnisse jetzt freigeben.'
-                    : 'Dein Ergebnis ist bereits da. Lade jetzt deinen Partner ein, damit ihr später auch euer gemeinsames Ergebnis sehen könnt.'}
-                </p>
-                {bundle?.family?.partnerRegistered && (
-                  <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
-                    {unlockState === 'loading' ? 'Freischaltung läuft …' : 'Ergebnisse freigeben'}
-                  </button>
-                )}
-                {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
-                {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
-              </>
-            )}
-            {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
-            {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
-            {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
-          </article>
-        </div>
+              </form>
+            </>
+          ) : bundle?.family?.resultsUnlocked ? (
+            <>
+              <h2 className="card-title">Status</h2>
+              <p className="card-description">Eure gemeinsamen Ergebnisse sind bereit.</p>
+              <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
+                Gemeinsame Ergebnisse anschauen
+              </button>
+              <p className="helper">Vielleicht ist es spannend, die Ergebnisse gemeinsam anzuschauen.</p>
+              {openSharedState === 'error' && <p className="inline-error">{openSharedMessage}</p>}
+            </>
+          ) : bundle?.profile?.role === 'partner' ? (
+            <>
+              <h2 className="card-title">Status</h2>
+              <p className="card-description">
+                {bundle?.family?.partnerRegistered
+                  ? `${bundle?.initiatorDisplayName ?? 'Der Initiator'} hat eine E-Mail erhalten und kann jetzt euer gemeinsames Ergebnis freischalten.`
+                  : 'Warte auf Abschluss der Registrierung.'}
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="card-title">Status</h2>
+              <p className="card-description">
+                {bundle?.family?.partnerRegistered
+                  ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die Ergebnisse jetzt freigeben.'
+                  : 'Warte auf die Bewertung deines Partners.'}
+              </p>
+              {bundle?.family?.partnerRegistered && (
+                <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
+                  {unlockState === 'loading' ? 'Freischaltung läuft …' : 'Partner- und Gesamtergebnis freischalten'}
+                </button>
+              )}
+              {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
+              {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
+            </>
+          )}
+          {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
+          {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
+          {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
+        </article>
 
         {!bundle?.family?.resultsUnlocked || !bundle?.family?.sharedResultsOpened ? (
           <article className="card stack">
@@ -272,41 +256,30 @@ function JointResultPanel({ insights, bundle }: {
   const ownRole = bundle.profile?.role === 'partner' ? 'partner' : 'initiator';
   const ownResult = ownRole === 'partner' ? bundle.partnerResult : bundle.initiatorResult;
   const otherResult = ownRole === 'partner' ? bundle.initiatorResult : bundle.partnerResult;
-  const ownLabel = bundle.profile?.displayName || bundle.profile?.email || 'Du';
+  const ownLabel = bundle.profile?.displayName || 'Du';
   const otherLabel = ownRole === 'partner'
     ? (bundle.initiatorDisplayName ?? 'Initiator')
     : (bundle.partnerDisplayName ?? 'Partner');
 
-  const allCategories = Array.from(new Set([
-    ...Object.keys(ownResult.categoryScores),
-    ...Object.keys(otherResult.categoryScores),
-  ])).sort((a, b) => categoryLabelMap[a as QuizCategory].localeCompare(categoryLabelMap[b as QuizCategory])) as QuizCategory[];
   const comparisons = buildCategoryComparisons(ownResult.categoryScores, otherResult.categoryScores);
   const recommendations = buildJointRecommendations(comparisons);
+  const perceptionOutcome = buildPerceptionOutcome(comparisons);
 
   return (
     <article className="card stack">
       <h2 className="card-title">Gemeinsames Ergebnis</h2>
-      <div className="grid grid-2">
-        <div className="report-block">
-          <strong>{ownLabel}</strong>
-          {allCategories.map((category) => (
-            <p key={`i-${category}`}>{categoryLabelMap[category]}: {ownResult?.categoryScores[category] ?? '-'}%</p>
-          ))}
-        </div>
-        <div className="report-block">
-          <strong>{otherLabel}</strong>
-          {allCategories.map((category) => (
-            <p key={`p-${category}`}>{categoryLabelMap[category]}: {otherResult?.categoryScores[category] ?? '-'}%</p>
-          ))}
-        </div>
+      <div className="report-block">
+        <strong>Block 1 · Wahrnehmungsvergleich</strong>
+        <p><strong>{perceptionOutcome.title}</strong></p>
+        <p>{perceptionOutcome.text}</p>
       </div>
       <div className="stack">
-        <h3 className="card-title">Vergleich nach Kategorien</h3>
+        <h3 className="card-title">Block 2 · Mental-Load-Verteilung</h3>
         {comparisons.map((entry) => (
           <div className="report-block" key={`cmp-${entry.category}`}>
             <strong>{categoryLabelMap[entry.category]}</strong>
-            <p>Du {entry.own}% · Partner {entry.partner}% · Differenz {entry.difference}%</p>
+            <p>{ownLabel} {entry.own}% · {otherLabel} {entry.partner}% · Differenz {entry.difference}%</p>
+            {entry.level === 'high' && <p>Spannweite: {Math.min(entry.own, entry.partner)}% bis {Math.max(entry.own, entry.partner)}%</p>}
             <div className="result-bar">
               <div className="result-bar-me" style={{ width: `${entry.own}%` }} />
             </div>
@@ -332,26 +305,6 @@ function JointResultPanel({ insights, bundle }: {
         ))}
       </div>
     </article>
-  );
-}
-
-function PartnerResultCard({ bundle }: { bundle: Awaited<ReturnType<typeof fetchDashboardBundle>> }) {
-  if (!bundle.initiatorResult || !bundle.partnerResult) return null;
-  const otherRole = bundle.profile?.role === 'partner' ? 'initiator' : 'partner';
-  const otherResult = otherRole === 'initiator' ? bundle.initiatorResult : bundle.partnerResult;
-  const otherLabel = otherRole === 'initiator'
-    ? resolveDisplayName(bundle.initiatorDisplayName, 'Initiator')
-    : resolveDisplayName(bundle.partnerDisplayName, 'Partner');
-  const partnerText = {
-    selfPercent: otherResult.totalScore,
-    partnerPercent: 100 - otherResult.totalScore,
-    interpretation: otherResult.interpretation,
-    categories: sortCategories(Object.entries(otherResult.categoryScores) as Array<[QuizCategory, number]>),
-    insights: buildIndividualInsightsWithContext(otherResult.categoryScores, bundle.ownResult?.categoryScores),
-  };
-
-  return (
-    <ResultBreakdown title={otherLabel} result={partnerText} />
   );
 }
 
@@ -381,6 +334,11 @@ function ResultBreakdown({
         <strong>Einordnung</strong>
         <p>{result.insights.summary}</p>
         <p>Belastungsindex: {result.insights.overloadIndex}%</p>
+      </div>
+      <div className="report-block">
+        <p>Dein Ergebnis zeigt zuerst deine Sicht auf die aktuelle Verteilung.</p>
+        <p>Es bewertet noch nicht, ob diese Verteilung passend ist.</p>
+        <p>Es macht sichtbar, worüber ihr gemeinsam sprechen könnt.</p>
       </div>
       <div className="stack">
         {result.categories.map(([category, value]) => (

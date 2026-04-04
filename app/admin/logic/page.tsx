@@ -41,6 +41,18 @@ export default function AdminResultLogicPage() {
           <p className="helper">Die gleichen Werte werden in der Ergebnisansicht genutzt, damit Doku und Produktlogik konsistent bleiben.</p>
         </article>
 
+        <article className="card stack">
+          <h2 className="card-title">Block-Logik im Gesamtergebnis</h2>
+          <div className="report-block">
+            <strong>Block 1</strong>
+            <p>{resultLogicDocumentation.blockLogic.block1}</p>
+          </div>
+          <div className="report-block">
+            <strong>Block 2</strong>
+            <p>{resultLogicDocumentation.blockLogic.block2}</p>
+          </div>
+        </article>
+
         <Link href="/admin" className="button">Zurück zum Admin-Bereich</Link>
       </div>
     </section>

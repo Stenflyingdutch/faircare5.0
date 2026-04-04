@@ -130,6 +130,34 @@ export function buildJointRecommendations(comparisons: CategoryComparison[]) {
   });
 }
 
+export function buildPerceptionOutcome(comparisons: CategoryComparison[]) {
+  const highCount = comparisons.filter((item) => item.level === 'high').length;
+  const mediumCount = comparisons.filter((item) => item.level === 'medium').length;
+  const avgDiff = comparisons.length
+    ? Math.round(comparisons.reduce((sum, item) => sum + item.difference, 0) / comparisons.length)
+    : 0;
+
+  if (highCount === 0 && mediumCount <= 1 && avgDiff < insightThresholds.notableDifference) {
+    return {
+      type: 'sehr_aehnlich' as const,
+      title: 'Sehr ähnliches Gesamtbild',
+      text: 'Ihr habt ein ziemlich gemeinsames Bild der aktuellen Verteilung. Das ist eine gute Basis für ein sachliches Gespräch darüber, ob es sich für euch stimmig anfühlt.',
+    };
+  }
+  if (highCount <= 1) {
+    return {
+      type: 'teilweise_aehnlich' as const,
+      title: 'Ähnliches Bild mit einzelnen Unterschieden',
+      text: 'Insgesamt wirkt eure Wahrnehmung ähnlich. In einzelnen Kategorien gibt es aber spürbare Unterschiede, die ihr gemeinsam klären könnt.',
+    };
+  }
+  return {
+    type: 'deutlich_unterschiedlich' as const,
+    title: 'Deutlich unterschiedliches Gesamtbild',
+    text: 'Eure Wahrnehmung unterscheidet sich aktuell deutlich. Das ist kein Fehler, sondern ein Hinweis darauf, wo ein Gespräch besonders hilfreich sein kann.',
+  };
+}
+
 export const resultLogicDocumentation = {
   dataBasis: [
     'Antworten pro Frage (Skala 0–100 über Antwort-Mapping).',
@@ -144,4 +172,8 @@ export const resultLogicDocumentation = {
     `Starke Differenz ab >= ${insightThresholds.strongDifference}.`,
     'Wenn beide in derselben Kategorie hoch liegen und die Differenz klein ist, wird dies als gemeinsamer Lastbereich formuliert.',
   ],
+  blockLogic: {
+    block1: 'Wahrnehmungsvergleich: ähnliche / teilweise ähnliche / deutlich unterschiedliche Sicht anhand Differenzlevel pro Kategorie.',
+    block2: 'Mental-Load-Verteilung: pro Kategorie Gegenüberstellung beider Werte inkl. Differenz und optionaler Spannweite bei starker Abweichung.',
+  },
 };
