@@ -436,6 +436,37 @@ textarea.input {
   word-break: break-word;
 }
 
+.personal-result-summary {
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  padding: 1rem;
+  background: linear-gradient(180deg, rgba(108, 76, 241, 0.04), rgba(15, 118, 110, 0.04));
+  display: grid;
+  gap: 0.8rem;
+}
+
+.result-split-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.4rem;
+}
+
+.result-split-grid p {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.category-row {
+  display: grid;
+  gap: 0.45rem;
+}
+
+@media (min-width: 768px) {
+  .result-split-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 767px) {
   .card .button {
     width: 100%;

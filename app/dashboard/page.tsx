@@ -7,7 +7,6 @@ import { categoryLabelMap } from '@/services/resultCalculator';
 import {
   buildCategoryComparisons,
   buildClarityConsistencyInsight,
-  buildIndividualInsightsWithContext,
   buildJointRecommendations,
   buildPerceptionOutcome,
 } from '@/services/resultInsights';
@@ -23,12 +22,18 @@ import {
 import type { JointInsight } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
 
-function sortCategories(categories: Array<[QuizCategory, number]>) {
-  return [...categories].sort(([a], [b]) => categoryLabelMap[a].localeCompare(categoryLabelMap[b]));
+function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
+  return [...categories].sort(([, valueA], [, valueB]) => valueA - valueB);
 }
 
 function resolveDisplayName(value?: string | null, fallback = 'Nutzer') {
   return value?.trim() || fallback;
+}
+
+function buildNeutralDistributionStatement(selfPercent: number) {
+  if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
+  if (selfPercent < 45) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei deinem Partner.';
+  return 'Aus deiner Sicht ist die Mental Load aktuell eher gleich verteilt.';
 }
 
 export default function DashboardPage() {
@@ -153,9 +158,11 @@ export default function DashboardPage() {
     return {
       selfPercent: bundle.ownResult.totalScore,
       partnerPercent: 100 - bundle.ownResult.totalScore,
-      interpretation: bundle.ownResult.interpretation,
-      categories: sortCategories(Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>),
-      insights: buildIndividualInsightsWithContext(bundle.ownResult.categoryScores, partnerScores),
+      statement: buildNeutralDistributionStatement(bundle.ownResult.totalScore),
+      categories: sortCategoriesByOwnShareAscending(
+        Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
+      ),
+      partnerCategoryScores: partnerScores,
     };
   }, [bundle?.ownResult, bundle?.profile?.role, bundle?.initiatorResult?.categoryScores, bundle?.partnerResult?.categoryScores]);
 
@@ -331,44 +338,34 @@ function ResultBreakdown({
   result: {
     selfPercent: number;
     partnerPercent: number;
-    interpretation: string;
+    statement: string;
     categories: Array<[QuizCategory, number]>;
-    insights: { summary: string; overloadIndex: number; focus: Array<{ category: QuizCategory; score: number; text: string }> };
+    partnerCategoryScores?: Partial<Record<QuizCategory, number>>;
   };
 }) {
   return (
     <>
-      <h2 className="card-title">{title}</h2>
-      <div>
-        <p className="helper">Gesamtverteilung</p>
+      <h2 className="card-title">Persönliches Ergebnis</h2>
+      <p className="helper" style={{ margin: 0 }}>{title}</p>
+      <div className="personal-result-summary">
+        <p className="helper">Gesamtverteilung in Prozent</p>
         <div className="result-bar"><div className="result-bar-me" style={{ width: `${result.selfPercent}%` }} /></div>
-        <p>Du {result.selfPercent}% · Partner {result.partnerPercent}%</p>
+        <div className="result-split-grid">
+          <p><strong>{title}</strong> {result.selfPercent}%</p>
+          <p><strong>Partner</strong> {result.partnerPercent}%</p>
+        </div>
       </div>
-      <p className="helper">{result.interpretation}</p>
-      <div className="report-block">
-        <strong>Einordnung</strong>
-        <p>{result.insights.summary}</p>
-        <p>Belastungsindex: {result.insights.overloadIndex}%</p>
-      </div>
-      <div className="report-block">
-        <p>Dein Ergebnis zeigt zuerst deine Sicht auf die aktuelle Verteilung.</p>
-        <p>Es bewertet noch nicht, ob diese Verteilung passend ist.</p>
-        <p>Es macht sichtbar, worüber ihr gemeinsam sprechen könnt.</p>
-      </div>
+      <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
+      <p className="helper" style={{ margin: 0 }}>
+        Diese Verteilung sagt nichts darüber aus, ob sie richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung wohlfühlt.
+      </p>
       <div className="stack">
+        <h3 className="card-title">Kategorienübersicht</h3>
         {result.categories.map(([category, value]) => (
-          <div key={category} className="report-block">
+          <div key={category} className="report-block category-row">
             <strong>{categoryLabelMap[category]}</strong>
-            <p>{value}%</p>
+            <p>{title} {value}% · Partner {(result.partnerCategoryScores?.[category] ?? 100 - value)}%</p>
             <div className="result-bar"><div className="result-bar-me" style={{ width: `${value}%` }} /></div>
-          </div>
-        ))}
-      </div>
-      <div className="stack">
-        {result.insights.focus.map((item) => (
-          <div className="report-block" key={`insight-${item.category}`}>
-            <strong>{categoryLabelMap[item.category]}</strong>
-            <p>{item.text}</p>
           </div>
         ))}
       </div>
