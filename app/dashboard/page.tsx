@@ -187,7 +187,7 @@ export default function DashboardPage() {
                 <h2 className="card-title">Status</h2>
                 <p className="card-description">
                   {bundle?.family?.partnerRegistered
-                    ? 'Dein Test ist abgeschlossen. Der Initiator wurde informiert und kann jetzt die gemeinsamen Ergebnisse freischalten.'
+                    ? `Dein Test ist abgeschlossen. ${bundle?.initiatorDisplayName ?? 'Der Initiator'} wurde per E-Mail informiert, dass du das Quiz abgeschlossen hast. Die gemeinsamen Ergebnisse sind erst sichtbar, wenn ${bundle?.initiatorDisplayName ?? 'der Initiator'} den Test freigeschaltet hat.`
                     : 'Warte auf Abschluss der Registrierung.'}
                 </p>
               </>
