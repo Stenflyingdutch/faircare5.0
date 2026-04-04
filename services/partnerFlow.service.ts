@@ -90,14 +90,17 @@ function buildInviteError(
 
 export async function ensureUserProfile(params: { userId: string; email: string; displayName?: string; role?: FamilyRole }) {
   const userRef = doc(db, firestoreCollections.users, params.userId);
-  await setDoc(userRef, {
+  const payload: Record<string, unknown> = {
     id: params.userId,
     email: normalizeEmail(params.email),
     displayName: params.displayName ?? null,
-    role: params.role ?? 'initiator',
     createdAt: nowIso(),
     updatedAt: serverTimestamp(),
-  }, { merge: true });
+  };
+  if (params.role) {
+    payload.role = params.role;
+  }
+  await setDoc(userRef, payload, { merge: true });
 }
 
 export async function fetchAppUserProfile(userId: string) {
@@ -169,16 +172,23 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
     } satisfies SendPartnerInviteResult;
   } catch (error) {
     const callableError = error as { code?: string; message?: string; details?: unknown };
-    console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
-      code: callableError?.code,
-      message: callableError?.message,
-      details: callableError?.details,
-    });
-
     const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
     const allowLocalFallback = appEnv !== 'production';
     const fallbackEligible = ['functions/internal', 'internal', 'functions/unavailable', 'functions/unimplemented']
       .includes(callableError?.code ?? '');
+
+    if (allowLocalFallback && fallbackEligible) {
+      console.info('[sendPartnerInvitation] Callable sendPartnerInvite unavailable, using fallback.', {
+        appEnv,
+        code: callableError?.code,
+      });
+    } else {
+      console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
+        code: callableError?.code,
+        message: callableError?.message,
+        details: callableError?.details,
+      });
+    }
 
     if (allowLocalFallback && fallbackEligible) {
       console.info('[sendPartnerInvitation] Falling back to local invite flow', {

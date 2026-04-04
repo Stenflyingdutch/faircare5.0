@@ -20,6 +20,7 @@ const childCountOptions: Array<{ value: ChildCount; label: string }> = [
 export default function QuizFilterPage() {
   const router = useRouter();
   const [filter, setFilter] = useState<Partial<QuizFilterInput>>({ childcareTags: [] });
+  const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -90,60 +91,88 @@ export default function QuizFilterPage() {
     router.push('/quiz/question/0');
   }
 
+  function canGoNext() {
+    if (step === 0) return Boolean(filter.childCount);
+    if (step === 1) return Boolean(filter.youngestAgeGroup);
+    if (step === 2) return Boolean((filter.childcareTags ?? []).length);
+    if (step === 3) return Boolean(filter.splitClarity);
+    return false;
+  }
+
   return (
     <section className="section">
       <div className="container test-shell stack">
         <h1 className="test-title">Vor dem Quiz</h1>
+        <p className="helper">Schritt {step + 1} von 4</p>
         <form className="stack" onSubmit={handleSubmit}>
-          <fieldset className="quiz-fieldset stack">
-            <legend>Wie viele Kinder habt ihr?</legend>
-            <div className="stack">
-              {childCountOptions.map((option) => (
-                <button key={option.value} type="button" className={`option-chip ${filter.childCount === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, childCount: option.value }))}>
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          {step === 0 && (
+            <fieldset className="quiz-fieldset stack">
+              <legend>Wie viele Kinder habt ihr?</legend>
+              <div className="stack">
+                {childCountOptions.map((option) => (
+                  <button key={option.value} type="button" className={`option-chip ${filter.childCount === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, childCount: option.value }))}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
-          <fieldset className="quiz-fieldset stack">
-            <legend>Wie alt ist das jüngste Kind?</legend>
-            <div className="stack">
-              {ageGroupOptions.map((option) => (
-                <button key={option.value} type="button" className={`option-chip ${filter.youngestAgeGroup === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, youngestAgeGroup: option.value as AgeGroup }))}>
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          {step === 1 && (
+            <fieldset className="quiz-fieldset stack">
+              <legend>Wie alt ist das jüngste Kind?</legend>
+              <div className="stack">
+                {ageGroupOptions.map((option) => (
+                  <button key={option.value} type="button" className={`option-chip ${filter.youngestAgeGroup === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, youngestAgeGroup: option.value as AgeGroup }))}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
-          <fieldset className="quiz-fieldset stack">
-            <legend>Welche externe Betreuung nutzt ihr aktuell? (Mehrfachauswahl)</legend>
-            <div className="stack">
-              {childcareChoices.map((choice) => (
-                <button key={choice.value} type="button" className={`option-chip ${(filter.childcareTags ?? []).includes(choice.value) ? 'selected' : ''}`} onClick={() => toggleChildcare(choice.value)}>
-                  {choice.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          {step === 2 && (
+            <fieldset className="quiz-fieldset stack">
+              <legend>Welche externe Betreuung nutzt ihr aktuell? (Mehrfachauswahl)</legend>
+              <div className="stack">
+                {childcareChoices.map((choice) => (
+                  <button key={choice.value} type="button" className={`option-chip ${(filter.childcareTags ?? []).includes(choice.value) ? 'selected' : ''}`} onClick={() => toggleChildcare(choice.value)}>
+                    {choice.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
-          <fieldset className="quiz-fieldset stack">
-            <legend>Wie klar ist eure Aufteilung heute?</legend>
-            <div className="stack">
-              {splitClarityOptions.map((option) => (
-                <button key={option.value} type="button" className={`option-chip ${filter.splitClarity === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, splitClarity: option.value as SplitClarity }))}>
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          {step === 3 && (
+            <fieldset className="quiz-fieldset stack">
+              <legend>Wie klar ist eure Aufteilung heute?</legend>
+              <div className="stack">
+                {splitClarityOptions.map((option) => (
+                  <button key={option.value} type="button" className={`option-chip ${filter.splitClarity === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, splitClarity: option.value as SplitClarity }))}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
 
           {error && <p className="inline-error">{error}</p>}
 
-          <button type="submit" className="button primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Quiz wird vorbereitet …' : 'Weiter'}
-          </button>
+          <div className="quiz-actions">
+            <button type="button" className="button" disabled={step === 0 || isSubmitting} onClick={() => setStep((current) => Math.max(0, current - 1))}>
+              Zurück
+            </button>
+            {step < 3 ? (
+              <button type="button" className="button primary" disabled={!canGoNext() || isSubmitting} onClick={() => setStep((current) => Math.min(3, current + 1))}>
+                Weiter
+              </button>
+            ) : (
+              <button type="submit" className="button primary" disabled={isSubmitting || !canGoNext()}>
+                {isSubmitting ? 'Quiz wird vorbereitet …' : 'Weiter'}
+              </button>
+            )}
+          </div>
         </form>
       </div>
     </section>

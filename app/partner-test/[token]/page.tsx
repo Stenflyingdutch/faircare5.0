@@ -99,19 +99,22 @@ export default function PartnerTestPage() {
         {!session.perceptionAnswer ? (
           <>
             <p className="helper">Schritt 1 von {totalSteps}</p>
-            <h1 className="test-question">Wie nimmst du die aktuelle Verteilung wahr?</h1>
-            <div className="stack">
-              {perceptionOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`answer-button ${session.perceptionAnswer === option.value ? 'selected' : ''}`}
-                  onClick={() => selectPerception(option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            <h1 className="test-title">Vor dem Partner-Quiz</h1>
+            <fieldset className="quiz-fieldset stack">
+              <legend>Wie nimmst du die aktuelle Verteilung wahr?</legend>
+              <div className="stack">
+                {perceptionOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`option-chip ${session.perceptionAnswer === option.value ? 'selected' : ''}`}
+                    onClick={() => selectPerception(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
           </>
         ) : (
           <>
