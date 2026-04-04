@@ -340,15 +340,15 @@ function ResultBreakdown({
   return (
     <>
       <h2 className="card-title">Persönliches Ergebnis {displayName}</h2>
+      <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
+      <p className="helper" style={{ margin: 0 }}>
+        Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise des Partners helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
+      </p>
       <div className="personal-result-summary">
         <p className="helper"><strong>Gesamtverteilung</strong></p>
         <p className="result-title-line"><strong>{displayName} trägt {result.selfPercent}% vom Mental Load.</strong></p>
         <div className="result-bar"><div className="result-bar-me" style={{ width: `${result.selfPercent}%` }} /></div>
       </div>
-      <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
-      <p className="helper" style={{ margin: 0 }}>
-        Diese Verteilung ist eine subjektive Momentaufnahme und sagt ausdrücklich nicht, ob etwas richtig oder falsch verteilt ist.
-      </p>
       <div className="stack">
         <h3 className="card-title">Kategorienübersicht</h3>
         {result.categories.map(([category, value]) => (
