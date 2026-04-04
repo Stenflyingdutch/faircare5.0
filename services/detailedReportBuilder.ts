@@ -23,10 +23,10 @@ export function buildDetailedReport(questions: QuestionTemplate[], answers: Part
   for (const question of questions) {
     const answer = answers[question.id];
     if (!answer) continue;
-    const current = buckets.get(question.category) ?? { sum: 0, count: 0 };
+    const current = buckets.get(question.categoryKey) ?? { sum: 0, count: 0 };
     current.sum += scoreMap[answer];
     current.count += 1;
-    buckets.set(question.category, current);
+    buckets.set(question.categoryKey, current);
   }
 
   const categories = [...buckets.entries()]

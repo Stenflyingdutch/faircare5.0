@@ -18,10 +18,10 @@ export function computeCategoryScores(
   for (const question of questions) {
     const answer = answers[question.id];
     if (!answer) continue;
-    const current = byCategory.get(question.category) ?? { sum: 0, count: 0 };
+    const current = byCategory.get(question.categoryKey) ?? { sum: 0, count: 0 };
     current.sum += scoreMap[answer];
     current.count += 1;
-    byCategory.set(question.category, current);
+    byCategory.set(question.categoryKey, current);
   }
 
   const result = {} as Record<QuizCategory, number>;

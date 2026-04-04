@@ -1,6 +1,7 @@
-import { questionTemplates } from '@/data/questionTemplates';
-import type { AgeGroup, ChildcareTag, QuestionTemplate } from '@/types/quiz';
+import { questionTemplates, quizCatalog } from '@/data/questionTemplates';
+import type { AgeGroup, ChildcareTag, QuestionTemplate, QuizCategory } from '@/types/quiz';
 
+const QUESTIONS_PER_CATEGORY = 3;
 const QUIZ_SIZE = 15;
 
 function hashSeed(value: string): number {
@@ -13,22 +14,12 @@ function hashSeed(value: string): number {
 }
 
 function seededSort(items: QuestionTemplate[], seedBase: string) {
-  return [...items].sort((a, b) => {
-    const ha = hashSeed(`${seedBase}:${a.id}`);
-    const hb = hashSeed(`${seedBase}:${b.id}`);
-    return hb - ha;
-  });
+  return [...items].sort((a, b) => hashSeed(`${seedBase}:${b.id}`) - hashSeed(`${seedBase}:${a.id}`));
 }
 
 function matchesChildcare(template: QuestionTemplate, childcareTags: ChildcareTag[]) {
-  if (template.requiredChildcareTags && !template.requiredChildcareTags.some((tag) => childcareTags.includes(tag))) {
-    return false;
-  }
-
-  if (template.excludedChildcareTags && template.excludedChildcareTags.some((tag) => childcareTags.includes(tag))) {
-    return false;
-  }
-
+  if (template.requiredChildcareTags && !template.requiredChildcareTags.some((tag) => childcareTags.includes(tag))) return false;
+  if (template.excludedChildcareTags && template.excludedChildcareTags.some((tag) => childcareTags.includes(tag))) return false;
   return true;
 }
 
@@ -38,31 +29,42 @@ export function generateQuestionSet(params: {
   tempSessionId: string;
 }) {
   const { ageGroup, childcareTags, tempSessionId } = params;
-  const ageFiltered = questionTemplates.filter((template) => template.ageGroups.includes(ageGroup));
-  const eligible = ageFiltered.filter((template) => matchesChildcare(template, childcareTags));
+  const categories = quizCatalog.categories
+    .filter((entry) => entry.ageGroup === ageGroup && entry.isActive)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((entry) => entry.key);
 
-  const core = seededSort(
-    eligible.filter((template) => template.isCore).sort((a, b) => b.priority - a.priority),
-    `${tempSessionId}:core`,
-  );
-
-  const optional = seededSort(
-    eligible.filter((template) => !template.isCore).sort((a, b) => b.priority - a.priority),
-    `${tempSessionId}:optional`,
-  );
-
+  const ageQuestions = questionTemplates.filter((template) => template.ageGroup === ageGroup && template.isActive);
   const selected: QuestionTemplate[] = [];
-  for (const item of core) {
-    if (selected.length >= QUIZ_SIZE) break;
-    selected.push(item);
+
+  for (const category of categories) {
+    const inCategory = ageQuestions.filter((template) => template.categoryKey === category);
+    const eligible = seededSort(inCategory.filter((template) => matchesChildcare(template, childcareTags)), `${tempSessionId}:${category}:eligible`);
+    const fallback = seededSort(inCategory, `${tempSessionId}:${category}:fallback`);
+
+    const pick: QuestionTemplate[] = [];
+    for (const item of [...eligible, ...fallback]) {
+      if (pick.length >= QUESTIONS_PER_CATEGORY) break;
+      if (!pick.some((entry) => entry.id === item.id)) pick.push(item);
+    }
+
+    selected.push(...pick);
   }
 
-  for (const item of optional) {
-    if (selected.length >= QUIZ_SIZE) break;
-    if (!selected.find((s) => s.id === item.id)) {
-      selected.push(item);
+  if (selected.length < QUIZ_SIZE) {
+    const remaining = seededSort(ageQuestions, `${tempSessionId}:remaining`);
+    for (const item of remaining) {
+      if (selected.length >= QUIZ_SIZE) break;
+      if (!selected.some((entry) => entry.id === item.id)) selected.push(item);
     }
   }
 
   return selected.slice(0, QUIZ_SIZE);
+}
+
+export function getCategoryLabelLookup() {
+  return quizCatalog.categories.reduce((acc, item) => {
+    acc[item.key as QuizCategory] = item.label;
+    return acc;
+  }, {} as Record<QuizCategory, { de?: string; en?: string; nl?: string }>);
 }

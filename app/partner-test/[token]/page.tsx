@@ -111,7 +111,7 @@ export default function PartnerTestPage() {
         ) : (
           <>
             <p className="helper">Frage {index + 1} von {session.questions.length}</p>
-            <h1 className="test-question">{question.text}</h1>
+            <h1 className="test-question">{question.questionText?.de ?? question.id}</h1>
             <div className="stack">
               {ownershipOptions.map((option) => (
                 <button

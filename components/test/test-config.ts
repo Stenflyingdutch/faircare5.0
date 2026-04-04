@@ -12,8 +12,8 @@ export const ageGroupOptions: Array<{ value: AgeGroup; label: string }> = [
   { value: '0_1', label: '0–1 Jahre' },
   { value: '1_3', label: '1–3 Jahre' },
   { value: '3_6', label: '3–6 Jahre' },
-  { value: '6_12', label: '6–12 Jahre' },
-  { value: '12_18', label: '12–18 Jahre' },
+  { value: '6_10', label: '6–10 Jahre' },
+  { value: '10_plus', label: '10+ Jahre' },
 ];
 
 export const splitClarityOptions: Array<{ value: SplitClarity; label: string }> = [
@@ -31,10 +31,9 @@ export const childcareChoices: Array<{ label: string; value: ChildcareTag }> = [
 ];
 
 export const stressOptions: Array<{ value: StressCategory; label: string }> = [
-  { value: 'organisation', label: 'Organisation' },
+  { value: 'betreuung_entwicklung', label: 'Betreuung & Entwicklung' },
   { value: 'gesundheit', label: 'Gesundheit' },
-  { value: 'betreuung_bildung', label: 'Betreuung & Bildung' },
-  { value: 'grundversorgung', label: 'Grundversorgung' },
-  { value: 'haushalt_versorgung', label: 'Haushalt & Versorgung' },
-  { value: 'soziales', label: 'Soziales' },
+  { value: 'babyalltag_pflege', label: 'Babyalltag & Pflege' },
+  { value: 'haushalt_einkaeufe_vorraete', label: 'Haushalt, Einkäufe & Vorräte' },
+  { value: 'termine_planung_absprachen', label: 'Termine, Planung & Absprachen' },
 ];
