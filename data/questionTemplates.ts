@@ -2,49 +2,38 @@ import type { QuizCatalog } from '@/types/quiz';
 
 const emptyTranslation = { en: '', nl: '' };
 
+const ageGroupPlaceholders = ['1_3', '3_6', '6_10', '10_plus'] as const;
+const categoryBlueprints = [
+  { key: 'betreuung_entwicklung', label: 'Betreuung & Entwicklung', description: 'Schlaf, Rhythmus, Entwicklung und passende Anregung im Alltag.' },
+  { key: 'gesundheit', label: 'Gesundheit', description: 'Vorsorge, Symptome, Medikamente und gesundheitliche Themen im Blick behalten.' },
+  { key: 'babyalltag_pflege', label: 'Babyalltag & Pflege', description: 'Essen, Wickeln, Baden, Kleidung und tägliche Pflege des Babys.' },
+  { key: 'haushalt_einkaeufe_vorraete', label: 'Haushalt, Einkäufe & Vorräte', description: 'Vorräte, Wäsche, Nachkaufen und alles, was im Alltag verfügbar sein muss.' },
+  { key: 'termine_planung_absprachen', label: 'Termine, Planung & Absprachen', description: 'Kalender, Packen, Betreuung, Fristen und Abstimmung zwischen euch beiden.' },
+] as const;
+
+
 export const quizCatalog: QuizCatalog = {
   categories: [
-    {
-      key: 'betreuung_entwicklung',
-      ageGroup: '0_1',
-      label: { de: 'Betreuung & Entwicklung', ...emptyTranslation },
-      description: { de: 'Schlaf, Rhythmus, Entwicklung und passende Anregung im Alltag.', ...emptyTranslation },
-      sortOrder: 1,
+    ...categoryBlueprints.map((item, index) => ({
+      key: item.key,
+      ageGroup: '0_1' as const,
+      label: { de: item.label, ...emptyTranslation },
+      description: { de: item.description, ...emptyTranslation },
+      sortOrder: index + 1,
       isActive: true,
-    },
-    {
-      key: 'gesundheit',
-      ageGroup: '0_1',
-      label: { de: 'Gesundheit', ...emptyTranslation },
-      description: { de: 'Vorsorge, Symptome, Medikamente und gesundheitliche Themen im Blick behalten.', ...emptyTranslation },
-      sortOrder: 2,
-      isActive: true,
-    },
-    {
-      key: 'babyalltag_pflege',
-      ageGroup: '0_1',
-      label: { de: 'Babyalltag & Pflege', ...emptyTranslation },
-      description: { de: 'Essen, Wickeln, Baden, Kleidung und tägliche Pflege des Babys.', ...emptyTranslation },
-      sortOrder: 3,
-      isActive: true,
-    },
-    {
-      key: 'haushalt_einkaeufe_vorraete',
-      ageGroup: '0_1',
-      label: { de: 'Haushalt, Einkäufe & Vorräte', ...emptyTranslation },
-      description: { de: 'Vorräte, Wäsche, Nachkaufen und alles, was im Alltag verfügbar sein muss.', ...emptyTranslation },
-      sortOrder: 4,
-      isActive: true,
-    },
-    {
-      key: 'termine_planung_absprachen',
-      ageGroup: '0_1',
-      label: { de: 'Termine, Planung & Absprachen', ...emptyTranslation },
-      description: { de: 'Kalender, Packen, Betreuung, Fristen und Abstimmung zwischen euch beiden.', ...emptyTranslation },
-      sortOrder: 5,
-      isActive: true,
-    },
+    })),
+    ...ageGroupPlaceholders.flatMap((ageGroup) =>
+      categoryBlueprints.map((item, index) => ({
+        key: item.key,
+        ageGroup,
+        label: { de: item.label, ...emptyTranslation },
+        description: { de: 'Inhalt folgt.', ...emptyTranslation },
+        sortOrder: index + 1,
+        isActive: false,
+      })),
+    ),
   ],
+
   questions: [
     ...[
       'Wer denkt daran, wann das Baby wieder schlafen sollte?',

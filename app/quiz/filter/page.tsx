@@ -6,8 +6,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { ageGroupOptions, childcareChoices, splitClarityOptions } from '@/components/test/test-config';
 import { observeAuthState } from '@/services/auth.service';
 import { fetchAppUserProfile } from '@/services/partnerFlow.service';
-import { generateQuestionSet } from '@/services/questionGenerator';
-import { persistQuizSession } from '@/services/firestoreQuiz';
+import { generateQuestionSetFromCatalog, questionCatalogFallback } from '@/services/questionGenerator';
+import { fetchQuizCatalog, persistQuizSession } from '@/services/firestoreQuiz';
 import { createTempSessionId, saveSessionToStorage } from '@/services/sessionStorage';
 import { getCurrentLocale, t } from '@/lib/i18n';
 import type { AgeGroup, ChildCount, ChildcareTag, QuizFilterInput, SplitClarity, TempQuizSession } from '@/types/quiz';
@@ -69,7 +69,12 @@ export default function QuizFilterPage() {
     setIsSubmitting(true);
     const tempSessionId = createTempSessionId();
     const normalized = filter as QuizFilterInput;
-    const questions = generateQuestionSet({
+    let catalog = questionCatalogFallback;
+    try {
+      catalog = await fetchQuizCatalog();
+    } catch {}
+
+    const questions = generateQuestionSetFromCatalog(catalog, {
       ageGroup: normalized.youngestAgeGroup,
       childcareTags: normalized.childcareTags,
       tempSessionId,
@@ -163,11 +168,11 @@ export default function QuizFilterPage() {
 
           <div className="quiz-actions">
             <button type="button" className="button" disabled={step === 0 || isSubmitting} onClick={() => setStep((current) => Math.max(0, current - 1))}>
-              Zurück
+              {t('common.back', locale)}
             </button>
             {step < 3 ? (
               <button type="button" className="button primary" disabled={!canGoNext() || isSubmitting} onClick={() => setStep((current) => Math.min(3, current + 1))}>
-                Weiter
+                {t('common.next', locale)}
               </button>
             ) : (
               <button type="submit" className="button primary" disabled={isSubmitting || !canGoNext()}>

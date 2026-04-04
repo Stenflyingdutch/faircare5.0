@@ -1,5 +1,5 @@
 import { questionTemplates, quizCatalog } from '@/data/questionTemplates';
-import type { AgeGroup, ChildcareTag, QuestionTemplate, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, QuestionTemplate, QuizCatalog } from '@/types/quiz';
 
 const QUESTIONS_PER_CATEGORY = 3;
 const QUIZ_SIZE = 15;
@@ -23,18 +23,18 @@ function matchesChildcare(template: QuestionTemplate, childcareTags: ChildcareTa
   return true;
 }
 
-export function generateQuestionSet(params: {
+export function generateQuestionSetFromCatalog(catalog: QuizCatalog, params: {
   ageGroup: AgeGroup;
   childcareTags: ChildcareTag[];
   tempSessionId: string;
 }) {
   const { ageGroup, childcareTags, tempSessionId } = params;
-  const categories = quizCatalog.categories
+  const categories = catalog.categories
     .filter((entry) => entry.ageGroup === ageGroup && entry.isActive)
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((entry) => entry.key);
 
-  const ageQuestions = questionTemplates.filter((template) => template.ageGroup === ageGroup && template.isActive);
+  const ageQuestions = catalog.questions.filter((template) => template.ageGroup === ageGroup && template.isActive);
   const selected: QuestionTemplate[] = [];
 
   for (const category of categories) {
@@ -47,7 +47,6 @@ export function generateQuestionSet(params: {
       if (pick.length >= QUESTIONS_PER_CATEGORY) break;
       if (!pick.some((entry) => entry.id === item.id)) pick.push(item);
     }
-
     selected.push(...pick);
   }
 
@@ -62,9 +61,15 @@ export function generateQuestionSet(params: {
   return selected.slice(0, QUIZ_SIZE);
 }
 
-export function getCategoryLabelLookup() {
-  return quizCatalog.categories.reduce((acc, item) => {
-    acc[item.key as QuizCategory] = item.label;
-    return acc;
-  }, {} as Record<QuizCategory, { de?: string; en?: string; nl?: string }>);
+export function generateQuestionSet(params: {
+  ageGroup: AgeGroup;
+  childcareTags: ChildcareTag[];
+  tempSessionId: string;
+}) {
+  return generateQuestionSetFromCatalog(quizCatalog, params);
 }
+
+export const questionCatalogFallback = {
+  categories: quizCatalog.categories,
+  questions: questionTemplates,
+};
