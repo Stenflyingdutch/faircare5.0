@@ -152,19 +152,14 @@ export default function DashboardPage() {
 
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
-    const partnerScores = bundle?.profile?.role === 'partner'
-      ? bundle?.initiatorResult?.categoryScores
-      : bundle?.partnerResult?.categoryScores;
     return {
       selfPercent: bundle.ownResult.totalScore,
-      partnerPercent: 100 - bundle.ownResult.totalScore,
       statement: buildNeutralDistributionStatement(bundle.ownResult.totalScore),
       categories: sortCategoriesByOwnShareAscending(
         Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
       ),
-      partnerCategoryScores: partnerScores,
     };
-  }, [bundle?.ownResult, bundle?.profile?.role, bundle?.initiatorResult?.categoryScores, bundle?.partnerResult?.categoryScores]);
+  }, [bundle?.ownResult]);
 
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
 
@@ -336,34 +331,30 @@ function ResultBreakdown({
   title: string;
   result: {
     selfPercent: number;
-    partnerPercent: number;
     statement: string;
     categories: Array<[QuizCategory, number]>;
-    partnerCategoryScores?: Partial<Record<QuizCategory, number>>;
   };
 }) {
+  const displayName = resolveDisplayName(title, 'Nicole');
+
   return (
     <>
-      <h2 className="card-title">Persönliches Ergebnis</h2>
-      <p className="helper" style={{ margin: 0 }}>{title}</p>
+      <h2 className="card-title">Persönliches Ergebnis {displayName}</h2>
       <div className="personal-result-summary">
-        <p className="helper">Gesamtverteilung in Prozent</p>
+        <p className="helper"><strong>Gesamtverteilung</strong></p>
+        <p className="result-title-line"><strong>{displayName} trägt {result.selfPercent}% vom Mental Load.</strong></p>
         <div className="result-bar"><div className="result-bar-me" style={{ width: `${result.selfPercent}%` }} /></div>
-        <div className="result-split-grid">
-          <p><strong>{title}</strong> {result.selfPercent}%</p>
-          <p><strong>Partner</strong> {result.partnerPercent}%</p>
-        </div>
       </div>
       <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
       <p className="helper" style={{ margin: 0 }}>
-        Diese Verteilung sagt nichts darüber aus, ob sie richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung wohlfühlt.
+        Diese Verteilung ist eine subjektive Momentaufnahme und sagt ausdrücklich nicht, ob etwas richtig oder falsch verteilt ist.
       </p>
       <div className="stack">
         <h3 className="card-title">Kategorienübersicht</h3>
         {result.categories.map(([category, value]) => (
           <div key={category} className="report-block category-row">
             <strong>{categoryLabelMap[category]}</strong>
-            <p>{title} {value}% · Partner {(result.partnerCategoryScores?.[category] ?? 100 - value)}%</p>
+            <p className="result-title-line"><strong>{displayName} trägt {value}% vom Mental Load.</strong></p>
             <div className="result-bar"><div className="result-bar-me" style={{ width: `${value}%` }} /></div>
           </div>
         ))}

@@ -442,18 +442,7 @@ textarea.input {
   padding: 1rem;
   background: linear-gradient(180deg, rgba(108, 76, 241, 0.04), rgba(15, 118, 110, 0.04));
   display: grid;
-  gap: 0.8rem;
-}
-
-.result-split-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.4rem;
-}
-
-.result-split-grid p {
-  margin: 0;
-  color: var(--color-text-primary);
+  gap: 0.6rem;
 }
 
 .category-row {
@@ -461,10 +450,8 @@ textarea.input {
   gap: 0.45rem;
 }
 
-@media (min-width: 768px) {
-  .result-split-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.result-title-line {
+  margin: 0;
 }
 
 @media (max-width: 767px) {
