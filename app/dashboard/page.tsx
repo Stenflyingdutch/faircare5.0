@@ -6,11 +6,8 @@ import { useRouter } from 'next/navigation';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
   buildCategoryComparisons,
-  buildClarityConsistencyInsight,
-  buildJointRecommendations,
-  buildPerceptionOutcome,
 } from '@/services/resultInsights';
-import { observeAuthState } from '@/services/auth.service';
+import { observeAuthState, signOutUser } from '@/services/auth.service';
 import {
   ensureUserProfile,
   fetchDashboardBundle,
@@ -19,7 +16,6 @@ import {
   openSharedResultsView,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
-import type { JointInsight } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
 
 function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
@@ -35,6 +31,7 @@ function deriveNameFromEmail(email?: string | null) {
   const local = email.split('@')[0]?.trim();
   return local || null;
 }
+
 
 function buildNeutralDistributionStatement(selfPercent: number) {
   if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
@@ -156,6 +153,12 @@ export default function DashboardPage() {
     }
   }
 
+
+  async function logout() {
+    await signOutUser();
+    router.push('/login');
+  }
+
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
     return {
@@ -177,7 +180,10 @@ export default function DashboardPage() {
   return (
     <section className="section">
       <div className="container stack">
-        <h1 className="test-title">Dashboard</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 className="test-title">Dashboard</h1>
+          <button type="button" className="button" onClick={logout}>Logout</button>
+        </div>
 
         <article className="card stack">
           {!ownResultText
@@ -216,10 +222,16 @@ export default function DashboardPage() {
           ) : bundle?.family?.resultsUnlocked ? (
             <>
               <h2 className="card-title">Status</h2>
-              <p className="card-description">Eure gemeinsamen Ergebnisse sind bereit.</p>
-              <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
-                Gemeinsame Ergebnisse anschauen
-              </button>
+              <p className="card-description">
+                {bundle?.family?.sharedResultsOpened
+                  ? 'Eure gemeinsamen Ergebnisse werden unten angezeigt.'
+                  : 'Eure gemeinsamen Ergebnisse sind bereit.'}
+              </p>
+              {!bundle?.family?.sharedResultsOpened && (
+                <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
+                  Gemeinsame Ergebnisse anschauen
+                </button>
+              )}
               {openSharedState === 'error' && <p className="inline-error">{openSharedMessage}</p>}
             </>
           ) : bundle?.profile?.role === 'partner' ? (
@@ -265,77 +277,65 @@ export default function DashboardPage() {
             </p>
           </article>
         ) : (
-          <JointResultPanel insights={bundle?.joint?.insights ?? []} bundle={bundle} />
+          <JointResultPanel bundle={bundle} />
         )}
       </div>
     </section>
   );
 }
 
-function JointResultPanel({ insights, bundle }: {
-  insights: JointInsight[];
+function JointResultPanel({ bundle }: {
   bundle: Awaited<ReturnType<typeof fetchDashboardBundle>>;
 }) {
   if (!bundle.initiatorResult || !bundle.partnerResult) return null;
-  const ownRole = bundle.profile?.role === 'partner' ? 'partner' : 'initiator';
-  const ownResult = ownRole === 'partner' ? bundle.partnerResult : bundle.initiatorResult;
-  const otherResult = ownRole === 'partner' ? bundle.initiatorResult : bundle.partnerResult;
-  const ownLabel = bundle.profile?.displayName || 'Du';
-  const otherLabel = ownRole === 'partner'
-    ? (bundle.initiatorDisplayName ?? 'Initiator')
-    : (bundle.partnerDisplayName ?? 'Partner');
 
-  const comparisons = buildCategoryComparisons(ownResult.categoryScores, otherResult.categoryScores);
-  const recommendations = buildJointRecommendations(comparisons);
-  const perceptionOutcome = buildPerceptionOutcome(comparisons);
-  const averageDifference = comparisons.length
-    ? Math.round(comparisons.reduce((sum, item) => sum + item.difference, 0) / comparisons.length)
-    : 0;
-  const clarityInsight = buildClarityConsistencyInsight(
-    bundle.initiatorResult?.filterPerceptionAnswer,
-    bundle.partnerResult?.filterPerceptionAnswer,
-    averageDifference,
-  );
+  const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, deriveNameFromEmail(bundle.profile?.email) ?? 'Unbekannt');
+  const partnerName = resolveDisplayName(bundle.partnerDisplayName, deriveNameFromEmail(bundle.invitationPartnerEmail) ?? 'Unbekannt');
+
+  const initiatorScores = bundle.initiatorResult.categoryScores;
+  const partnerScores = bundle.partnerResult.categoryScores;
+
+  const comparisons = buildCategoryComparisons(initiatorScores, partnerScores);
 
   return (
     <article className="card stack">
       <h2 className="card-title">Gemeinsames Ergebnis</h2>
-      <div className="report-block">
-        <strong>Block 1 · Wahrnehmungsvergleich</strong>
-        <p><strong>{perceptionOutcome.title}</strong></p>
-        <p>{perceptionOutcome.text}</p>
-        {clarityInsight && <p>{clarityInsight}</p>}
-      </div>
       <div className="stack">
-        <h3 className="card-title">Block 2 · Mental-Load-Verteilung</h3>
-        {comparisons.map((entry) => (
-          <div className="report-block" key={`cmp-${entry.category}`}>
-            <strong>{categoryLabelMap[entry.category]}</strong>
-            <p>{ownLabel} {entry.own}% · {otherLabel} {entry.partner}% · Differenz {entry.difference}%</p>
-            {entry.level === 'high' && <p>Spannweite: {Math.min(entry.own, entry.partner)}% bis {Math.max(entry.own, entry.partner)}%</p>}
-            <div className="result-bar">
-              <div className="result-bar-me" style={{ width: `${entry.own}%` }} />
+        {comparisons.map((entry) => {
+          const initiatorSelf = initiatorScores[entry.category] ?? 0;
+          const partnerSeesInitiator = 100 - (partnerScores[entry.category] ?? 0);
+          const partnerSelf = partnerScores[entry.category] ?? 0;
+          const initiatorSeesPartner = 100 - (initiatorScores[entry.category] ?? 0);
+
+          const gapInitiator = Math.abs(initiatorSelf - partnerSeesInitiator);
+          const gapPartner = Math.abs(partnerSelf - initiatorSeesPartner);
+          const hasGap = gapInitiator >= 12 || gapPartner >= 12;
+
+          return (
+            <div className="report-block" key={`cmp-${entry.category}`}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <strong>{categoryLabelMap[entry.category]}</strong>
+                {hasGap && <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>Lücke erkannt</span>}
+              </div>
+              <p className="helper" style={{ marginBottom: 4 }}>{initiatorName} selbst</p>
+              <div className="result-bar"><div className="result-bar-me" style={{ width: `${initiatorSelf}%` }} /></div>
+              <p className="helper" style={{ marginTop: 2 }}>{initiatorSelf}%</p>
+
+              <p className="helper" style={{ marginBottom: 4 }}>{partnerName} sieht {initiatorName}</p>
+              <div className="result-bar"><div className="result-bar-me" style={{ width: `${partnerSeesInitiator}%`, opacity: 0.8 }} /></div>
+              <p className="helper" style={{ marginTop: 2 }}>{partnerSeesInitiator}%</p>
+
+              <p className="helper" style={{ marginBottom: 4 }}>{partnerName} selbst</p>
+              <div className="result-bar"><div className="result-bar-me" style={{ width: `${partnerSelf}%` }} /></div>
+              <p className="helper" style={{ marginTop: 2 }}>{partnerSelf}%</p>
+
+              <p className="helper" style={{ marginBottom: 4 }}>{initiatorName} sieht {partnerName}</p>
+              <div className="result-bar"><div className="result-bar-me" style={{ width: `${initiatorSeesPartner}%`, opacity: 0.8 }} /></div>
+              <p className="helper" style={{ marginTop: 2 }}>{initiatorSeesPartner}%</p>
+
             </div>
-            <div className="result-bar">
-              <div className="result-bar-me" style={{ width: `${entry.partner}%`, opacity: 0.55 }} />
-            </div>
-            <p>{entry.text}</p>
-          </div>
-        ))}
-      </div>
-      <div className="stack">
-        {insights.map((insight) => (
-          <div className="report-block" key={`${insight.category}-${insight.level}`}>
-            <strong>{categoryLabelMap[insight.category]}</strong>
-            <p>{insight.text}</p>
-          </div>
-        ))}
-      </div>
-      <div className="stack">
-        <h3 className="card-title">Gemeinsame Empfehlungen</h3>
-        {recommendations.map((item) => (
-          <div key={item} className="report-block"><p>{item}</p></div>
-        ))}
+          );
+        })}
       </div>
     </article>
   );

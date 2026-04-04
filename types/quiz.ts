@@ -1,5 +1,7 @@
+import type { LocalizedText } from '@/types/i18n';
+
 export type ChildCount = '1' | '2' | '3_plus';
-export type AgeGroup = '0_1' | '1_3' | '3_6' | '6_12' | '12_18';
+export type AgeGroup = '0_1' | '1_3' | '3_6' | '6_10' | '10_plus';
 
 export type ChildcareTag = 'none' | 'kita' | 'tagesmutter' | 'family' | 'babysitter';
 export type SplitClarity = 'eher_klar' | 'teils_spontan' | 'oft_unklar';
@@ -7,14 +9,13 @@ export type SplitClarity = 'eher_klar' | 'teils_spontan' | 'oft_unklar';
 export type OwnershipAnswer = 'ich' | 'eher_ich' | 'beide' | 'eher_partner' | 'partner';
 
 export type StressCategory =
-  | 'organisation'
+  | 'betreuung_entwicklung'
   | 'gesundheit'
-  | 'betreuung_bildung'
-  | 'grundversorgung'
-  | 'haushalt_versorgung'
-  | 'soziales';
+  | 'babyalltag_pflege'
+  | 'haushalt_einkaeufe_vorraete'
+  | 'termine_planung_absprachen';
 
-export type QuizCategory = StressCategory | 'entwicklung';
+export type QuizCategory = StressCategory;
 
 export interface QuizFilterInput {
   childCount: ChildCount;
@@ -23,15 +24,29 @@ export interface QuizFilterInput {
   splitClarity: SplitClarity;
 }
 
+export interface QuizCategoryTemplate {
+  key: QuizCategory;
+  ageGroup: AgeGroup;
+  label: LocalizedText;
+  description: LocalizedText;
+  sortOrder: number;
+  isActive: boolean;
+}
+
 export interface QuestionTemplate {
   id: string;
-  text: string;
-  category: QuizCategory;
-  ageGroups: AgeGroup[];
-  priority: number;
-  isCore: boolean;
+  ageGroup: AgeGroup;
+  categoryKey: QuizCategory;
+  questionText: LocalizedText;
+  sortOrder: number;
+  isActive: boolean;
   requiredChildcareTags?: ChildcareTag[];
   excludedChildcareTags?: ChildcareTag[];
+}
+
+export interface QuizCatalog {
+  categories: QuizCategoryTemplate[];
+  questions: QuestionTemplate[];
 }
 
 export interface TempQuizSession extends QuizFilterInput {

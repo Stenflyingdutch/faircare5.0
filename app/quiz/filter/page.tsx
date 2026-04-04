@@ -6,9 +6,10 @@ import { FormEvent, useEffect, useState } from 'react';
 import { ageGroupOptions, childcareChoices, splitClarityOptions } from '@/components/test/test-config';
 import { observeAuthState } from '@/services/auth.service';
 import { fetchAppUserProfile } from '@/services/partnerFlow.service';
-import { generateQuestionSet } from '@/services/questionGenerator';
-import { persistQuizSession } from '@/services/firestoreQuiz';
+import { generateQuestionSetFromCatalog, questionCatalogFallback } from '@/services/questionGenerator';
+import { fetchQuizCatalog, persistQuizSession } from '@/services/firestoreQuiz';
 import { createTempSessionId, saveSessionToStorage } from '@/services/sessionStorage';
+import { getCurrentLocale, t } from '@/lib/i18n';
 import type { AgeGroup, ChildCount, ChildcareTag, QuizFilterInput, SplitClarity, TempQuizSession } from '@/types/quiz';
 
 const childCountOptions: Array<{ value: ChildCount; label: string }> = [
@@ -23,6 +24,7 @@ export default function QuizFilterPage() {
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const locale = getCurrentLocale();
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -55,19 +57,24 @@ export default function QuizFilterPage() {
     setError(null);
 
     if (!filter.childCount || !filter.youngestAgeGroup || !(filter.childcareTags ?? []).length || !filter.splitClarity) {
-      setError('Bitte triff zuerst eine Auswahl.');
+      setError(t('quiz.error.selectFirst', locale));
       return;
     }
 
     if (filter.youngestAgeGroup !== '0_1') {
-      setError('Aktuell wird nur die Altersgruppe 0–1 Jahre unterstützt.');
+      setError(t('quiz.error.ageUnsupported', locale));
       return;
     }
 
     setIsSubmitting(true);
     const tempSessionId = createTempSessionId();
     const normalized = filter as QuizFilterInput;
-    const questions = generateQuestionSet({
+    let catalog = questionCatalogFallback;
+    try {
+      catalog = await fetchQuizCatalog();
+    } catch {}
+
+    const questions = generateQuestionSetFromCatalog(catalog, {
       ageGroup: normalized.youngestAgeGroup,
       childcareTags: normalized.childcareTags,
       tempSessionId,
@@ -102,12 +109,12 @@ export default function QuizFilterPage() {
   return (
     <section className="section">
       <div className="container test-shell stack">
-        <h1 className="test-title">Vor dem Quiz</h1>
-        <p className="helper">Schritt {step + 1} von 4</p>
+        <h1 className="test-title">{t('quiz.filter.title', locale)}</h1>
+        <p className="helper">{t('quiz.filter.step', locale, { current: step + 1, total: 4 })}</p>
         <form className="stack" onSubmit={handleSubmit}>
           {step === 0 && (
             <fieldset className="quiz-fieldset stack">
-              <legend>Wie viele Kinder habt ihr?</legend>
+              <legend>{t('quiz.filter.childCount', locale)}</legend>
               <div className="stack">
                 {childCountOptions.map((option) => (
                   <button key={option.value} type="button" className={`option-chip ${filter.childCount === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, childCount: option.value }))}>
@@ -120,7 +127,7 @@ export default function QuizFilterPage() {
 
           {step === 1 && (
             <fieldset className="quiz-fieldset stack">
-              <legend>Wie alt ist das jüngste Kind?</legend>
+              <legend>{t('quiz.filter.ageGroup', locale)}</legend>
               <div className="stack">
                 {ageGroupOptions.map((option) => (
                   <button key={option.value} type="button" className={`option-chip ${filter.youngestAgeGroup === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, youngestAgeGroup: option.value as AgeGroup }))}>
@@ -133,7 +140,7 @@ export default function QuizFilterPage() {
 
           {step === 2 && (
             <fieldset className="quiz-fieldset stack">
-              <legend>Welche externe Betreuung nutzt ihr aktuell? (Mehrfachauswahl)</legend>
+              <legend>{t('quiz.filter.childcare', locale)}</legend>
               <div className="stack">
                 {childcareChoices.map((choice) => (
                   <button key={choice.value} type="button" className={`option-chip ${(filter.childcareTags ?? []).includes(choice.value) ? 'selected' : ''}`} onClick={() => toggleChildcare(choice.value)}>
@@ -146,7 +153,7 @@ export default function QuizFilterPage() {
 
           {step === 3 && (
             <fieldset className="quiz-fieldset stack">
-              <legend>Wie klar ist eure Aufteilung heute?</legend>
+              <legend>{t('quiz.filter.split', locale)}</legend>
               <div className="stack">
                 {splitClarityOptions.map((option) => (
                   <button key={option.value} type="button" className={`option-chip ${filter.splitClarity === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, splitClarity: option.value as SplitClarity }))}>
@@ -161,15 +168,15 @@ export default function QuizFilterPage() {
 
           <div className="quiz-actions">
             <button type="button" className="button" disabled={step === 0 || isSubmitting} onClick={() => setStep((current) => Math.max(0, current - 1))}>
-              Zurück
+              {t('common.back', locale)}
             </button>
             {step < 3 ? (
               <button type="button" className="button primary" disabled={!canGoNext() || isSubmitting} onClick={() => setStep((current) => Math.min(3, current + 1))}>
-                Weiter
+                {t('common.next', locale)}
               </button>
             ) : (
               <button type="submit" className="button primary" disabled={isSubmitting || !canGoNext()}>
-                {isSubmitting ? 'Quiz wird vorbereitet …' : 'Weiter'}
+                {isSubmitting ? t('quiz.preparing', locale) : t('common.next', locale)}
               </button>
             )}
           </div>

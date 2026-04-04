@@ -4,6 +4,7 @@ import { SectionWrapper } from '@/components/SectionWrapper';
 import Link from 'next/link';
 
 const adminAreas = ['Quizfragen', 'Ergebnis-Texte', 'Aufgabenkatalog', 'Seiteninhalte', 'Weekly Check-in Templates'];
+const ageGroups = ['0–1', '1–3', '3–6', '6–10', '10+'];
 
 export default function AdminPage() {
   return (
@@ -11,9 +12,18 @@ export default function AdminPage() {
       <PageHero
         badge="Admin"
         title="Admin-Bereich"
-        subtitle="Hier werden später Inhalte gepflegt und strukturiert verwaltet."
+        subtitle="Hier werden Inhalte gepflegt und strukturiert verwaltet."
       />
       <SectionWrapper>
+        <article className="card stack" style={{ marginBottom: 16 }}>
+          <h3 className="card-title">Altersgruppen (vorbereitet)</h3>
+          <p className="card-description">Die Navigation für weitere Altersgruppen ist bereits sichtbar. Inhalte können schrittweise ergänzt werden.</p>
+          <div className="chip-row">
+            {ageGroups.map((item) => <span key={item} className="option-chip selected">{item}</span>)}
+          </div>
+          <Link href="/admin/questions" className="button primary">Fragenkatalog bearbeiten</Link>
+        </article>
+
         <div className="grid grid-3">
           {adminAreas.map((item) => (
             <Card key={item} title={item} description="Dieser Bereich ist als Platzhalter vorbereitet." />

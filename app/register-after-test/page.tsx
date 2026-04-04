@@ -14,6 +14,7 @@ export default function RegisterAfterTestPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordRepeat, setPasswordRepeat] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,6 +33,12 @@ export default function RegisterAfterTestPage() {
 
     setError(null);
     setIsSubmitting(true);
+
+    if (password !== passwordRepeat) {
+      setError('Die Passwörter stimmen nicht überein.');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const credential = await registerUser(email, password);
@@ -60,6 +67,7 @@ export default function RegisterAfterTestPage() {
           <input className="input" required placeholder="Name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
           <input className="input" type="email" required placeholder="E-Mail" value={email} onChange={(event) => setEmail(event.target.value)} />
           <input className="input" type="password" minLength={6} required placeholder="Passwort" value={password} onChange={(event) => setPassword(event.target.value)} />
+          <input className="input" type="password" minLength={6} required placeholder="Passwort wiederholen" value={passwordRepeat} onChange={(event) => setPasswordRepeat(event.target.value)} />
           {error && <p className="inline-error">{error}</p>}
           <button type="submit" className="button primary" disabled={isSubmitting}>{isSubmitting ? 'Wird gespeichert …' : 'Registrieren'}</button>
         </form>

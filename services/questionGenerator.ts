@@ -1,6 +1,7 @@
-import { questionTemplates } from '@/data/questionTemplates';
-import type { AgeGroup, ChildcareTag, QuestionTemplate } from '@/types/quiz';
+import { questionTemplates, quizCatalog } from '@/data/questionTemplates';
+import type { AgeGroup, ChildcareTag, QuestionTemplate, QuizCatalog } from '@/types/quiz';
 
+const QUESTIONS_PER_CATEGORY = 3;
 const QUIZ_SIZE = 15;
 
 function hashSeed(value: string): number {
@@ -13,23 +14,71 @@ function hashSeed(value: string): number {
 }
 
 function seededSort(items: QuestionTemplate[], seedBase: string) {
-  return [...items].sort((a, b) => {
-    const ha = hashSeed(`${seedBase}:${a.id}`);
-    const hb = hashSeed(`${seedBase}:${b.id}`);
-    return hb - ha;
-  });
+  return [...items].sort((a, b) => hashSeed(`${seedBase}:${b.id}`) - hashSeed(`${seedBase}:${a.id}`));
+}
+
+function seededShuffle(items: QuestionTemplate[], seedBase: string) {
+  const result = [...items];
+  let seed = hashSeed(seedBase) || 1;
+
+  const random = () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+
+  return result;
 }
 
 function matchesChildcare(template: QuestionTemplate, childcareTags: ChildcareTag[]) {
-  if (template.requiredChildcareTags && !template.requiredChildcareTags.some((tag) => childcareTags.includes(tag))) {
-    return false;
-  }
-
-  if (template.excludedChildcareTags && template.excludedChildcareTags.some((tag) => childcareTags.includes(tag))) {
-    return false;
-  }
-
+  if (template.requiredChildcareTags && !template.requiredChildcareTags.some((tag) => childcareTags.includes(tag))) return false;
+  if (template.excludedChildcareTags && template.excludedChildcareTags.some((tag) => childcareTags.includes(tag))) return false;
   return true;
+}
+
+export function generateQuestionSetFromCatalog(catalog: QuizCatalog, params: {
+  ageGroup: AgeGroup;
+  childcareTags: ChildcareTag[];
+  tempSessionId: string;
+}) {
+  const { ageGroup, childcareTags, tempSessionId } = params;
+  const categories = catalog.categories
+    .filter((entry) => entry.ageGroup === ageGroup && entry.isActive)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((entry) => entry.key);
+
+  const ageQuestions = catalog.questions.filter((template) => template.ageGroup === ageGroup && template.isActive);
+  const selected: QuestionTemplate[] = [];
+
+  for (const category of categories) {
+    const inCategory = ageQuestions.filter((template) => template.categoryKey === category);
+    const eligible = seededSort(inCategory.filter((template) => matchesChildcare(template, childcareTags)), `${tempSessionId}:${category}:eligible`);
+    const fallback = seededSort(inCategory, `${tempSessionId}:${category}:fallback`);
+
+    const pick: QuestionTemplate[] = [];
+    for (const item of [...eligible, ...fallback]) {
+      if (pick.length >= QUESTIONS_PER_CATEGORY) break;
+      if (!pick.some((entry) => entry.id === item.id)) pick.push(item);
+    }
+    selected.push(...pick);
+  }
+
+  if (selected.length < QUIZ_SIZE) {
+    const remaining = seededSort(ageQuestions, `${tempSessionId}:remaining`);
+    for (const item of remaining) {
+      if (selected.length >= QUIZ_SIZE) break;
+      if (!selected.some((entry) => entry.id === item.id)) selected.push(item);
+    }
+  }
+
+  return seededShuffle(selected.slice(0, QUIZ_SIZE), `${tempSessionId}:final-mix`);
 }
 
 export function generateQuestionSet(params: {
@@ -37,32 +86,10 @@ export function generateQuestionSet(params: {
   childcareTags: ChildcareTag[];
   tempSessionId: string;
 }) {
-  const { ageGroup, childcareTags, tempSessionId } = params;
-  const ageFiltered = questionTemplates.filter((template) => template.ageGroups.includes(ageGroup));
-  const eligible = ageFiltered.filter((template) => matchesChildcare(template, childcareTags));
-
-  const core = seededSort(
-    eligible.filter((template) => template.isCore).sort((a, b) => b.priority - a.priority),
-    `${tempSessionId}:core`,
-  );
-
-  const optional = seededSort(
-    eligible.filter((template) => !template.isCore).sort((a, b) => b.priority - a.priority),
-    `${tempSessionId}:optional`,
-  );
-
-  const selected: QuestionTemplate[] = [];
-  for (const item of core) {
-    if (selected.length >= QUIZ_SIZE) break;
-    selected.push(item);
-  }
-
-  for (const item of optional) {
-    if (selected.length >= QUIZ_SIZE) break;
-    if (!selected.find((s) => s.id === item.id)) {
-      selected.push(item);
-    }
-  }
-
-  return selected.slice(0, QUIZ_SIZE);
+  return generateQuestionSetFromCatalog(quizCatalog, params);
 }
+
+export const questionCatalogFallback = {
+  categories: quizCatalog.categories,
+  questions: questionTemplates,
+};

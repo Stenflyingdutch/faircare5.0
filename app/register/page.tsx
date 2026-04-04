@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordRepeat, setPasswordRepeat] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -20,6 +21,12 @@ export default function RegisterPage() {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
+    if (password !== passwordRepeat) {
+      setError('Die Passwörter stimmen nicht überein.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const credential = await registerUser(email, password);
       await updateProfile(credential.user, { displayName: displayName.trim() });
@@ -42,6 +49,7 @@ export default function RegisterPage() {
           <input required placeholder="Name" className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
           <input required type="email" placeholder="E-Mail" className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input required minLength={6} type="password" placeholder="Passwort (mind. 6 Zeichen)" className="input" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input required minLength={6} type="password" placeholder="Passwort wiederholen" className="input" value={passwordRepeat} onChange={(e) => setPasswordRepeat(e.target.value)} />
           {error && <p className="inline-error">{error}</p>}
           <button type="submit" className="button primary" disabled={isSubmitting}>{isSubmitting ? 'Registriert …' : 'Registrieren'}</button>
         </form>

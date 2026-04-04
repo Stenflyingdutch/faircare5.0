@@ -1,3 +1,5 @@
+import { quizCatalog } from '@/data/questionTemplates';
+import { resolveLocalizedText } from '@/types/i18n';
 import type { OwnershipAnswer, QuestionTemplate, QuizCategory, QuizSummary } from '@/types/quiz';
 
 const scoreMap: Record<OwnershipAnswer, number> = {
@@ -8,15 +10,10 @@ const scoreMap: Record<OwnershipAnswer, number> = {
   partner: 0,
 };
 
-export const categoryLabelMap: Record<QuizCategory, string> = {
-  organisation: 'Organisation',
-  gesundheit: 'Gesundheit',
-  betreuung_bildung: 'Betreuung & Bildung',
-  grundversorgung: 'Grundversorgung',
-  haushalt_versorgung: 'Haushalt & Versorgung',
-  soziales: 'Soziales',
-  entwicklung: 'Entwicklung',
-};
+export const categoryLabelMap: Record<QuizCategory, string> = quizCatalog.categories.reduce((acc, category) => {
+  acc[category.key] = resolveLocalizedText(category.label, 'de');
+  return acc;
+}, {} as Record<QuizCategory, string>);
 
 export function calculateSummary(
   questions: QuestionTemplate[],
@@ -29,7 +26,7 @@ export function calculateSummary(
 
   const byCategory = new Map<QuizCategory, { sum: number; count: number }>();
   for (const q of answered) {
-    const key = q.category;
+    const key = q.categoryKey;
     const current = byCategory.get(key) ?? { sum: 0, count: 0 };
     current.sum += scoreMap[answers[q.id] as OwnershipAnswer];
     current.count += 1;

@@ -1,23 +1,36 @@
 import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 
-import { questionTemplates as localTemplates } from '@/data/questionTemplates';
+import { quizCatalog as localCatalog, questionTemplates as localTemplates } from '@/data/questionTemplates';
 import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
-import type { DetailedReport, QuestionTemplate, TempQuizSession } from '@/types/quiz';
+import type { DetailedReport, QuestionTemplate, QuizCatalog, TempQuizSession } from '@/types/quiz';
 
-export async function fetchQuestionTemplates(): Promise<QuestionTemplate[]> {
+export async function fetchQuizCatalog(): Promise<QuizCatalog> {
   try {
     const snapshot = await getDocs(query(collection(db, firestoreCollections.questionPools), limit(1)));
     if (!snapshot.empty) {
       const data = snapshot.docs[0].data();
-      if (Array.isArray(data.templates)) {
-        return data.templates as QuestionTemplate[];
+      if (data.catalog?.categories && data.catalog?.questions) {
+        return data.catalog as QuizCatalog;
       }
     }
   } catch {
     // fallback to local template seed
   }
-  return localTemplates;
+  return localCatalog;
+}
+
+export async function fetchQuestionTemplates(): Promise<QuestionTemplate[]> {
+  const catalog = await fetchQuizCatalog();
+  return catalog.questions?.length ? catalog.questions : localTemplates;
+}
+
+export async function persistQuizCatalog(catalog: QuizCatalog) {
+  await setDoc(doc(db, firestoreCollections.questionPools, 'default'), {
+    catalog,
+    templates: catalog.questions,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }
 
 export async function persistQuizSession(session: TempQuizSession) {
@@ -49,6 +62,10 @@ export async function persistQuizResult(session: TempQuizSession, report: Detail
 }
 
 export async function persistUserResult(userId: string, session: TempQuizSession, report: DetailedReport) {
+  const templates = await fetchQuestionTemplates();
+  const lookup = new Map(templates.map((q) => [q.id, q]));
+  const questionSetSnapshot = session.questionIds.map((id) => lookup.get(id)).filter(Boolean);
+
   await setDoc(doc(db, firestoreCollections.userResults, userId), {
     userId,
     tempSessionId: session.tempSessionId,
@@ -59,6 +76,7 @@ export async function persistUserResult(userId: string, session: TempQuizSession
       splitClarity: session.splitClarity,
     },
     questionIds: session.questionIds,
+    questionSetSnapshot,
     answers: session.answers,
     stressCategories: session.stressCategories,
     summary: report.summary,

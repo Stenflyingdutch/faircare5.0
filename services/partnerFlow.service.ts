@@ -114,6 +114,7 @@ async function getLatestInitiatorResult(userId: string) {
   if (snap.empty) return null;
   return snap.docs[0].data() as {
     questionIds: string[];
+    questionSetSnapshot?: QuestionTemplate[];
     answers: Partial<Record<string, OwnershipAnswer>>;
     filter: Record<string, string>;
     detailedReport?: { summary?: { selfPercent: number } };
@@ -121,8 +122,9 @@ async function getLatestInitiatorResult(userId: string) {
 }
 
 async function getQuestionSnapshot(questionIds: string[]): Promise<QuestionTemplate[]> {
-  const { questionTemplates } = await import('@/data/questionTemplates');
-  const lookup = new Map(questionTemplates.map((q) => [q.id, q]));
+  const { fetchQuestionTemplates } = await import('@/services/firestoreQuiz');
+  const templates = await fetchQuestionTemplates();
+  const lookup = new Map(templates.map((q) => [q.id, q]));
   return questionIds.map((id) => lookup.get(id)).filter(Boolean) as QuestionTemplate[];
 }
 
@@ -233,7 +235,9 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       );
     }
 
-    const questionSetSnapshot = await getQuestionSnapshot(latestResult.questionIds);
+    const questionSetSnapshot = latestResult.questionSetSnapshot?.length
+      ? latestResult.questionSetSnapshot
+      : await getQuestionSnapshot(latestResult.questionIds);
     if (!questionSetSnapshot.length) {
       throw buildInviteError(
         'failed-precondition',
@@ -627,12 +631,15 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
   const userResult = userResultSnap.docs[0].data() as {
     answers: Partial<Record<string, OwnershipAnswer>>;
     questionIds: string[];
+    questionSetSnapshot?: QuestionTemplate[];
     filter?: { splitClarity?: string };
     summary?: { selfPercent: number };
   };
   const profile = await fetchAppUserProfile(userId);
   if (!profile?.familyId) return null;
-  const questions = await getQuestionSnapshot(userResult.questionIds);
+  const questions = userResult.questionSetSnapshot?.length
+    ? userResult.questionSetSnapshot
+    : await getQuestionSnapshot(userResult.questionIds);
   const categoryScores = computeCategoryScores(questions, userResult.answers);
   const totalScore = computeTotalScore(categoryScores);
 

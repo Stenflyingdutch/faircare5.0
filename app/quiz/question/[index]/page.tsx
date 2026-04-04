@@ -64,7 +64,7 @@ export default function QuizQuestionPage() {
       <div className="container test-shell stack">
         <div className="quiz-progress"><div className="quiz-progress-bar" style={{ width: `${progress}%` }} /></div>
         <p className="helper">Frage {index + 1} von {selectedQuestions.length}</p>
-        <h1 className="test-question">{current.text}</h1>
+        <h1 className="test-question">{current.questionText?.de ?? current.id}</h1>
 
         <div className="stack">
           {ownershipOptions.map((option) => (
