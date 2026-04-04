@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function QuizIndexPage() {
-  redirect('/quiz/start');
+  redirect('/quiz/filter');
 }

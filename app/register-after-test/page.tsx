@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { updateProfile } from 'firebase/auth';
 
 import { registerUser } from '@/services/auth.service';
 import { finalizePartnerRegistration } from '@/services/partnerFlow.service';
@@ -42,12 +43,14 @@ export default function RegisterAfterTestPage() {
 
     try {
       const credential = await registerUser(email, password);
+      const normalizedDisplayName = displayName.trim();
+      await updateProfile(credential.user, { displayName: normalizedDisplayName });
       await finalizePartnerRegistration({
         invitationToken: token,
         sessionId: session.sessionId,
         userId: credential.user.uid,
         email,
-        displayName,
+        displayName: normalizedDisplayName,
       });
       clearPartnerLocalSession();
       router.push('/dashboard');
