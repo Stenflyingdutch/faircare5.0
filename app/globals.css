@@ -445,6 +445,135 @@ textarea.input {
   gap: 0.6rem;
 }
 
+.personal-result-summary.detailed {
+  background: #1f1f1d;
+  color: #f6f5f2;
+}
+
+.personal-result-summary.detailed .helper {
+  color: #cdcbc4;
+}
+
+.result-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 230px) 1fr;
+  gap: 1.4rem;
+}
+
+.result-donut-wrap {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+}
+
+.result-donut {
+  width: 145px;
+  height: 145px;
+  border-radius: 50%;
+  padding: 14px;
+}
+
+.result-donut-inner {
+  width: 100%;
+  height: 100%;
+  background: #1f1f1d;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 0.2rem;
+}
+
+.result-donut-inner strong {
+  font-size: 2rem;
+  line-height: 1;
+  color: #7d74e8;
+}
+
+.result-highlight-grid {
+  display: grid;
+  gap: 1rem;
+  align-content: center;
+}
+
+.result-highlight-primary,
+.result-highlight-accent {
+  margin: 0.15rem 0 0;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.result-highlight-accent {
+  color: #1ac49e;
+}
+
+.result-legend {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  color: #d9d8e4;
+}
+
+.result-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot.self {
+  background: #7d74e8;
+}
+
+.dot.partner {
+  background: #d9d8e4;
+}
+
+.category-list {
+  border-top: 1px solid #3a3a38;
+  padding-top: 0.9rem;
+}
+
+.category-progress-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 230px) 1fr auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.category-progress-track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.category-progress-self,
+.category-progress-partner {
+  height: 8px;
+  border-radius: 999px;
+}
+
+.category-progress-self {
+  justify-self: end;
+  background: #7d74e8;
+}
+
+.category-progress-partner {
+  justify-self: start;
+  background: #d9d8e4;
+}
+
+.category-value {
+  color: #7d74e8;
+}
+
 .category-row {
   display: grid;
   gap: 0.45rem;
@@ -457,6 +586,20 @@ textarea.input {
 @media (max-width: 767px) {
   .card .button {
     width: 100%;
+  }
+
+  .result-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .result-highlight-primary,
+  .result-highlight-accent {
+    font-size: 1.3rem;
+  }
+
+  .category-progress-row {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
   }
 }
 
