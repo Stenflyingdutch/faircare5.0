@@ -134,14 +134,23 @@ export default function DashboardPage() {
 
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
+    const partnerScores = bundle?.profile?.role === 'partner'
+      ? bundle?.initiatorResult?.categoryScores
+      : bundle?.partnerResult?.categoryScores;
+    const partnerName = bundle?.profile?.role === 'partner'
+      ? resolveDisplayName(bundle?.initiatorDisplayName, 'Partner')
+      : resolveDisplayName(bundle?.partnerDisplayName, 'Partner');
     return {
       selfPercent: bundle.ownResult.totalScore,
+      partnerPercent: 100 - bundle.ownResult.totalScore,
       statement: buildNeutralDistributionStatement(bundle.ownResult.totalScore),
       categories: sortCategoriesByOwnShareAscending(
         Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
       ),
+      partnerCategoryScores: partnerScores,
+      partnerName,
     };
-  }, [bundle?.ownResult]);
+  }, [bundle?.ownResult, bundle?.profile?.role, bundle?.initiatorResult?.categoryScores, bundle?.partnerResult?.categoryScores, bundle?.initiatorDisplayName, bundle?.partnerDisplayName]);
 
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
 
@@ -304,8 +313,11 @@ function ResultBreakdown({
   title: string;
   result: {
     selfPercent: number;
+    partnerPercent: number;
     statement: string;
     categories: Array<[QuizCategory, number]>;
+    partnerCategoryScores?: Partial<Record<QuizCategory, number>>;
+    partnerName: string;
   };
 }) {
   const displayName = resolveDisplayName(title, 'Nicole');
@@ -317,20 +329,48 @@ function ResultBreakdown({
       <p className="helper" style={{ margin: 0 }}>
         Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise des Partners helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
       </p>
-      <div className="personal-result-summary">
-        <p className="helper"><strong>Gesamtverteilung</strong></p>
-        <p className="result-title-line"><strong>Du trägst {result.selfPercent}% vom Mental Load.</strong></p>
-        <div className="result-bar"><div className="result-bar-me" style={{ width: `${result.selfPercent}%` }} /></div>
-      </div>
-      <div className="stack">
-        <h3 className="card-title">Kategorienübersicht</h3>
-        {result.categories.map(([category, value]) => (
-          <div key={category} className="report-block category-row">
-            <strong>{categoryLabelMap[category]}</strong>
-            <p className="result-title-line"><strong>Du trägst {value}% vom Mental Load.</strong></p>
-            <div className="result-bar"><div className="result-bar-me" style={{ width: `${value}%` }} /></div>
+      <div className="mental-load-visual">
+        <div className="mental-load-head">
+          <div>
+            <h3>Mental Load</h3>
+            <p>Verteilung nach Kategorie</p>
           </div>
-        ))}
+          <div className="mental-load-total">
+            <strong>{result.selfPercent}%</strong>
+            <span>{displayName} · gesamt</span>
+          </div>
+        </div>
+        <div className="mental-load-legend">
+          <span><i className="legend-dot self" /> {displayName}</span>
+          <span><i className="legend-dot partner" /> {result.partnerName}</span>
+        </div>
+        <div className="mental-load-rows">
+          <div className="mental-load-row">
+            <div className="mental-load-row-head">
+              <strong>Gesamtverteilung</strong>
+              <span>{result.selfPercent}% · {result.partnerPercent}%</span>
+            </div>
+            <div className="result-bar dual">
+              <div className="result-bar-self" style={{ width: `${result.selfPercent}%` }} />
+              <div className="result-bar-partner" style={{ width: `${result.partnerPercent}%` }} />
+            </div>
+          </div>
+          {result.categories.map(([category, value]) => {
+            const partnerValue = result.partnerCategoryScores?.[category] ?? Math.max(0, 100 - value);
+            return (
+              <div key={category} className="mental-load-row">
+                <div className="mental-load-row-head">
+                  <strong>{categoryLabelMap[category]}</strong>
+                  <span>{value}% · {partnerValue}%</span>
+                </div>
+                <div className="result-bar dual">
+                  <div className="result-bar-self" style={{ width: `${value}%` }} />
+                  <div className="result-bar-partner" style={{ width: `${partnerValue}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </>
   );
