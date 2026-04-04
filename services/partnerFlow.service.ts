@@ -283,11 +283,27 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
   } catch (error) {
     console.error('[sendPartnerInvite:fallback] Fehler im lokalen Invite-Flow', error);
     if (error instanceof InviteFlowError) throw error;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('Kein Mail-Provider konfiguriert')) {
+      throw buildInviteError(
+        'failed-precondition',
+        'Mail-Provider nicht konfiguriert.',
+        {
+          configErrors: [
+            'Für lokalen Versand fehlt die Mail-Konfiguration.',
+            'Setze MAIL_PROVIDER=resend + RESEND_API_KEY oder MAIL_PROVIDER=sendgrid + SENDGRID_API_KEY.',
+            'Für reine lokale Smoke-Tests kannst du MAIL_PROVIDER=noop setzen.',
+          ],
+          serverErrors: ['Die Einladung wurde gespeichert, aber der Mailversand konnte nicht gestartet werden.'],
+        },
+        [errorMessage],
+      );
+    }
     throw buildInviteError(
       'internal',
       'Unbekannter Serverfehler im Invite-Flow.',
       { serverErrors: ['Ein unerwarteter Fehler ist aufgetreten.'] },
-      [error instanceof Error ? error.message : String(error)],
+      [errorMessage],
     );
   }
 }

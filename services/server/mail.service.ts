@@ -93,11 +93,22 @@ async function sendViaSendgrid(to: string, subject: string, html: string) {
 
 async function sendViaProvider(to: string, subject: string, html: string) {
   const configuredProvider = (process.env.MAIL_PROVIDER ?? '').toLowerCase();
+  if (configuredProvider === 'noop' || configuredProvider === 'console') {
+    console.warn('[mail.dispatch] MAIL_PROVIDER=noop aktiv – Mail wird nicht extern versendet.', {
+      to,
+      subject,
+    });
+    return { ok: true, reason: 'noop', provider: 'noop' };
+  }
   if (configuredProvider === 'resend') return sendViaResend(to, subject, html);
   if (configuredProvider === 'sendgrid') return sendViaSendgrid(to, subject, html);
   if (process.env.RESEND_API_KEY) return sendViaResend(to, subject, html);
   if (process.env.SENDGRID_API_KEY) return sendViaSendgrid(to, subject, html);
-  return { ok: false, reason: 'Kein Mail-Provider konfiguriert (RESEND_API_KEY oder SENDGRID_API_KEY).', provider: 'none' };
+  return {
+    ok: false,
+    reason: 'Kein Mail-Provider konfiguriert. Setze MAIL_PROVIDER=resend mit RESEND_API_KEY oder MAIL_PROVIDER=sendgrid mit SENDGRID_API_KEY. Für lokale Smoke-Tests optional MAIL_PROVIDER=noop.',
+    provider: 'none',
+  };
 }
 
 export async function dispatchMail(input: SendMailInput) {
