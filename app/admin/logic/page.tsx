@@ -51,6 +51,10 @@ export default function AdminResultLogicPage() {
             <strong>Block 2</strong>
             <p>{resultLogicDocumentation.blockLogic.block2}</p>
           </div>
+          <div className="report-block">
+            <strong>Konsistenzprüfung Startfrage ↔ Test</strong>
+            <p>{resultLogicDocumentation.consistencyLogic}</p>
+          </div>
         </article>
 
         <Link href="/admin" className="button">Zurück zum Admin-Bereich</Link>

@@ -627,6 +627,7 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
   const userResult = userResultSnap.docs[0].data() as {
     answers: Partial<Record<string, OwnershipAnswer>>;
     questionIds: string[];
+    filter?: { splitClarity?: string };
     summary?: { selfPercent: number };
   };
   const profile = await fetchAppUserProfile(userId);
@@ -647,6 +648,7 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
     categoryScores,
     totalScore,
     interpretation: describeTotalScore(totalScore),
+    filterPerceptionAnswer: userResult.filter?.splitClarity ?? null,
     completedAt: nowIso(),
     questionSetSnapshot: questions,
     updatedAt: serverTimestamp(),

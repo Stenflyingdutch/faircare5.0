@@ -4,7 +4,13 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
-import { buildCategoryComparisons, buildIndividualInsightsWithContext, buildJointRecommendations, buildPerceptionOutcome } from '@/services/resultInsights';
+import {
+  buildCategoryComparisons,
+  buildClarityConsistencyInsight,
+  buildIndividualInsightsWithContext,
+  buildJointRecommendations,
+  buildPerceptionOutcome,
+} from '@/services/resultInsights';
 import { observeAuthState } from '@/services/auth.service';
 import {
   ensureUserProfile,
@@ -264,6 +270,14 @@ function JointResultPanel({ insights, bundle }: {
   const comparisons = buildCategoryComparisons(ownResult.categoryScores, otherResult.categoryScores);
   const recommendations = buildJointRecommendations(comparisons);
   const perceptionOutcome = buildPerceptionOutcome(comparisons);
+  const averageDifference = comparisons.length
+    ? Math.round(comparisons.reduce((sum, item) => sum + item.difference, 0) / comparisons.length)
+    : 0;
+  const clarityInsight = buildClarityConsistencyInsight(
+    bundle.initiatorResult?.filterPerceptionAnswer,
+    bundle.partnerResult?.filterPerceptionAnswer,
+    averageDifference,
+  );
 
   return (
     <article className="card stack">
@@ -272,6 +286,7 @@ function JointResultPanel({ insights, bundle }: {
         <strong>Block 1 · Wahrnehmungsvergleich</strong>
         <p><strong>{perceptionOutcome.title}</strong></p>
         <p>{perceptionOutcome.text}</p>
+        {clarityInsight && <p>{clarityInsight}</p>}
       </div>
       <div className="stack">
         <h3 className="card-title">Block 2 · Mental-Load-Verteilung</h3>

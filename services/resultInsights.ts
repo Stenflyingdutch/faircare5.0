@@ -158,6 +158,30 @@ export function buildPerceptionOutcome(comparisons: CategoryComparison[]) {
   };
 }
 
+const clarityLabel: Record<string, string> = {
+  eher_klar: 'eher klar',
+  teils_spontan: 'teils klar, teils spontan',
+  oft_unklar: 'oft unklar',
+};
+
+export function buildClarityConsistencyInsight(
+  initiatorClarity?: string | null,
+  partnerClarity?: string | null,
+  averageDifference = 0,
+) {
+  if (!initiatorClarity && !partnerClarity) return null;
+  const initiator = initiatorClarity ? clarityLabel[initiatorClarity] ?? initiatorClarity : 'keine Angabe';
+  const partner = partnerClarity ? clarityLabel[partnerClarity] ?? partnerClarity : 'keine Angabe';
+
+  if (averageDifference >= insightThresholds.strongDifference) {
+    return `In der Startfrage beschreibt ihr die Aufteilung als „${initiator}“ bzw. „${partner}“. Die späteren Antworten zeigen deutliche Unterschiede – hier lohnt ein gemeinsamer Abgleich.`;
+  }
+  if (averageDifference < insightThresholds.notableDifference) {
+    return `In der Startfrage beschreibt ihr die Aufteilung als „${initiator}“ bzw. „${partner}“. Das passt gut zu eurem insgesamt ähnlichen Antwortbild.`;
+  }
+  return `In der Startfrage beschreibt ihr die Aufteilung als „${initiator}“ bzw. „${partner}“. Die Antworten im Test weichen teilweise ab und geben gute Gesprächsanlässe.`;
+}
+
 export const resultLogicDocumentation = {
   dataBasis: [
     'Antworten pro Frage (Skala 0–100 über Antwort-Mapping).',
@@ -176,4 +200,5 @@ export const resultLogicDocumentation = {
     block1: 'Wahrnehmungsvergleich: ähnliche / teilweise ähnliche / deutlich unterschiedliche Sicht anhand Differenzlevel pro Kategorie.',
     block2: 'Mental-Load-Verteilung: pro Kategorie Gegenüberstellung beider Werte inkl. Differenz und optionaler Spannweite bei starker Abweichung.',
   },
+  consistencyLogic: 'Zusatzprüfung: Startfrage zur Klarheit der Aufteilung wird mit durchschnittlicher Antwortdifferenz aus dem Test gespiegelt.',
 };
