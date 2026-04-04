@@ -446,8 +446,9 @@ textarea.input {
 }
 
 .personal-result-summary.detailed {
-  background: linear-gradient(130deg, #4d4a67 0%, #465867 45%, #555369 100%);
-  color: #f5f3ff;
+  background: linear-gradient(120deg, #2a2a2a 0%, #232323 52%, #1f1f1f 100%);
+  color: #f3f1eb;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .individual-result-panel {
@@ -457,7 +458,7 @@ textarea.input {
 }
 
 .personal-result-summary.detailed .helper {
-  color: #cdcbc4;
+  color: #c9c6bb;
 }
 
 .result-overview-grid {
@@ -473,16 +474,16 @@ textarea.input {
 }
 
 .result-donut {
-  width: 145px;
-  height: 145px;
+  width: 138px;
+  height: 138px;
   border-radius: 50%;
-  padding: 14px;
+  padding: 12px;
 }
 
 .result-donut-inner {
   width: 100%;
   height: 100%;
-  background: #4a4860;
+  background: #242424;
   border-radius: 50%;
   display: grid;
   place-content: center;
@@ -491,9 +492,9 @@ textarea.input {
 }
 
 .result-donut-inner strong {
-  font-size: 2rem;
+  font-size: 2.1rem;
   line-height: 1;
-  color: #7d74e8;
+  color: #8a7cf0;
 }
 
 .result-highlight-grid {
@@ -505,20 +506,20 @@ textarea.input {
 .result-highlight-primary,
 .result-highlight-accent {
   margin: 0.15rem 0 0;
-  font-size: clamp(1.6rem, 2.4vw, 2.5rem);
+  font-size: clamp(1.45rem, 2.2vw, 2.2rem);
   line-height: 1.15;
   font-weight: 700;
 }
 
 .result-highlight-accent {
-  color: #1ac49e;
+  color: #24c8a1;
 }
 
 .result-legend {
   display: flex;
   gap: 1.2rem;
   flex-wrap: wrap;
-  color: #ece9ff;
+  color: #d5d2c7;
 }
 
 .result-legend span {
@@ -535,15 +536,15 @@ textarea.input {
 }
 
 .dot.self {
-  background: #7d74e8;
+  background: #8a7cf0;
 }
 
 .dot.partner {
-  background: #c6c6d4;
+  background: #c9c5bc;
 }
 
 .category-list {
-  border-top: 1px solid #cdc8e8;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   padding-top: 1rem;
 }
 
@@ -573,18 +574,18 @@ textarea.input {
 
 .category-progress-self {
   justify-self: end;
-  background: #7d74e8;
+  background: #8a7cf0;
   min-width: 12px;
 }
 
 .category-progress-partner {
   justify-self: start;
-  background: #c7c6d7;
+  background: #c9c5bc;
   min-width: 12px;
 }
 
 .category-value {
-  color: #7d74e8;
+  color: #8a7cf0;
   justify-self: end;
   text-align: right;
   font-variant-numeric: tabular-nums;
