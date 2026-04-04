@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { updateProfile } from 'firebase/auth';
 
 import { registerUser } from '@/services/auth.service';
 import { linkAnonymousSessionToUser } from '@/services/sessionLinking';
@@ -9,6 +10,7 @@ import { loadSessionFromStorage } from '@/services/sessionStorage';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +22,7 @@ export default function RegisterPage() {
     setError(null);
     try {
       const credential = await registerUser(email, password);
+      await updateProfile(credential.user, { displayName: displayName.trim() });
       const session = loadSessionFromStorage();
       if (session) {
         await linkAnonymousSessionToUser(credential.user, session);
@@ -36,6 +39,7 @@ export default function RegisterPage() {
       <div className="container test-shell stack">
         <h1 className="test-title">Registrieren für ausführlichen Bericht</h1>
         <form className="form-shell" onSubmit={handleSubmit}>
+          <input required placeholder="Name" className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
           <input required type="email" placeholder="E-Mail" className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input required minLength={6} type="password" placeholder="Passwort (mind. 6 Zeichen)" className="input" value={password} onChange={(e) => setPassword(e.target.value)} />
           {error && <p className="inline-error">{error}</p>}

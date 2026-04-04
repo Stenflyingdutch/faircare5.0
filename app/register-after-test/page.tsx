@@ -57,7 +57,7 @@ export default function RegisterAfterTestPage() {
         <p className="helper">Damit dein Ergebnis final zugeordnet werden kann, registriere dich jetzt mit der eingeladenen E-Mail-Adresse.</p>
 
         <form className="form-shell" onSubmit={submit}>
-          <input className="input" placeholder="Name (optional)" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+          <input className="input" required placeholder="Name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
           <input className="input" type="email" required placeholder="E-Mail" value={email} onChange={(event) => setEmail(event.target.value)} />
           <input className="input" type="password" minLength={6} required placeholder="Passwort" value={password} onChange={(event) => setPassword(event.target.value)} />
           {error && <p className="inline-error">{error}</p>}

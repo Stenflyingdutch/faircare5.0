@@ -36,6 +36,7 @@ export interface InvitationDocument {
   familyId: string;
   initiatorUserId: string;
   partnerEmail: string;
+  personalMessage?: string | null;
   tokenHash: string;
   status: InvitationStatus;
   sentAt: string;
@@ -68,6 +69,7 @@ export interface QuizResultDocument {
   categoryScores: Record<QuizCategory, number>;
   totalScore: number;
   interpretation: string;
+  filterPerceptionAnswer?: string | null;
   completedAt: string;
   createdAt?: string;
   questionSetSnapshot: QuestionTemplate[];

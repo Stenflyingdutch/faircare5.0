@@ -21,11 +21,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [invitePersonalMessage, setInvitePersonalMessage] = useState(
+    'Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.',
+  );
   const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
   const [inviteMessage, setInviteMessage] = useState('');
 
   const [unlockState, setUnlockState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [unlockMessage, setUnlockMessage] = useState('');
+  const [sharedViewOpen, setSharedViewOpen] = useState(false);
 
   async function refreshDashboard(userId: string) {
     const fresh = await fetchDashboardBundle(userId);
@@ -65,7 +69,7 @@ export default function DashboardPage() {
     setInviteState('loading');
     setInviteMessage('');
     try {
-      const result = await sendPartnerInvitation(email);
+      const result = await sendPartnerInvitation(email, invitePersonalMessage);
       if (result.delivery === 'saved_without_email') {
         setInviteState('warning');
         setInviteMessage('Einladung gespeichert. Es wurde keine echte E-Mail verschickt, weil der Mail-Provider auf noop steht.');
@@ -108,6 +112,12 @@ export default function DashboardPage() {
       setUnlockMessage(error instanceof Error ? error.message : 'Freischaltung fehlgeschlagen.');
     }
   }
+
+  useEffect(() => {
+    if (!bundle?.family?.resultsUnlocked) {
+      setSharedViewOpen(false);
+    }
+  }, [bundle?.family?.resultsUnlocked]);
 
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
@@ -152,16 +162,16 @@ export default function DashboardPage() {
           </article>
 
           <article className="card stack">
-            {!bundle?.family?.partnerUserId && bundle?.profile?.role !== 'partner' ? (
+            {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
               <>
                 <h2 className="card-title">Partner einladen</h2>
-                <p className="card-description">Lade deinen Partner per E-Mail ein. Er erhält exakt denselben Fragenkatalog – ohne Filterfragen.</p>
+                <p className="card-description">Dein Ergebnis ist bereits da. Lade jetzt deinen Partner ein, damit ihr später auch euer gemeinsames Ergebnis sehen könnt.</p>
                 <form className="stack" onSubmit={onInviteSubmit}>
                   <input
                     type="email"
                     className="input"
                     required
-                    placeholder="partner@email.de"
+                    placeholder="E-Mail deines Partners"
                     value={inviteEmail}
                     onChange={(event) => {
                       setInviteEmail(event.target.value);
@@ -172,6 +182,14 @@ export default function DashboardPage() {
                     }}
                     disabled={inviteState === 'loading'}
                   />
+                  <textarea
+                    className="input"
+                    rows={5}
+                    value={invitePersonalMessage}
+                    onChange={(event) => setInvitePersonalMessage(event.target.value)}
+                    aria-label="Persönliche Nachricht"
+                    placeholder="Persönliche Nachricht"
+                  />
                   <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
                     {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung senden'}
                   </button>
@@ -179,15 +197,19 @@ export default function DashboardPage() {
               </>
             ) : bundle?.family?.resultsUnlocked ? (
               <>
-                <h2 className="card-title">Freigabe abgeschlossen</h2>
-                <p className="card-description">Eure gemeinsamen Ergebnisse sind jetzt verfügbar.</p>
+                <h2 className="card-title">Freigabe</h2>
+                <p className="card-description">Eure gemeinsamen Ergebnisse sind bereit.</p>
+                <button className="button primary" type="button" onClick={() => setSharedViewOpen(true)}>
+                  Ergebnisse jetzt ansehen
+                </button>
+                <p className="helper">Es kann spannend sein, die Ergebnisse gemeinsam anzuschauen.</p>
               </>
             ) : bundle?.profile?.role === 'partner' ? (
               <>
                 <h2 className="card-title">Status</h2>
                 <p className="card-description">
                   {bundle?.family?.partnerRegistered
-                    ? `Dein Test ist abgeschlossen. ${bundle?.initiatorDisplayName ?? 'Der Initiator'} wurde per E-Mail informiert, dass du das Quiz abgeschlossen hast. Die gemeinsamen Ergebnisse sind erst sichtbar, wenn ${bundle?.initiatorDisplayName ?? 'der Initiator'} den Test freigeschaltet hat.`
+                    ? `${bundle?.initiatorDisplayName ?? 'Der Initiator'} hat eine E-Mail erhalten und kann jetzt euer gemeinsames Ergebnis freischalten.`
                     : 'Warte auf Abschluss der Registrierung.'}
                 </p>
               </>
@@ -196,12 +218,12 @@ export default function DashboardPage() {
                 <h2 className="card-title">Status</h2>
                 <p className="card-description">
                   {bundle?.family?.partnerRegistered
-                    ? 'Dein Partner hat den Test abgeschlossen. Du kannst jetzt die Partner- und Gesamtergebnisse freischalten.'
-                    : 'Sobald dein Partner Test und Registrierung abgeschlossen hat, kannst du die gemeinsamen Ergebnisse freischalten.'}
+                    ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die Ergebnisse jetzt freigeben.'
+                    : 'Dein Ergebnis ist bereits da. Lade jetzt deinen Partner ein, damit ihr später auch euer gemeinsames Ergebnis sehen könnt.'}
                 </p>
                 {bundle?.family?.partnerRegistered && (
                   <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
-                    {unlockState === 'loading' ? 'Freischaltung läuft …' : 'Partner- und Gesamtergebnis freischalten'}
+                    {unlockState === 'loading' ? 'Freischaltung läuft …' : 'Ergebnisse freigeben'}
                   </button>
                 )}
                 {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
@@ -214,7 +236,7 @@ export default function DashboardPage() {
           </article>
         </div>
 
-        {!bundle?.family?.resultsUnlocked ? (
+        {!bundle?.family?.resultsUnlocked || !sharedViewOpen ? (
           <article className="card stack">
             <h2 className="card-title">Status</h2>
             <p className="helper">
@@ -236,10 +258,15 @@ function JointResultPanel({ insights, bundle }: {
   bundle: Awaited<ReturnType<typeof fetchDashboardBundle>>;
 }) {
   if (!bundle.initiatorResult || !bundle.partnerResult) return null;
+  const ownRole = bundle.profile?.role === 'partner' ? 'partner' : 'initiator';
+  const ownResult = ownRole === 'partner' ? bundle.partnerResult : bundle.initiatorResult;
+  const otherResult = ownRole === 'partner' ? bundle.initiatorResult : bundle.partnerResult;
+  const ownLabel = ownRole === 'partner' ? 'Du' : 'Du';
+  const otherLabel = ownRole === 'partner' ? (bundle.initiatorDisplayName ?? 'Initiator') : 'Partner';
 
   const allCategories = Array.from(new Set([
-    ...Object.keys(bundle.initiatorResult.categoryScores),
-    ...Object.keys(bundle.partnerResult.categoryScores),
+    ...Object.keys(ownResult.categoryScores),
+    ...Object.keys(otherResult.categoryScores),
   ])) as QuizCategory[];
 
   return (
@@ -247,15 +274,15 @@ function JointResultPanel({ insights, bundle }: {
       <h2 className="card-title">Gemeinsames Ergebnis</h2>
       <div className="grid grid-2">
         <div className="report-block">
-          <strong>Initiator</strong>
+          <strong>{ownLabel}</strong>
           {allCategories.map((category) => (
-            <p key={`i-${category}`}>{categoryLabelMap[category]}: {bundle.initiatorResult?.categoryScores[category] ?? '-'}%</p>
+            <p key={`i-${category}`}>{categoryLabelMap[category]}: {ownResult?.categoryScores[category] ?? '-'}%</p>
           ))}
         </div>
         <div className="report-block">
-          <strong>Partner</strong>
+          <strong>{otherLabel}</strong>
           {allCategories.map((category) => (
-            <p key={`p-${category}`}>{categoryLabelMap[category]}: {bundle.partnerResult?.categoryScores[category] ?? '-'}%</p>
+            <p key={`p-${category}`}>{categoryLabelMap[category]}: {otherResult?.categoryScores[category] ?? '-'}%</p>
           ))}
         </div>
       </div>

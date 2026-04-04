@@ -123,7 +123,7 @@ async function getQuestionSnapshot(questionIds: string[]): Promise<QuestionTempl
   return questionIds.map((id) => lookup.get(id)).filter(Boolean) as QuestionTemplate[];
 }
 
-export async function sendPartnerInvitation(partnerEmail: string) {
+export async function sendPartnerInvitation(partnerEmail: string, personalMessage?: string) {
   const user = auth.currentUser;
   if (!user?.email) {
     throw buildInviteError(
@@ -160,9 +160,9 @@ export async function sendPartnerInvitation(partnerEmail: string) {
   }
 
   const functions = getFunctions(app, 'europe-west3');
-  const sendPartnerInvite = httpsCallable<{ partnerEmail: string }, { partnerEmail?: string }>(functions, 'sendPartnerInvite');
+  const sendPartnerInvite = httpsCallable<{ partnerEmail: string; personalMessage?: string }, { partnerEmail?: string }>(functions, 'sendPartnerInvite');
   try {
-    const response = await sendPartnerInvite({ partnerEmail: normalizedPartnerEmail });
+    const response = await sendPartnerInvite({ partnerEmail: normalizedPartnerEmail, personalMessage: personalMessage?.trim() });
     return {
       partnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
       delivery: 'email_sent',
@@ -185,7 +185,7 @@ export async function sendPartnerInvitation(partnerEmail: string) {
         appEnv,
         code: callableError?.code,
       });
-      return sendPartnerInvitationFallback(normalizedPartnerEmail, user.uid);
+      return sendPartnerInvitationFallback(normalizedPartnerEmail, user.uid, personalMessage);
     }
 
     throw buildInviteError(
@@ -205,7 +205,7 @@ export async function sendPartnerInvitation(partnerEmail: string) {
   }
 }
 
-async function sendPartnerInvitationFallback(partnerEmail: string, userId: string) {
+async function sendPartnerInvitationFallback(partnerEmail: string, userId: string, personalMessage?: string) {
   console.info('[sendPartnerInvite:fallback] Function gestartet');
   console.info('[sendPartnerInvite:fallback] request.auth vorhanden', { hasAuth: Boolean(userId) });
   console.info('[sendPartnerInvite:fallback] partnerEmail vorhanden', { hasPartnerEmail: Boolean(partnerEmail) });
@@ -270,6 +270,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       familyId,
       initiatorUserId: userId,
       partnerEmail,
+      personalMessage: personalMessage?.trim() || null,
       tokenHash,
       status: 'sent',
       sentAt: nowIso(),
@@ -305,12 +306,12 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
     const mailOutcome = await sendAppMail({
       type: 'partner_invitation',
       to: partnerEmail,
-      subject: 'Du wurdest zu FairCare eingeladen',
+      subject: 'Mach den FairCare Test mit mir',
       familyId,
       invitationId: invitationRef.id,
       html: `
-        <h2>Dein Partner hat dich zu FairCare eingeladen</h2>
-        <p>Bitte öffne den folgenden Link, um den Partner-Test zu starten:</p>
+        <h2>Mach den FairCare Test mit mir</h2>
+        <p>${personalMessage?.trim() || 'Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.'}</p>
         <p><a href="${inviteUrl}">${inviteUrl}</a></p>
       `,
     });
@@ -415,11 +416,20 @@ export async function savePartnerSessionAnswer(sessionId: string, answers: Parti
   await setDoc(doc(db, firestoreCollections.quizSessions, sessionId), { answers, updatedAt: serverTimestamp() }, { merge: true });
 }
 
+export async function savePartnerFilterPerception(sessionId: string, value: string) {
+  await setDoc(doc(db, firestoreCollections.quizSessions, sessionId), {
+    filterAnswers: { perception: value },
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
 export async function completePartnerSession(sessionId: string, answers: Partial<Record<string, OwnershipAnswer>>) {
   const sessionRef = doc(db, firestoreCollections.quizSessions, sessionId);
   const sessionSnapshot = await getDoc(sessionRef);
   if (!sessionSnapshot.exists()) throw new Error('Partner-Session nicht gefunden.');
   const session = sessionSnapshot.data() as QuizSessionDocument;
+  const perception = session.filterAnswers?.perception;
+  if (!perception) throw new Error('Bitte beantworte zuerst die Wahrnehmungsfrage.');
 
   const categoryScores = computeCategoryScores(session.questionSetSnapshot, answers);
   const totalScore = computeTotalScore(categoryScores);
@@ -441,6 +451,7 @@ export async function completePartnerSession(sessionId: string, answers: Partial
       interpretation: describeTotalScore(totalScore),
       completedAt: nowIso(),
       questionSetSnapshot: session.questionSetSnapshot,
+      filterAnswers: session.filterAnswers ?? null,
     },
   };
 }
@@ -500,6 +511,7 @@ export async function finalizePartnerRegistration(params: {
       categoryScores,
       totalScore,
       interpretation: describeTotalScore(totalScore),
+      filterPerceptionAnswer: session.filterAnswers?.perception ?? null,
       completedAt: session.completedAt!,
       questionSetSnapshot: session.questionSetSnapshot,
       createdAt,
