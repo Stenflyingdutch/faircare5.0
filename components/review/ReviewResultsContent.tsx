@@ -87,8 +87,7 @@ function formatDiscussedDate(value?: string | null) {
 }
 
 function resolveCardIsActive(card: OwnershipCardDocument) {
-  if (typeof card.isActive === 'boolean') return card.isActive;
-  return Boolean(card.ownerUserId || card.focusLevel);
+  return Boolean(card.isActive || card.ownerUserId || card.focusLevel);
 }
 
 export function ReviewResultsContent() {

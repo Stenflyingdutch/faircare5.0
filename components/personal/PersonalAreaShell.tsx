@@ -20,7 +20,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
   const [showTeamCheckDot, setShowTeamCheckDot] = useState(false);
-  const [showNavigation, setShowNavigation] = useState(false);
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -33,7 +32,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         nextCheckInAt: bundle.family?.teamCheckPlan?.nextCheckInAt,
         reminderActiveAt: bundle.family?.teamCheckPlan?.reminderActiveAt,
       }));
-      setShowNavigation(Boolean(bundle.family?.resultsDiscussedAt));
       setIsReady(true);
     });
 
@@ -52,6 +50,8 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
       </section>
     );
   }
+
+  const showNavigation = !pathname.startsWith('/app/ergebnisse');
 
   return (
     <section className="section personal-area-section">

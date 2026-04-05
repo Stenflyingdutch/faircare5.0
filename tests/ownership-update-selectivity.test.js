@@ -9,10 +9,9 @@ function read(relPath) {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
 }
 
-test('OwnershipBoard sends explicit activation patch only for activation toggle', () => {
+test('OwnershipBoard sends field-selective patches for owner/focus/meta updates', () => {
   const src = read('components/ownership/OwnershipBoard.tsx');
 
-  assert.match(src, /toggleOwnershipCardActive\(\{/);
   assert.match(src, /updateOwnershipCardOwner\(\{/);
   assert.match(src, /updateOwnershipCardFocus\(\{/);
   assert.match(src, /updateOwnershipCardMeta\(\{/);
@@ -54,7 +53,7 @@ test('service wrappers are field-selective (owner/focus/meta/activation)', () =>
 
 test('stale local snapshot cannot force isActive in unrelated owner update path', () => {
   const src = read('components/ownership/OwnershipBoard.tsx');
-  const ownerUpdateBlock = src.match(/async function cycleOwner[\s\S]*?\n  }\n\n  async function setCardActivation/);
+  const ownerUpdateBlock = src.match(/async function cycleOwner[\s\S]*?\n  }\n\n  function toggleCategory/);
   assert.ok(ownerUpdateBlock, 'cycleOwner block not found');
   assert.doesNotMatch(ownerUpdateBlock[0], /isActive:/);
 });

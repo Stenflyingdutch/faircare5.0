@@ -6,7 +6,6 @@ import { categoryLabelMap } from '@/services/resultCalculator';
 import {
   createOwnershipCard,
   softDeleteOwnershipCard,
-  toggleOwnershipCardActive,
   updateOwnershipCardFocus,
   updateOwnershipCardMeta,
   updateOwnershipCardOwner,
@@ -44,8 +43,7 @@ function focusTone(level?: OwnershipFocusLevel | null) {
 }
 
 function resolveCardIsActive(card: OwnershipCardDocument) {
-  if (typeof card.isActive === 'boolean') return card.isActive;
-  return Boolean(card.ownerUserId || card.focusLevel);
+  return Boolean(card.isActive || card.ownerUserId || card.focusLevel);
 }
 
 export function OwnershipBoard({
@@ -65,7 +63,7 @@ export function OwnershipBoard({
   const [activeCategoryForCreate, setActiveCategoryForCreate] = useState<QuizCategory | null>(null);
   const [focusOverrides, setFocusOverrides] = useState<Record<string, OwnershipFocusLevel | null>>({});
   const [homeOrder, setHomeOrder] = useState<Record<string, number> | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<'all' | QuizCategory>('all');
+  const [selectedCategories, setSelectedCategories] = useState<QuizCategory[]>([]);
 
   const openedCard = useMemo(() => cards.find((item) => item.id === openedCardId) ?? null, [cards, openedCardId]);
 
@@ -130,26 +128,25 @@ export function OwnershipBoard({
 
   useEffect(() => {
     if (mode !== 'dashboard') return;
-    if (isFocusedEntry) {
-      setCategoryFilter('all');
+    if (isFocusedEntry && selectedCategories.length === 0 && resolvedPreselectedCategories.length > 0) {
+      setSelectedCategories(resolvedPreselectedCategories);
       return;
     }
-    if (categoryFilter === 'all') return;
-    const hasCategory = groupedWithStatus.some((group) => group.category === categoryFilter);
-    if (!hasCategory) {
-      setCategoryFilter('all');
+    if (!selectedCategories.length) return;
+    const validSet = new Set(groupedWithStatus.map((group) => group.category));
+    const next = selectedCategories.filter((category) => validSet.has(category));
+    if (next.length !== selectedCategories.length) {
+      setSelectedCategories(next);
     }
-  }, [mode, isFocusedEntry, categoryFilter, groupedWithStatus]);
+  }, [mode, isFocusedEntry, selectedCategories, groupedWithStatus, resolvedPreselectedCategories]);
 
   const filteredGroups = useMemo(() => groupedWithStatus
     .filter((group) => {
       if (mode !== 'dashboard') return true;
-      if (isFocusedEntry) {
-        return resolvedPreselectedCategories.includes(group.category);
-      }
-      return categoryFilter === 'all' || group.category === categoryFilter;
+      if (!selectedCategories.length) return true;
+      return selectedCategories.includes(group.category);
     }),
-  [groupedWithStatus, categoryFilter, mode, isFocusedEntry, resolvedPreselectedCategories]);
+  [groupedWithStatus, selectedCategories, mode]);
 
   function openDetails(card: OwnershipCardDocument) {
     setOpenedCardId(card.id);
@@ -262,22 +259,12 @@ export function OwnershipBoard({
     }
   }
 
-  async function setCardActivation(card: OwnershipCardDocument, nextActive: boolean, event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation();
-    setSaving(true);
-    setError(null);
-    try {
-      await toggleOwnershipCardActive({
-        familyId,
-        cardId: card.id,
-        actorUserId: currentUserId,
-        patch: { isActive: nextActive },
-      });
-    } catch {
-      setError('Der Aktivierungsstatus konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
-    } finally {
-      setSaving(false);
-    }
+  function toggleCategory(category: QuizCategory) {
+    setSelectedCategories((current) => (
+      current.includes(category)
+        ? current.filter((entry) => entry !== category)
+        : [...current, category]
+    ));
   }
 
   async function createCard(categoryKey: QuizCategory) {
@@ -324,33 +311,23 @@ export function OwnershipBoard({
         <article className="card stack">
           <h3 className="card-title" style={{ margin: 0 }}>Filter</h3>
           <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {isFocusedEntry
-              ? resolvedPreselectedCategories.map((category) => (
-                <span key={category} className="option-chip selected">
-                  {categoryLabelMap[category]}
-                </span>
-              ))
-              : (
-                <>
-                  <button
-                    type="button"
-                    className={`option-chip ${categoryFilter === 'all' ? 'selected' : ''}`}
-                    onClick={() => setCategoryFilter('all')}
-                  >
-                    Alle Aufgabengebiete
-                  </button>
-                  {groupedWithStatus.map((group) => (
-                    <button
-                      key={group.category}
-                      type="button"
-                      className={`option-chip ${categoryFilter === group.category ? 'selected' : ''}`}
-                      onClick={() => setCategoryFilter(group.category)}
-                    >
-                      {categoryLabelMap[group.category]}
-                    </button>
-                  ))}
-                </>
-              )}
+            <button
+              type="button"
+              className={`option-chip ${selectedCategories.length === 0 ? 'selected' : ''}`}
+              onClick={() => setSelectedCategories([])}
+            >
+              Alle Aufgabengebiete
+            </button>
+            {groupedWithStatus.map((group) => (
+              <button
+                key={group.category}
+                type="button"
+                className={`option-chip ${selectedCategories.includes(group.category) ? 'selected' : ''}`}
+                onClick={() => toggleCategory(group.category)}
+              >
+                {categoryLabelMap[group.category]}
+              </button>
+            ))}
           </div>
         </article>
       )}
@@ -359,7 +336,7 @@ export function OwnershipBoard({
         <article key={group.category} className="card stack">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h3 className="card-title" style={{ margin: 0 }}>{categoryLabelMap[group.category]}</h3>
-            <span className="helper" style={{ margin: 0 }}>{group.active} aktiviert von {group.total}</span>
+            <span className="helper" style={{ margin: 0 }}>{group.active} zugeordnet von {group.total}</span>
             {mode === 'dashboard' && (
               <button
                 type="button"
@@ -390,7 +367,7 @@ export function OwnershipBoard({
             {group.cards.map((card) => {
               const focusLevel = resolveFocus(card);
               const ownerStyle = ownerVisual(card.ownerUserId);
-              const isActive = resolveCardIsActive(card);
+              const isAssigned = Boolean(card.ownerUserId);
               return (
                 <div
                   key={card.id}
@@ -414,7 +391,7 @@ export function OwnershipBoard({
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <strong>{card.title}</strong>
                     <span className="helper" style={{ margin: 0, border: '1px solid #d6d6d6', borderRadius: 999, padding: '2px 10px' }}>
-                      {isActive ? 'Aktiviert' : 'Noch nicht aktiviert'}
+                      {isAssigned ? 'Zugeordnet' : 'Noch nicht zugeordnet'}
                     </span>
                   </div>
                   {card.note ? <p className="helper" style={{ margin: 0 }}>{card.note}</p> : null}
@@ -423,18 +400,10 @@ export function OwnershipBoard({
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} onClick={(event) => event.stopPropagation()}>
                       <button
                         type="button"
-                        className={`button ${isActive ? '' : 'primary'}`}
-                        onClick={(event) => setCardActivation(card, !isActive, event)}
-                        disabled={saving}
-                      >
-                        {isActive ? 'Deaktivieren' : 'Aktivieren'}
-                      </button>
-                      <button
-                        type="button"
                         className="button"
                         style={{ background: ownerStyle.buttonBackground, color: ownerStyle.buttonColor, borderColor: 'transparent' }}
                         onClick={(event) => cycleOwner(card, event)}
-                        disabled={saving || !isActive}
+                        disabled={saving}
                       >
                         {ownerStyle.label}
                       </button>
