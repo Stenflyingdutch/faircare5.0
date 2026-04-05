@@ -35,6 +35,7 @@ export interface OwnershipCardDocument {
   note: string;
   ownerUserId?: string | null;
   focusLevel?: OwnershipFocusLevel | null;
+  isActive?: boolean;
   sortOrder: number;
   isDeleted: boolean;
   createdBy: string;

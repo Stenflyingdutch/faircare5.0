@@ -27,11 +27,18 @@ interface DraftState {
   note: string;
 }
 
+type StatusFilter = 'all' | 'active' | 'open';
+
 function focusTone(level?: OwnershipFocusLevel | null) {
   if (level === 'now') return '#ece5ff';
   if (level === 'soon') return '#f3eeff';
   if (level === 'later') return '#faf7ff';
   return 'white';
+}
+
+function resolveCardIsActive(card: OwnershipCardDocument) {
+  if (typeof card.isActive === 'boolean') return card.isActive;
+  return Boolean(card.ownerUserId || card.focusLevel);
 }
 
 export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOptions, categoryKeys = [] }: OwnershipBoardProps) {
@@ -42,12 +49,14 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
   const [activeCategoryForCreate, setActiveCategoryForCreate] = useState<QuizCategory | null>(null);
   const [focusOverrides, setFocusOverrides] = useState<Record<string, OwnershipFocusLevel | null>>({});
   const [homeOrder, setHomeOrder] = useState<Record<string, number> | null>(null);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | QuizCategory>('all');
 
   const openedCard = useMemo(() => cards.find((item) => item.id === openedCardId) ?? null, [cards, openedCardId]);
 
   const visibleCards = useMemo(() => {
     if (mode === 'home') {
-      return cards.filter((card) => card.ownerUserId === currentUserId);
+      return cards.filter((card) => card.ownerUserId === currentUserId && resolveCardIsActive(card));
     }
     return cards;
   }, [cards, currentUserId, mode]);
@@ -92,6 +101,28 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     return [...map.entries()].sort((a, b) => categoryLabelMap[a[0]].localeCompare(categoryLabelMap[b[0]]));
   }, [visibleCards, mode, categoryKeys, homeOrder]);
 
+  const groupedWithStatus = useMemo(() => grouped.map(([category, categoryCards]) => ({
+    category,
+    total: categoryCards.length,
+    active: categoryCards.filter(resolveCardIsActive).length,
+    cards: categoryCards,
+  })), [grouped]);
+
+  const filteredGroups = useMemo(() => groupedWithStatus
+    .filter((group) => categoryFilter === 'all' || group.category === categoryFilter)
+    .map((group) => {
+      const nextCards = group.cards.filter((card) => {
+        if (statusFilter === 'all') return true;
+        if (statusFilter === 'active') return resolveCardIsActive(card);
+        return !resolveCardIsActive(card);
+      });
+
+      return {
+        ...group,
+        cards: nextCards,
+      };
+    }), [groupedWithStatus, categoryFilter, statusFilter]);
+
   function openDetails(card: OwnershipCardDocument) {
     setOpenedCardId(card.id);
     setDraft({
@@ -112,6 +143,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         note: next.note.trim(),
         ownerUserId: card.ownerUserId ?? null,
         focusLevel: card.focusLevel ?? null,
+        isActive: resolveCardIsActive(card),
         sortOrder: card.sortOrder,
       },
     });
@@ -151,6 +183,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
           note: card.note,
           ownerUserId: card.ownerUserId ?? null,
           focusLevel: nextLevel,
+          isActive: resolveCardIsActive(card),
           sortOrder: card.sortOrder,
         },
       });
@@ -211,11 +244,38 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
           note: card.note,
           ownerUserId: nextOwner,
           focusLevel: card.focusLevel ?? null,
+          isActive: resolveCardIsActive(card),
           sortOrder: card.sortOrder,
         },
       });
     } catch {
       setError('Die Zuordnung konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function setCardActivation(card: OwnershipCardDocument, nextActive: boolean, event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    setSaving(true);
+    setError(null);
+    try {
+      await upsertOwnershipCard({
+        familyId,
+        cardId: card.id,
+        actorUserId: currentUserId,
+        payload: {
+          categoryKey: card.categoryKey,
+          title: card.title,
+          note: card.note,
+          ownerUserId: card.ownerUserId ?? null,
+          focusLevel: card.focusLevel ?? null,
+          isActive: nextActive,
+          sortOrder: card.sortOrder,
+        },
+      });
+    } catch {
+      setError('Der Aktivierungsstatus konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
     } finally {
       setSaving(false);
     }
@@ -235,6 +295,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
           note: draft.note.trim(),
           ownerUserId: null,
           focusLevel: null,
+          isActive: false,
           sortOrder: Date.now(),
         },
       });
@@ -263,16 +324,59 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
 
   return (
     <div className="stack">
-      {grouped.map(([category, categoryCards]) => (
-        <article key={category} className="card stack">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-            <h3 className="card-title" style={{ margin: 0 }}>{categoryLabelMap[category]}</h3>
+      {mode === 'dashboard' && (
+        <article className="card stack">
+          <h3 className="card-title" style={{ margin: 0 }}>Filter</h3>
+          <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {([
+              { key: 'all', label: 'Alle' },
+              { key: 'active', label: 'Aktiviert' },
+              { key: 'open', label: 'Noch offen' },
+            ] as Array<{ key: StatusFilter; label: string }>).map((entry) => (
+              <button
+                key={entry.key}
+                type="button"
+                className={`option-chip ${statusFilter === entry.key ? 'selected' : ''}`}
+                onClick={() => setStatusFilter(entry.key)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              type="button"
+              className={`option-chip ${categoryFilter === 'all' ? 'selected' : ''}`}
+              onClick={() => setCategoryFilter('all')}
+            >
+              Alle Aufgabengebiete
+            </button>
+            {groupedWithStatus.map((group) => (
+              <button
+                key={group.category}
+                type="button"
+                className={`option-chip ${categoryFilter === group.category ? 'selected' : ''}`}
+                onClick={() => setCategoryFilter(group.category)}
+              >
+                {categoryLabelMap[group.category]}
+              </button>
+            ))}
+          </div>
+        </article>
+      )}
+
+      {filteredGroups.map((group) => (
+        <article key={group.category} className="card stack">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <h3 className="card-title" style={{ margin: 0 }}>{categoryLabelMap[group.category]}</h3>
+            <span className="helper" style={{ margin: 0 }}>{group.active} aktiviert von {group.total}</span>
             {mode === 'dashboard' && (
               <button
                 type="button"
                 className="button"
                 onClick={() => {
-                  setActiveCategoryForCreate(category);
+                  setActiveCategoryForCreate(group.category);
                   setDraft({ title: '', note: '' });
                 }}
               >
@@ -281,22 +385,23 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
             )}
           </div>
 
-          {activeCategoryForCreate === category && draft && mode === 'dashboard' && (
+          {activeCategoryForCreate === group.category && draft && mode === 'dashboard' && (
             <div className="report-block stack">
               <p className="helper" style={{ margin: 0 }}>Neue lokale Karte in dieser Kategorie.</p>
               <input className="input" value={draft.title} placeholder="Titel" onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
               <textarea className="input" rows={3} value={draft.note} placeholder="Notiz" onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className="button primary" disabled={saving} onClick={() => createCard(category)}>Erstellen</button>
+                <button type="button" className="button primary" disabled={saving} onClick={() => createCard(group.category)}>Erstellen</button>
                 <button type="button" className="button" onClick={() => { setActiveCategoryForCreate(null); setDraft(null); }}>Abbrechen</button>
               </div>
             </div>
           )}
 
           <div className="stack">
-            {categoryCards.map((card) => {
+            {group.cards.map((card) => {
               const focusLevel = resolveFocus(card);
               const ownerStyle = ownerVisual(card.ownerUserId);
+              const isActive = resolveCardIsActive(card);
               return (
                 <div
                   key={card.id}
@@ -317,19 +422,34 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
                     }
                   }}
                 >
-                  <strong>{card.title}</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <strong>{card.title}</strong>
+                    <span className="helper" style={{ margin: 0, border: '1px solid #d6d6d6', borderRadius: 999, padding: '2px 10px' }}>
+                      {isActive ? 'Aktiviert' : 'Noch nicht aktiviert'}
+                    </span>
+                  </div>
                   {card.note ? <p className="helper" style={{ margin: 0 }}>{card.note}</p> : null}
 
                   {mode === 'dashboard' ? (
-                    <button
-                      type="button"
-                      className="button"
-                      style={{ background: ownerStyle.buttonBackground, color: ownerStyle.buttonColor, borderColor: 'transparent' }}
-                      onClick={(event) => cycleOwner(card, event)}
-                      disabled={saving}
-                    >
-                      {ownerStyle.label}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} onClick={(event) => event.stopPropagation()}>
+                      <button
+                        type="button"
+                        className={`button ${isActive ? '' : 'primary'}`}
+                        onClick={(event) => setCardActivation(card, !isActive, event)}
+                        disabled={saving}
+                      >
+                        {isActive ? 'Deaktivieren' : 'Aktivieren'}
+                      </button>
+                      <button
+                        type="button"
+                        className="button"
+                        style={{ background: ownerStyle.buttonBackground, color: ownerStyle.buttonColor, borderColor: 'transparent' }}
+                        onClick={(event) => cycleOwner(card, event)}
+                        disabled={saving || !isActive}
+                      >
+                        {ownerStyle.label}
+                      </button>
+                    </div>
                   ) : (
                     <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} onClick={(event) => event.stopPropagation()}>
                       {(['now', 'soon', 'later'] as OwnershipFocusLevel[]).map((level) => (
@@ -356,15 +476,15 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
                 </div>
               );
             })}
-            {!categoryCards.length && <p className="helper">Noch keine Karten in dieser Kategorie.</p>}
+            {!group.cards.length && <p className="helper">Für diesen Filterzustand gibt es hier keine Karten.</p>}
           </div>
         </article>
       ))}
 
-      {!grouped.length && (
+      {!filteredGroups.length && (
         <p className="helper">
           {mode === 'home'
-            ? 'Es sind aktuell keine Karten dir zugeordnet.'
+            ? 'Es sind aktuell keine aktivierten Karten dir zugeordnet.'
             : 'Noch keine Aufgabengebiete aktiviert.'}
         </p>
       )}

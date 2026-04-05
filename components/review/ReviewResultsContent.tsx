@@ -293,14 +293,18 @@ export function ReviewResultsContent() {
         )}
 
         <article className="card stack">
+          <h2 className="card-title">Eigenes Ergebnis</h2>
           {!ownResultText
             ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
             : (
-              <ResultBreakdown
-                title={resolveDisplayName(bundle?.profile?.displayName, 'Du')}
-                partnerName={partnerLabel}
-                result={ownResultText}
-              />
+              <>
+                <ResultBreakdown
+                  title={resolveDisplayName(bundle?.profile?.displayName, 'Du')}
+                  partnerName={partnerLabel}
+                  result={ownResultText}
+                />
+                <p className="helper" style={{ margin: 0 }}>Diese Auswertung bleibt als Referenz für spätere Team-Checks erhalten.</p>
+              </>
             )}
         </article>
 
@@ -459,7 +463,7 @@ function JointResultPanel({ bundle }: {
 
   return (
     <article className="card stack">
-      <h2 className="card-title">Gemeinsames Ergebnis</h2>
+      <h2 className="card-title">Gemeinsames Vergleichsergebnis</h2>
       <div className="stack">
         {comparisons.map((entry) => {
           const initiatorSelf = initiatorScores[entry.category] ?? 0;

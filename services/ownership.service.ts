@@ -253,6 +253,7 @@ export async function initializeFamilyOwnership(params: {
         ownerUserId: null,
         focusLevel: null,
         sortOrder: template.sortOrder,
+        isActive: false,
         isDeleted: false,
         createdBy: params.actorUserId,
         updatedBy: params.actorUserId,
@@ -317,6 +318,7 @@ export async function ensureOwnershipCardsForCategories(params: {
         ownerUserId: null,
         focusLevel: null,
         sortOrder: template.sortOrder,
+        isActive: false,
         isDeleted: false,
         createdBy: params.actorUserId,
         updatedBy: params.actorUserId,
@@ -382,7 +384,7 @@ export async function upsertOwnershipCard(params: {
   familyId: string;
   cardId?: string;
   actorUserId: string;
-  payload: Pick<OwnershipCardDocument, 'categoryKey' | 'title' | 'note' | 'ownerUserId' | 'focusLevel' | 'sortOrder'>;
+  payload: Pick<OwnershipCardDocument, 'categoryKey' | 'title' | 'note' | 'ownerUserId' | 'focusLevel' | 'sortOrder' | 'isActive'>;
 }) {
   const cardId = params.cardId ?? doc(collection(db, firestoreCollections.families, params.familyId, 'ownershipCards')).id;
   const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
@@ -392,6 +394,7 @@ export async function upsertOwnershipCard(params: {
   const nextPayload = {
     id: cardId,
     ...params.payload,
+    isActive: params.payload.isActive,
     isDeleted: false,
     createdBy: (before as { createdBy?: string } | null)?.createdBy ?? params.actorUserId,
     updatedBy: params.actorUserId,
@@ -418,6 +421,7 @@ export async function softDeleteOwnershipCard(familyId: string, cardId: string, 
   const before = existing.data();
 
   await setDoc(cardRef, {
+    isActive: false,
     isDeleted: true,
     updatedBy: actorUserId,
     updatedAt: serverTimestamp(),
@@ -431,6 +435,7 @@ export async function softDeleteOwnershipCard(familyId: string, cardId: string, 
     before,
     after: {
       ...before,
+      isActive: false,
       isDeleted: true,
     },
     createdAt: nowIso(),

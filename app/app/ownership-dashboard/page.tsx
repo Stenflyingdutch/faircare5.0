@@ -88,7 +88,7 @@ export default function OwnershipDashboardPage() {
         <p className="helper" style={{ margin: 0 }}>
           {recommendedCount > 0
             ? `${recommendedCount} Startkategorien wurden als Orientierung markiert.`
-            : 'Alle aktiven Kategorien sind gleichwertig sichtbar.'}
+            : 'Alle aktiven Kategorien sind gleichwertig sichtbar.'} Nutze die Filter oben, um aktivierte und noch offene Karten schnell zu finden.
         </p>
       </article>
       <OwnershipBoard

@@ -9,7 +9,8 @@ import { observeAuthState, signOutUser } from '@/services/auth.service';
 const personalNavItems = [
   { label: 'Home', href: '/app/home' },
   { label: 'Aufgabengebiete', href: '/app/ownership-dashboard' },
-  { label: 'Review', href: '/app/review' },
+  { label: 'Team-Check', href: '/app/review' },
+  { label: 'Ergebnisse', href: '/app/ergebnisse' },
   { label: 'Einstellungen', href: '/app/einstellungen' },
 ] as const;
 
@@ -17,7 +18,8 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith('/app/home')) return 'Home';
   if (pathname.startsWith('/app/ownership-dashboard')) return 'Aufgabengebiete';
   if (pathname.startsWith('/app/einstellungen')) return 'Einstellungen';
-  return 'Review';
+  if (pathname.startsWith('/app/ergebnisse')) return 'Ergebnisse';
+  return 'Team-Check';
 }
 
 export function PersonalAreaShell({ children }: { children: ReactNode }) {
@@ -66,7 +68,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           </div>
           <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
             {personalNavItems.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = pathname.startsWith(item.href);
               return (
                 <Link key={item.href} href={item.href} className={`personal-area-nav-link ${isActive ? 'active' : ''}`}>
                   {item.label}
