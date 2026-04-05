@@ -5,6 +5,7 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
+  orderBy,
   query,
   runTransaction,
   serverTimestamp,
@@ -14,6 +15,7 @@ import {
 
 import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
+import { ownershipTaskPackageSeed } from '@/data/ownershipTaskPackageTemplates';
 import type { FamilyDocument } from '@/types/partner-flow';
 import type { Locale } from '@/types/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
@@ -42,21 +44,21 @@ const focusOrder: Record<OwnershipFocusLevel, number> = {
 
 function toReasonText(reasonCodes: RecommendationReasonCode[]) {
   if (reasonCodes.includes('high_test_load') && reasonCodes.includes('high_perceived_stress')) {
-    return 'Empfohlen, weil dieser Bereich im Test stark belastet wirkt und zusätzlich als belastend empfunden wird.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich im Test aktuell stark sichtbar ist und im Alltag als belastend erlebt wird.';
   }
   if (reasonCodes.includes('high_test_load') && reasonCodes.includes('different_perception')) {
-    return 'Empfohlen, weil dieser Bereich im Alltag relevant erscheint und gleichzeitig unterschiedlich wahrgenommen wird.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich aktuell sichtbar ist und unterschiedlich wahrgenommen wird.';
   }
   if (reasonCodes.includes('high_perceived_stress') && reasonCodes.includes('different_perception')) {
-    return 'Empfohlen, weil dieser Bereich im Moment besonders relevant wirkt und unterschiedlich wahrgenommen wird.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich im Moment besonders relevant wirkt und die Wahrnehmung auseinandergeht.';
   }
   if (reasonCodes.includes('high_test_load')) {
-    return 'Empfohlen, weil dieser Bereich im Test aktuell besonders relevant wirkt.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich im Test im Moment besonders relevant ist.';
   }
   if (reasonCodes.includes('high_perceived_stress')) {
-    return 'Empfohlen, weil dieser Bereich aktuell als belastend empfunden wird.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich aktuell spürbar belastend ist.';
   }
-  return 'Empfohlen, weil dieser Bereich aktuell als guter Startpunkt sichtbar ist.';
+  return 'Als Startpunkt empfohlen, weil dieser Bereich aktuell als relevant sichtbar wird.';
 }
 
 export function computeOwnershipSignals(input: OwnershipComputationInput): OwnershipSignalBreakdown[] {
@@ -116,6 +118,17 @@ export async function fetchTaskPackageTemplates(ageGroup: AgeGroup) {
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
+export async function fetchTaskPackageTemplatesForAdmin(ageGroup: AgeGroup) {
+  const snapshot = await getDocs(query(
+    collection(db, firestoreCollections.taskPackageTemplates),
+    where('ageGroup', '==', ageGroup),
+    orderBy('categoryKey'),
+    orderBy('sortOrder'),
+  ));
+
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as TaskPackageTemplate);
+}
+
 export async function saveTaskPackageTemplate(template: TaskPackageTemplate, actorUserId: string) {
   await setDoc(doc(db, firestoreCollections.taskPackageTemplates, template.id), {
     ...template,
@@ -125,16 +138,49 @@ export async function saveTaskPackageTemplate(template: TaskPackageTemplate, act
   }, { merge: true });
 }
 
+export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: string) {
+  const existing = await fetchTaskPackageTemplatesForAdmin(ageGroup);
+  const existingByCategory = new Map<QuizCategory, number>();
+  existing.forEach((entry) => {
+    existingByCategory.set(entry.categoryKey, (existingByCategory.get(entry.categoryKey) ?? 0) + 1);
+  });
+
+  const writes = Object.entries(ownershipTaskPackageSeed).flatMap(([categoryKey, items]) => {
+    const count = existingByCategory.get(categoryKey as QuizCategory) ?? 0;
+    if (count >= 10) return [];
+
+    return items.slice(count, 10).map((entry, index) => {
+      const id = `${ageGroup}_${categoryKey}_${count + index + 1}`;
+      const payload: TaskPackageTemplate = {
+        id,
+        ageGroup,
+        categoryKey: categoryKey as QuizCategory,
+        title: entry.title,
+        note: entry.note,
+        sortOrder: count + index + 1,
+        isActive: true,
+        version: 1,
+      };
+      return saveTaskPackageTemplate(payload, actorUserId);
+    });
+  });
+
+  await Promise.all(writes);
+  return writes.length;
+}
+
 export async function initializeFamilyOwnership(params: {
   familyId: string;
   ageGroup: AgeGroup;
   actorUserId: string;
   selectedCategories: QuizCategory[];
   recommendations: OwnershipRecommendation[];
+  allSignals: OwnershipSignalBreakdown[];
   locale: Locale;
 }) {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
   const recommendedByCategory = new Map(params.recommendations.map((item, index) => [item.categoryKey, { ...item, rank: index + 1 }]));
+  const signalByCategory = new Map(params.allSignals.map((item) => [item.categoryKey, item]));
   const activeCategorySet = new Set(params.selectedCategories);
 
   await runTransaction(db, async (transaction) => {
@@ -147,13 +193,14 @@ export async function initializeFamilyOwnership(params: {
 
     for (const categoryKey of activeCategorySet) {
       const recommendation = recommendedByCategory.get(categoryKey);
+      const signal = signalByCategory.get(categoryKey);
       const categoryRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCategories', categoryKey);
       transaction.set(categoryRef, {
         categoryKey,
         isRecommended: Boolean(recommendation),
         recommendationRank: recommendation?.rank ?? null,
-        relevanceScore: recommendation?.relevanceScore ?? 0,
-        reasonCodes: recommendation?.reasonCodes ?? [],
+        relevanceScore: signal?.relevanceScore ?? recommendation?.relevanceScore ?? 0,
+        reasonCodes: signal?.reasonCodes ?? recommendation?.reasonCodes ?? [],
         activatedAt: nowIso(),
         updatedAt: serverTimestamp(),
       }, { merge: true });
@@ -162,8 +209,13 @@ export async function initializeFamilyOwnership(params: {
         .filter((template) => template.categoryKey === categoryKey)
         .slice(0, 10);
 
-      categoryTemplates.forEach((template, index) => {
+      for (const template of categoryTemplates) {
         const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', `${categoryKey}_${template.id}`);
+        const existingCard = await transaction.get(cardRef);
+        if (existingCard.exists()) {
+          continue;
+        }
+
         transaction.set(cardRef, {
           id: `${categoryKey}_${template.id}`,
           categoryKey,
@@ -171,7 +223,7 @@ export async function initializeFamilyOwnership(params: {
           title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
           note: mapTemplateLocale(template.note, params.locale, ''),
           ownerUserId: defaultOwner,
-          focusLevel: index === 0 ? 'now' : 'soon',
+          focusLevel: template.sortOrder <= 2 ? 'now' : 'soon',
           sortOrder: template.sortOrder,
           isDeleted: false,
           createdBy: params.actorUserId,
@@ -179,7 +231,7 @@ export async function initializeFamilyOwnership(params: {
           createdAt: nowIso(),
           updatedAt: serverTimestamp(),
         }, { merge: true });
-      });
+      }
     }
   });
 }

@@ -17,7 +17,7 @@ import {
   openSharedResultsView,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
-import { buildOwnershipRecommendations, initializeFamilyOwnership } from '@/services/ownership.service';
+import { buildOwnershipRecommendations, computeOwnershipSignals, initializeFamilyOwnership } from '@/services/ownership.service';
 import { getCurrentLocale } from '@/lib/i18n';
 import type { QuizCategory, StressSelection } from '@/types/quiz';
 import type { OwnershipRecommendation } from '@/types/ownership';
@@ -223,6 +223,16 @@ export function ReviewResultsContent() {
   const canInvitePartner = bundle?.profile?.role !== 'partner'
     && !bundle?.family?.partnerRegistered
     && !hasUnlockedResults;
+
+  const ownershipSignals = useMemo(() => {
+    if (!bundle?.ownResult) return [];
+    return computeOwnershipSignals({
+      categoryScores: bundle.ownResult.categoryScores,
+      stressCategories: bundle.ownResult.stressCategories ?? [],
+      partnerCategoryScores: bundle.partnerResult?.categoryScores,
+    });
+  }, [bundle?.ownResult, bundle?.partnerResult]);
+
   const ownershipRecommendations = useMemo(() => {
     if (!bundle?.ownResult) return [] as OwnershipRecommendation[];
     return buildOwnershipRecommendations({
@@ -254,6 +264,7 @@ export function ReviewResultsContent() {
         actorUserId: currentUserId,
         selectedCategories,
         recommendations: ownershipRecommendations,
+        allSignals: ownershipSignals,
         locale: getCurrentLocale(),
       });
       router.push('/app/ownership-dashboard');
@@ -393,7 +404,7 @@ export function ReviewResultsContent() {
           <article className="card stack">
             <h2 className="card-title">Empfohlene Startkategorien</h2>
             <p className="card-description">
-              Die Empfehlung basiert auf drei Signalen: Testbelastung, empfundene Belastung und wahrgenommene Unterschiede.
+              Wie entsteht diese Empfehlung? Sie kombiniert Testbelastung, empfundene Belastung und Unterschiede in der Wahrnehmung.
             </p>
             <div className="stack">
               {ownershipRecommendations.slice(0, 2).map((recommendation) => (
