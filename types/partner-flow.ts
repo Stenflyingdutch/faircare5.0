@@ -1,4 +1,4 @@
-import type { OwnershipAnswer, QuestionTemplate, QuizCategory } from '@/types/quiz';
+import type { OwnershipAnswer, QuestionTemplate, QuizCategory, StressSelection } from '@/types/quiz';
 
 export type FamilyStatus = 'invited' | 'partner_completed' | 'joint_pending' | 'joint_active';
 export type InvitationStatus = 'sent' | 'accepted' | 'expired';
@@ -73,6 +73,7 @@ export interface QuizResultDocument {
   totalScore: number;
   interpretation: string;
   filterPerceptionAnswer?: string | null;
+  stressCategories?: StressSelection[];
   completedAt: string;
   createdAt?: string;
   questionSetSnapshot: QuestionTemplate[];

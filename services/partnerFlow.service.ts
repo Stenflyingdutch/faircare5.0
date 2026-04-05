@@ -26,7 +26,7 @@ import type {
   QuizResultDocument,
   QuizSessionDocument,
 } from '@/types/partner-flow';
-import type { OwnershipAnswer, QuestionTemplate } from '@/types/quiz';
+import type { OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
 
 function nowIso() {
   return new Date().toISOString();
@@ -651,6 +651,7 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
     answers: Partial<Record<string, OwnershipAnswer>>;
     questionIds: string[];
     questionSetSnapshot?: QuestionTemplate[];
+    stressCategories?: StressSelection[];
     filter?: { splitClarity?: string };
     summary?: { selfPercent: number };
   };
@@ -675,6 +676,7 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
     totalScore,
     interpretation: describeTotalScore(totalScore),
     filterPerceptionAnswer: userResult.filter?.splitClarity ?? null,
+    stressCategories: userResult.stressCategories ?? [],
     completedAt: nowIso(),
     questionSetSnapshot: questions,
     updatedAt: serverTimestamp(),

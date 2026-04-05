@@ -17,7 +17,7 @@ import {
   openSharedResultsView,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
-import type { QuizCategory } from '@/types/quiz';
+import type { QuizCategory, StressSelection } from '@/types/quiz';
 
 function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
   return [...categories].sort(([, valueA], [, valueB]) => valueA - valueB);
@@ -44,6 +44,13 @@ function buildNeutralDistributionStatement(selfPercent: number, partnerName: str
   if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
   if (selfPercent < 45) return `Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei ${partnerName}.`;
   return 'Aus deiner Sicht ist die Mental Load aktuell eher gleich verteilt.';
+}
+
+function resolvePerceivedStressLabel(stressCategories?: StressSelection[]) {
+  if (!stressCategories || stressCategories.length === 0) return 'In keiner der genannten Bereiche';
+  const [topStress] = stressCategories;
+  if (!topStress || topStress === 'keiner_genannten_bereiche') return 'In keiner der genannten Bereiche';
+  return categoryLabelMap[topStress];
 }
 
 export default function DashboardPage() {
@@ -209,6 +216,7 @@ export default function DashboardPage() {
       categories: sortCategoriesByOwnShareAscending(
         Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
       ),
+      perceivedStressLabel: resolvePerceivedStressLabel(bundle.ownResult.stressCategories),
     };
   }, [bundle?.ownResult, partnerLabel]);
 
@@ -419,6 +427,7 @@ function ResultBreakdown({
     selfPercent: number;
     statement: string;
     categories: Array<[QuizCategory, number]>;
+    perceivedStressLabel: string;
   };
 }) {
   const displayName = resolveDisplayName(title, 'Nicole');
@@ -460,7 +469,10 @@ function ResultBreakdown({
             ) : (
               <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
                 <p style={{ margin: '0 0 8px' }}>
-                  <strong>Dein stärkster Bereich:</strong> {categoryLabelMap[highestLoad[0]]} ({highestLoad[1]} %).
+                  <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong> {categoryLabelMap[highestLoad[0]]} ({highestLoad[1]} %).
+                </p>
+                <p style={{ margin: '0 0 8px' }}>
+                  <strong>Größte empfundene Belastung:</strong> {result.perceivedStressLabel}.
                 </p>
                 <p style={{ margin: 0 }}>
                   Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr wertschätzend prüfen, ob die Verteilung für euch beide stimmig ist. Es gibt dabei kein richtig oder falsch, sondern nur eine Verteilung, in der ihr euch beide wiederfinden könnt.
