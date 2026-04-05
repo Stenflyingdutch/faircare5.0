@@ -232,7 +232,9 @@ export function ReviewResultsContent() {
     };
   }, [bundle?.ownResult, partnerLabel]);
 
-  const canInvitePartner = bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered;
+  const canInvitePartner = bundle?.profile?.role !== 'partner'
+    && !bundle?.family?.partnerRegistered
+    && !bundle?.family?.resultsUnlocked;
   const ownershipRecommendations = useMemo(() => {
     if (!bundle?.ownResult) return [] as OwnershipRecommendation[];
     return buildOwnershipRecommendations({
@@ -365,7 +367,7 @@ export function ReviewResultsContent() {
         )}
 
         <article className="card stack">
-          {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
+          {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered && !bundle?.family?.resultsUnlocked ? (
             <>
               <h2 className="card-title">Status</h2>
               <div className="report-block stack">
