@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { questionTemplates } from '@/data/questionTemplates';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
   buildCategoryComparisons,
@@ -16,7 +17,7 @@ import {
   openSharedResultsView,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
-import type { QuizCategory } from '@/types/quiz';
+import type { QuizCategory, StressSelection } from '@/types/quiz';
 
 function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
   return [...categories].sort(([, valueA], [, valueB]) => valueA - valueB);
@@ -45,6 +46,28 @@ function buildNeutralDistributionStatement(selfPercent: number, partnerName: str
   return 'Aus deiner Sicht ist die Mental Load aktuell eher gleich verteilt.';
 }
 
+function resolvePerceivedStressLabel(stressCategories?: StressSelection[]) {
+  if (!stressCategories || stressCategories.length === 0) return 'In keiner der genannten Bereiche';
+  const [topStress] = stressCategories;
+  if (!topStress || topStress === 'keiner_genannten_bereiche') return 'In keiner der genannten Bereiche';
+  return categoryLabelMap[topStress];
+}
+
+function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>) {
+  const maxScore = Math.max(...categories.map(([, value]) => value));
+  const highestCategories = categories
+    .filter(([, value]) => value === maxScore)
+    .map(([category]) => categoryLabelMap[category]);
+
+  if (highestCategories.length === 1) {
+    return `${highestCategories[0]} (${maxScore} %).`;
+  }
+  if (highestCategories.length === 2) {
+    return `${highestCategories[0]} und ${highestCategories[1]} (je ${maxScore} %).`;
+  }
+  return `Es wurde in mehreren Bereichen eine hohe Belastung gemessen (je ${maxScore} %).`;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -56,11 +79,16 @@ export default function DashboardPage() {
   );
   const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
   const [inviteMessage, setInviteMessage] = useState('');
-
   const [unlockState, setUnlockState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [unlockMessage, setUnlockMessage] = useState('');
+  const [unlockProgress, setUnlockProgress] = useState(0);
+  const [unlockBannerIndex, setUnlockBannerIndex] = useState(0);
   const [openSharedState, setOpenSharedState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [openSharedMessage, setOpenSharedMessage] = useState('');
+  const unlockBannerPool = useMemo(
+    () => questionTemplates.slice(0, 12).map((entry) => entry.questionText?.de ?? entry.id),
+    [],
+  );
 
   async function refreshDashboard(userId: string) {
     const fresh = await fetchDashboardBundle(userId);
@@ -115,10 +143,7 @@ export default function DashboardPage() {
         }
       }
     } catch (error) {
-      const errorObject = error as { code?: string; message?: string };
-      console.error('sendPartnerInvite failed', error);
-      console.error('code', errorObject?.code);
-      console.error('message', errorObject?.message);
+      const errorObject = error as { message?: string };
       setInviteState('error');
       setInviteMessage(errorObject?.message || 'Einladung konnte nicht gesendet werden.');
     }
@@ -129,8 +154,30 @@ export default function DashboardPage() {
     if (!userId) return;
     setUnlockState('loading');
     setUnlockMessage('');
+    setUnlockProgress(0);
+    setUnlockBannerIndex(0);
+
+    const TOTAL_DURATION_MS = 5000;
+    const TICK_MS = 100;
+    const startedAt = Date.now();
+    const progressTimer = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const nextProgress = Math.min(100, Math.round((elapsed / TOTAL_DURATION_MS) * 100));
+      setUnlockProgress(nextProgress);
+      if (nextProgress >= 100) {
+        window.clearInterval(progressTimer);
+      }
+    }, TICK_MS);
+
+    const bannerTimer = window.setInterval(() => {
+      setUnlockBannerIndex((current) => current + 1);
+    }, 450);
+
     try {
       const result = await unlockPartnerAndJointResults(userId);
+      await openSharedResultsView(userId);
+      await new Promise((resolve) => window.setTimeout(resolve, Math.max(0, TOTAL_DURATION_MS - (Date.now() - startedAt))));
+      setUnlockProgress(100);
       setUnlockState('success');
       setUnlockMessage(
         result.alreadyActive
@@ -141,6 +188,9 @@ export default function DashboardPage() {
     } catch (error) {
       setUnlockState('error');
       setUnlockMessage(error instanceof Error ? error.message : 'Freischaltung fehlgeschlagen.');
+    } finally {
+      window.clearInterval(progressTimer);
+      window.clearInterval(bannerTimer);
     }
   }
 
@@ -178,6 +228,7 @@ export default function DashboardPage() {
       categories: sortCategoriesByOwnShareAscending(
         Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
       ),
+      perceivedStressLabel: resolvePerceivedStressLabel(bundle.ownResult.stressCategories),
     };
   }, [bundle?.ownResult, partnerLabel]);
 
@@ -188,8 +239,7 @@ export default function DashboardPage() {
   return (
     <section className="section">
       <div className="container stack">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 className="test-title">Dashboard</h1>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
           <button type="button" className="button" onClick={logout}>Logout</button>
         </div>
 
@@ -208,14 +258,35 @@ export default function DashboardPage() {
         {canInvitePartner && (
           <article className="card stack">
             <h2 className="card-title">Partner einladen</h2>
-            <p className="card-description">Trage die E-Mail-Adresse deines Partners ein. Danach kann er denselben Fragenkatalog ausfüllen.</p>
-            <form className="stack" onSubmit={onInviteSubmit}>
-              <input type="email" className="input" required placeholder="E-Mail deines Partners" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} disabled={inviteState === 'loading'} />
-              <textarea className="input" rows={5} value={invitePersonalMessage} onChange={(event) => setInvitePersonalMessage(event.target.value)} aria-label="Persönliche Nachricht" placeholder="Persönliche Nachricht" />
-              <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
-                {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung an Partner senden'}
-              </button>
-            </form>
+            {!bundle?.invitationPartnerEmail ? (
+              <form className="stack" onSubmit={onInviteSubmit}>
+                <input
+                  type="email"
+                  className="input"
+                  required
+                  placeholder="E-Mail deines Partners"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  disabled={inviteState === 'loading'}
+                />
+                <textarea
+                  className="input"
+                  rows={5}
+                  value={invitePersonalMessage}
+                  onChange={(event) => setInvitePersonalMessage(event.target.value)}
+                  aria-label="Persönliche Nachricht"
+                  placeholder="Persönliche Nachricht"
+                />
+                <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
+                  {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Partner zum Quiz einladen'}
+                </button>
+              </form>
+            ) : (
+              <p className="card-description">Partner wurde per E-Mail eingeladen. Du wirst benachrichtigt, sobald er/sie das Quiz fertiggestellt hat.</p>
+            )}
+            {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
+            {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
+            {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
           </article>
         )}
 
@@ -223,7 +294,6 @@ export default function DashboardPage() {
           {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
             <>
               <h2 className="card-title">Status</h2>
-              <p className="card-description">Dein Ergebnis ist bereits da. Lade jetzt deinen Partner ein, damit ihr später auch euer gemeinsames Ergebnis sehen könnt.</p>
               <div className="report-block stack">
                 <p className="helper">Partner-Ergebnis wird nach Freischaltung hier ergänzt.</p>
                 {(ownResultText?.categories ?? []).map(([category]) => (
@@ -263,21 +333,32 @@ export default function DashboardPage() {
               <h2 className="card-title">Status</h2>
               <p className="card-description">
                 {bundle?.family?.partnerRegistered
-                  ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die Ergebnisse jetzt freigeben.'
+                  ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die gemeinsamen Ergebnisse jetzt generieren.'
                   : 'Warte auf die Bewertung deines Partners.'}
               </p>
               {bundle?.family?.partnerRegistered && (
                 <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
-                  {unlockState === 'loading' ? 'Freischaltung läuft …' : 'Partner- und Gesamtergebnis freischalten'}
+                  {unlockState === 'loading' ? 'Gemeinsame Ergebnisse werden berechnet …' : 'Gemeinsame Ergebnisse generieren'}
                 </button>
+              )}
+              {unlockState === 'loading' && (
+                <>
+                  <div className="quiz-progress" aria-label="Berechnungsfortschritt">
+                    <div className="quiz-progress-bar" style={{ width: `${unlockProgress}%`, transition: 'width 100ms linear' }} />
+                  </div>
+                  <p className="helper">{unlockProgress}%</p>
+                  <div className="card" style={{ overflow: 'hidden' }}>
+                    <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Denkaufgaben sichtbar gemacht</p>
+                    <p style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {Array.from({ length: 4 }).map((_, offset) => unlockBannerPool[(unlockBannerIndex + offset) % unlockBannerPool.length]).join(' - ')}
+                    </p>
+                  </div>
+                </>
               )}
               {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
               {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
             </>
           )}
-          {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
-          {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
-          {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
         </article>
 
         {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && (
@@ -300,6 +381,9 @@ function JointResultPanel({ bundle }: {
   const partnerScores = bundle.partnerResult.categoryScores;
 
   const comparisons = buildCategoryComparisons(initiatorScores, partnerScores);
+  const highestInitiator = comparisons.reduce((current, entry) => ((initiatorScores[entry.category] ?? 0) > (initiatorScores[current.category] ?? 0) ? entry : current), comparisons[0]);
+  const highestPartner = comparisons.reduce((current, entry) => ((partnerScores[entry.category] ?? 0) > (partnerScores[current.category] ?? 0) ? entry : current), comparisons[0]);
+  const sharedHighestCategory = highestInitiator.category === highestPartner.category;
 
   return (
     <article className="card stack">
@@ -319,8 +403,15 @@ function JointResultPanel({ bundle }: {
             <div className="report-block" key={`cmp-${entry.category}`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                 <strong>{categoryLabelMap[entry.category]}</strong>
-                {hasGap && <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>Lücke erkannt</span>}
+                <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>
+                  {hasGap ? 'Abweichung sichtbar' : 'Stimmig'}
+                </span>
               </div>
+              <p className="helper" style={{ marginTop: 4 }}>
+                {hasGap
+                  ? 'Hier gibt es eine größere Abweichung zwischen Selbst- und Fremdwahrnehmung.'
+                  : 'Hier stimmen Fremd- und Selbstbild weitgehend überein.'}
+              </p>
               <p className="helper" style={{ marginBottom: 4 }}>{initiatorName} selbst</p>
               <div className="result-bar"><div className="result-bar-me" style={{ width: `${initiatorSelf}%` }} /></div>
               <p className="helper" style={{ marginTop: 2 }}>{initiatorSelf}%</p>
@@ -340,6 +431,14 @@ function JointResultPanel({ bundle }: {
             </div>
           );
         })}
+        <div className="report-block">
+          <strong>Größte wahrgenommene Belastung</strong>
+          <p className="helper" style={{ margin: '8px 0 0' }}>
+            {sharedHighestCategory
+              ? `${initiatorName} und ${partnerName} spüren die größte Belastung bei ${categoryLabelMap[highestInitiator.category]}.`
+              : `${initiatorName} spürt die größte Belastung bei ${categoryLabelMap[highestInitiator.category]}, ${partnerName} bei ${categoryLabelMap[highestPartner.category]}.`}
+          </p>
+        </div>
       </div>
     </article>
   );
@@ -356,21 +455,19 @@ function ResultBreakdown({
     selfPercent: number;
     statement: string;
     categories: Array<[QuizCategory, number]>;
+    perceivedStressLabel: string;
   };
 }) {
   const displayName = resolveDisplayName(title, 'Nicole');
   const sortedCategories = [...result.categories].sort((a, b) => b[1] - a[1]);
-  const highestLoad = sortedCategories[0];
-  const hasNoCategoryAboveHalf = highestLoad[1] < 50;
+  const highestLoad = Math.max(...result.categories.map(([, value]) => value));
+  const highestLoadSummary = buildHighestLoadSummary(result.categories);
+  const hasNoCategoryAboveHalf = highestLoad < 50;
 
   return (
     <>
-      <h2 className="card-title">Deine persönliche Zusammenfassung</h2>
-      <p className="helper" style={{ margin: 0 }}><strong>{displayName}</strong></p>
+      <h2 className="card-title">{displayName}, das hier ist deine persönliche Zusammenfassung:</h2>
       <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
-      <p className="helper" style={{ margin: 0 }}>
-        Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise von {partnerName} helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
-      </p>
       <div className="personal-result-summary detailed individual-result-panel individual-result-light">
         <div className="result-overview-grid">
           <div className="result-donut-wrap">
@@ -394,17 +491,14 @@ function ResultBreakdown({
                 <p style={{ margin: '0 0 8px' }}>
                   Es zeigt nur einen kleinen Ausschnitt: die <strong>„Dran-Denken“-Aufgaben</strong> bei der Erziehung.
                 </p>
-                <p style={{ margin: 0 }}>
-                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr gemeinsam überlegen, ob die Verteilung für euch passt oder ob ihr kleine Änderungen vornehmen möchtet.
-                </p>
               </div>
             ) : (
               <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
                 <p style={{ margin: '0 0 8px' }}>
-                  <strong>Dein stärkster Bereich:</strong> {categoryLabelMap[highestLoad[0]]} ({highestLoad[1]} %).
+                  <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong> {highestLoadSummary}
                 </p>
-                <p style={{ margin: 0 }}>
-                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr wertschätzend prüfen, ob die Verteilung für euch beide stimmig ist.
+                <p style={{ margin: '0 0 8px' }}>
+                  <strong>Größte empfundene Belastung:</strong> {result.perceivedStressLabel}.
                 </p>
               </div>
             )}

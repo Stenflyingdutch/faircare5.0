@@ -15,6 +15,8 @@ export type StressCategory =
   | 'haushalt_einkaeufe_vorraete'
   | 'termine_planung_absprachen';
 
+export type StressSelection = StressCategory | 'keiner_genannten_bereiche';
+
 export type QuizCategory = StressCategory;
 
 export interface QuizFilterInput {
@@ -53,7 +55,7 @@ export interface TempQuizSession extends QuizFilterInput {
   tempSessionId: string;
   questionIds: string[];
   answers: Partial<Record<string, OwnershipAnswer>>;
-  stressCategories: StressCategory[];
+  stressCategories: StressSelection[];
   sourcePlatform: 'web';
   createdAt: string;
   completedAt?: string;

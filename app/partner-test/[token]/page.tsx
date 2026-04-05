@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ownershipOptions, splitClarityOptions } from '@/components/test/test-config';
-import { completePartnerSession, resolveInvitationByToken, savePartnerFilterPerception, savePartnerSessionAnswer } from '@/services/partnerFlow.service';
+import { resolveInvitationByToken, savePartnerFilterPerception, savePartnerSessionAnswer } from '@/services/partnerFlow.service';
 import { loadPartnerLocalSession, savePartnerLocalSession, type PartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { OwnershipAnswer } from '@/types/quiz';
 
@@ -23,7 +23,7 @@ export default function PartnerTestPage() {
   const router = useRouter();
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [finishing, setFinishing] = useState(false);
+  const [finishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<PartnerLocalSession | null>(loadPartnerLocalSession());
 
@@ -71,20 +71,6 @@ export default function PartnerTestPage() {
     }
   }
 
-  async function finishWithAnswers(nextAnswers: Partial<Record<string, OwnershipAnswer>>) {
-    if (!session) return;
-    setFinishing(true);
-    setError(null);
-    try {
-      const completed = await completePartnerSession(session.sessionId, nextAnswers);
-      savePartnerLocalSession({ ...session, answers: nextAnswers, completedAt: completed.resultDraft.completedAt });
-      router.push(`/register-after-test?token=${session.invitationToken}`);
-    } catch {
-      setError('Der Test konnte nicht final gespeichert werden. Bitte erneut versuchen.');
-      setFinishing(false);
-    }
-  }
-
   async function selectAnswer(answer: OwnershipAnswer) {
     if (!session || finishing) return;
     const nextAnswers = {
@@ -108,7 +94,7 @@ export default function PartnerTestPage() {
     }
 
     if (index === session.questions.length - 1) {
-      await finishWithAnswers(nextAnswers);
+      router.push(`/partner-test/${session.invitationToken}/stress`);
       return;
     }
 

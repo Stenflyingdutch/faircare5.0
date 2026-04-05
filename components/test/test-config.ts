@@ -1,4 +1,4 @@
-import type { AgeGroup, ChildcareTag, OwnershipAnswer, SplitClarity, StressCategory } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, OwnershipAnswer, SplitClarity, StressSelection } from '@/types/quiz';
 
 export const ownershipOptions: Array<{ value: OwnershipAnswer; label: string }> = [
   { value: 'ich', label: 'ich' },
@@ -30,10 +30,11 @@ export const childcareChoices: Array<{ label: string; value: ChildcareTag }> = [
   { label: 'Babysitter / Nanny', value: 'babysitter' },
 ];
 
-export const stressOptions: Array<{ value: StressCategory; label: string }> = [
+export const stressOptions: Array<{ value: StressSelection; label: string }> = [
   { value: 'betreuung_entwicklung', label: 'Betreuung & Entwicklung' },
   { value: 'gesundheit', label: 'Gesundheit' },
   { value: 'babyalltag_pflege', label: 'Babyalltag & Pflege' },
   { value: 'haushalt_einkaeufe_vorraete', label: 'Haushalt, Einkäufe & Vorräte' },
   { value: 'termine_planung_absprachen', label: 'Termine, Planung & Absprachen' },
+  { value: 'keiner_genannten_bereiche', label: 'In keiner der genannten Bereiche' },
 ];

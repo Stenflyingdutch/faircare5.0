@@ -26,7 +26,7 @@ import type {
   QuizResultDocument,
   QuizSessionDocument,
 } from '@/types/partner-flow';
-import type { OwnershipAnswer, QuestionTemplate } from '@/types/quiz';
+import type { OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
 
 function nowIso() {
   return new Date().toISOString();
@@ -131,6 +131,7 @@ async function getLatestInitiatorResult(userId: string) {
     questionIds: string[];
     questionSetSnapshot?: QuestionTemplate[];
     answers: Partial<Record<string, OwnershipAnswer>>;
+    stressCategories?: StressSelection[];
     filter: Record<string, string>;
     detailedReport?: { summary?: { selfPercent: number } };
   };
@@ -446,6 +447,7 @@ export async function startPartnerSession(invitation: InvitationDocument) {
     questionSetId: invitation.questionSetId,
     questionSetSnapshot: invitation.questionSetSnapshot,
     filterAnswers: null,
+    stressCategories: [],
     answers: {},
     createdAt: nowIso(),
     completedAt: null,
@@ -466,7 +468,18 @@ export async function savePartnerFilterPerception(sessionId: string, value: stri
   }, { merge: true });
 }
 
-export async function completePartnerSession(sessionId: string, answers: Partial<Record<string, OwnershipAnswer>>) {
+export async function savePartnerStressSelection(sessionId: string, stressSelection: StressSelection) {
+  await setDoc(doc(db, firestoreCollections.quizSessions, sessionId), {
+    stressCategories: stressSelection === 'keiner_genannten_bereiche' ? [] : [stressSelection],
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+export async function completePartnerSession(
+  sessionId: string,
+  answers: Partial<Record<string, OwnershipAnswer>>,
+  stressCategories: StressSelection[] = [],
+) {
   const sessionRef = doc(db, firestoreCollections.quizSessions, sessionId);
   const sessionSnapshot = await getDoc(sessionRef);
   if (!sessionSnapshot.exists()) throw new Error('Partner-Session nicht gefunden.');
@@ -479,6 +492,7 @@ export async function completePartnerSession(sessionId: string, answers: Partial
 
   await setDoc(sessionRef, {
     answers,
+    stressCategories,
     completedAt: nowIso(),
     updatedAt: serverTimestamp(),
   }, { merge: true });
@@ -493,6 +507,7 @@ export async function completePartnerSession(sessionId: string, answers: Partial
       totalScore,
       interpretation: describeTotalScore(totalScore),
       completedAt: nowIso(),
+      stressCategories,
       questionSetSnapshot: session.questionSetSnapshot,
       filterAnswers: session.filterAnswers ?? null,
     },
@@ -556,6 +571,7 @@ export async function finalizePartnerRegistration(params: {
       totalScore,
       interpretation: describeTotalScore(totalScore),
       filterPerceptionAnswer: session.filterAnswers?.perception ?? null,
+      stressCategories: session.stressCategories ?? [],
       completedAt: session.completedAt!,
       questionSetSnapshot: session.questionSetSnapshot,
       createdAt,
@@ -651,6 +667,7 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
     answers: Partial<Record<string, OwnershipAnswer>>;
     questionIds: string[];
     questionSetSnapshot?: QuestionTemplate[];
+    stressCategories?: StressSelection[];
     filter?: { splitClarity?: string };
     summary?: { selfPercent: number };
   };
@@ -675,6 +692,7 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
     totalScore,
     interpretation: describeTotalScore(totalScore),
     filterPerceptionAnswer: userResult.filter?.splitClarity ?? null,
+    stressCategories: userResult.stressCategories ?? [],
     completedAt: nowIso(),
     questionSetSnapshot: questions,
     updatedAt: serverTimestamp(),
@@ -830,6 +848,16 @@ export async function fetchDashboardBundle(userId: string) {
   let ownResult = profile.familyId
     ? await fetchResultByRole(profile.familyId, profile.role === 'partner' ? 'partner' : 'initiator')
     : null;
+
+  if (ownResult && profile.role !== 'partner' && (!ownResult.stressCategories || ownResult.stressCategories.length === 0)) {
+    const raw = await getLatestInitiatorResult(userId);
+    if (raw?.stressCategories) {
+      ownResult = {
+        ...ownResult,
+        stressCategories: raw.stressCategories,
+      };
+    }
+  }
 
   let family: FamilyDocument | null = null;
   let joint: JointResultDocument | null = null;

@@ -1,12 +1,12 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { stressOptions } from '@/components/test/test-config';
-import { persistQuizSession } from '@/services/firestoreQuiz';
-import { loadSessionFromStorage, saveSessionToStorage } from '@/services/sessionStorage';
-import type { StressSelection, TempQuizSession } from '@/types/quiz';
+import { completePartnerSession, savePartnerStressSelection } from '@/services/partnerFlow.service';
+import { loadPartnerLocalSession, savePartnerLocalSession, type PartnerLocalSession } from '@/services/partnerSessionStorage';
+import type { StressSelection } from '@/types/quiz';
 
 const stressCategoryDescriptions: Record<StressSelection, string> = {
   betreuung_entwicklung: 'Schlaf, Entwicklung und Begleitung im Alltag des Babys.',
@@ -17,42 +17,45 @@ const stressCategoryDescriptions: Record<StressSelection, string> = {
   keiner_genannten_bereiche: 'Aktuell empfinde ich in keinem der genannten Bereiche die größte Belastung.',
 };
 
-export default function QuizStressPage() {
+export default function PartnerStressPage() {
+  const params = useParams<{ token: string }>();
   const router = useRouter();
-  const [session, setSession] = useState<TempQuizSession | null>(null);
+  const [session, setSession] = useState<PartnerLocalSession | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const existing = loadSessionFromStorage();
-    if (!existing) {
-      router.replace('/quiz/filter');
+    const token = params?.token;
+    const stored = loadPartnerLocalSession();
+    if (!token || !stored || stored.invitationToken !== token) {
+      router.replace(`/invite/${token}`);
       return;
     }
-    setSession(existing);
-  }, [router]);
+    setSession(stored);
+  }, [params?.token, router]);
 
   async function selectCategory(category: StressSelection) {
     if (!session || isSaving) return;
-
     setIsSaving(true);
+    setError(null);
 
-    const updated = {
-      ...session,
-      stressCategories: category === 'keiner_genannten_bereiche' ? [] : [category],
-      completedAt: new Date().toISOString(),
-    };
-
+    const stressCategories = category === 'keiner_genannten_bereiche' ? [] : [category];
+    const updated = { ...session, stressSelection: category };
     setSession(updated);
-    saveSessionToStorage(updated);
+    savePartnerLocalSession(updated);
 
     try {
-      await persistQuizSession(updated);
-    } catch {}
-
-    router.push('/quiz/preparing');
+      await savePartnerStressSelection(session.sessionId, category);
+      const completed = await completePartnerSession(session.sessionId, session.answers, stressCategories);
+      savePartnerLocalSession({ ...updated, completedAt: completed.resultDraft.completedAt });
+      router.push(`/register-after-test?token=${session.invitationToken}`);
+    } catch {
+      setError('Der Partner-Test konnte nicht final gespeichert werden. Bitte erneut versuchen.');
+      setIsSaving(false);
+    }
   }
 
-  if (!session) return <section className="section"><div className="container test-shell">Lade Session …</div></section>;
+  if (!session) return <section className="section"><div className="container test-shell">Partner-Test wird geladen …</div></section>;
 
   return (
     <section className="section">
@@ -64,7 +67,7 @@ export default function QuizStressPage() {
             <button
               key={option.value}
               type="button"
-              className={`answer-button ${session.stressCategories.includes(option.value) ? 'selected' : ''}`}
+              className={`answer-button ${session.stressSelection === option.value ? 'selected' : ''}`}
               onClick={() => selectCategory(option.value)}
               disabled={isSaving}
             >
@@ -73,6 +76,7 @@ export default function QuizStressPage() {
             </button>
           ))}
         </div>
+        {error && <p className="inline-error">{error}</p>}
       </div>
     </section>
   );

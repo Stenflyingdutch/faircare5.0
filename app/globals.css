@@ -460,6 +460,27 @@ textarea.input {
   color: #4b5563;
 }
 
+.single-result-dark {
+  background: linear-gradient(180deg, #232326 0%, #1d1e20 100%);
+  color: #f3f4f6;
+  border-color: #3a3d44;
+  box-shadow: inset 0 0 0 1px rgba(125, 116, 232, 0.18);
+}
+
+.single-result-dark .helper {
+  color: #d1d5db;
+}
+
+.single-result-dark .result-bar {
+  background: #3b4048;
+}
+
+.single-result-dark .button.secondary {
+  background: transparent;
+  color: #f3f4f6;
+  border-color: #6b7280;
+}
+
 .result-overview-grid {
   display: grid;
   grid-template-columns: minmax(180px, 230px) 1fr;
