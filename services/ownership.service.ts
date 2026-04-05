@@ -106,6 +106,16 @@ function mapTemplateLocale(value: Record<string, string> | undefined, locale: Lo
   return value?.[locale] || value?.de || fallback;
 }
 
+function buildSeedFallbackTemplates(categoryKey: QuizCategory, locale: Locale) {
+  return (ownershipTaskPackageSeed[categoryKey] ?? []).slice(0, 10).map((entry, index) => ({
+    id: `seed_${categoryKey}_${index + 1}`,
+    categoryKey,
+    title: mapTemplateLocale(entry.title, locale, 'Ownership-Bereich'),
+    note: mapTemplateLocale(entry.note, locale, ''),
+    sortOrder: index + 1,
+  }));
+}
+
 export async function fetchTaskPackageTemplates(ageGroup: AgeGroup) {
   const snapshot = await getDocs(query(
     collection(db, firestoreCollections.taskPackageTemplates),
@@ -208,8 +218,18 @@ export async function initializeFamilyOwnership(params: {
       const categoryTemplates = templates
         .filter((template) => template.categoryKey === categoryKey)
         .slice(0, 10);
+      const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
+      const templatesForFamily = categoryTemplates.length > 0
+        ? categoryTemplates.map((template) => ({
+          id: template.id,
+          categoryKey: template.categoryKey,
+          title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
+          note: mapTemplateLocale(template.note, params.locale, ''),
+          sortOrder: template.sortOrder,
+        }))
+        : fallbackTemplates;
 
-      for (const template of categoryTemplates) {
+      for (const template of templatesForFamily) {
         const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', `${categoryKey}_${template.id}`);
         const existingCard = await transaction.get(cardRef);
         if (existingCard.exists()) {
@@ -219,9 +239,67 @@ export async function initializeFamilyOwnership(params: {
         transaction.set(cardRef, {
           id: `${categoryKey}_${template.id}`,
           categoryKey,
-          sourceTemplateId: template.id,
+          sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
+          title: template.title,
+          note: template.note,
+          ownerUserId: defaultOwner,
+          focusLevel: template.sortOrder <= 2 ? 'now' : 'soon',
+          sortOrder: template.sortOrder,
+          isDeleted: false,
+          createdBy: params.actorUserId,
+          updatedBy: params.actorUserId,
+          createdAt: nowIso(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      }
+    }
+  });
+}
+
+export async function ensureOwnershipCardsForCategories(params: {
+  familyId: string;
+  ageGroup: AgeGroup;
+  actorUserId: string;
+  locale: Locale;
+  categoryKeys: QuizCategory[];
+}) {
+  const templates = await fetchTaskPackageTemplates(params.ageGroup);
+  const activeCategorySet = new Set(params.categoryKeys);
+
+  await runTransaction(db, async (transaction) => {
+    const familyRef = doc(db, firestoreCollections.families, params.familyId);
+    const familySnap = await transaction.get(familyRef);
+    if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
+
+    const family = familySnap.data() as FamilyDocument;
+    const defaultOwner = family.initiatorUserId;
+
+    for (const categoryKey of activeCategorySet) {
+      const categoryTemplates = templates
+        .filter((template) => template.categoryKey === categoryKey)
+        .slice(0, 10);
+      const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
+      const templatesForFamily = categoryTemplates.length > 0
+        ? categoryTemplates.map((template) => ({
+          id: template.id,
+          categoryKey: template.categoryKey,
           title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
           note: mapTemplateLocale(template.note, params.locale, ''),
+          sortOrder: template.sortOrder,
+        }))
+        : fallbackTemplates;
+
+      for (const template of templatesForFamily) {
+        const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', `${categoryKey}_${template.id}`);
+        const existingCard = await transaction.get(cardRef);
+        if (existingCard.exists()) continue;
+
+        transaction.set(cardRef, {
+          id: `${categoryKey}_${template.id}`,
+          categoryKey,
+          sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
+          title: template.title,
+          note: template.note,
           ownerUserId: defaultOwner,
           focusLevel: template.sortOrder <= 2 ? 'now' : 'soon',
           sortOrder: template.sortOrder,

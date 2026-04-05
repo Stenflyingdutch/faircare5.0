@@ -13,6 +13,7 @@ interface OwnershipBoardProps {
   cards: OwnershipCardDocument[];
   mode: 'dashboard' | 'home';
   ownerOptions: Array<{ userId: string; label: string }>;
+  categoryKeys?: QuizCategory[];
 }
 
 const focusLevelLabel: Record<OwnershipFocusLevel, string> = {
@@ -30,7 +31,7 @@ interface DraftState {
   focusLevel: OwnershipFocusLevel;
 }
 
-export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOptions }: OwnershipBoardProps) {
+export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOptions, categoryKeys = [] }: OwnershipBoardProps) {
   const [openedCardId, setOpenedCardId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [saving, setSaving] = useState(false);
@@ -48,6 +49,9 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
 
   const grouped = useMemo(() => {
     const map = new Map<QuizCategory, OwnershipCardDocument[]>();
+    if (mode === 'dashboard') {
+      categoryKeys.forEach((categoryKey) => map.set(categoryKey, []));
+    }
     visibleCards.forEach((card) => {
       const list = map.get(card.categoryKey) ?? [];
       list.push(card);
@@ -59,7 +63,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     }
 
     return [...map.entries()].sort((a, b) => categoryLabelMap[a[0]].localeCompare(categoryLabelMap[b[0]]));
-  }, [visibleCards]);
+  }, [visibleCards, mode, categoryKeys]);
 
   function beginEdit(card: OwnershipCardDocument) {
     setOpenedCardId(card.id);
@@ -202,7 +206,13 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         </article>
       ))}
 
-      {!grouped.length && <p className="helper">Noch keine Ownership-Karten verfügbar.</p>}
+      {!grouped.length && (
+        <p className="helper">
+          {mode === 'home'
+            ? 'Es sind aktuell keine Karten dir zugeordnet.'
+            : 'Noch keine Ownership-Kategorien aktiviert.'}
+        </p>
+      )}
       {error && <p className="inline-error">{error}</p>}
 
       {openedCard && draft && (
