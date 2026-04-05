@@ -33,8 +33,8 @@ export default function PersonalHomePage() {
       setAgeGroup(bundle.ageGroupForOwnership ?? null);
       if (bundle.family) {
         setOwnerOptions([
-          { userId: bundle.family.initiatorUserId, label: 'Partner 1' },
-          ...(bundle.family.partnerUserId ? [{ userId: bundle.family.partnerUserId, label: 'Partner 2' }] : []),
+          { userId: bundle.family.initiatorUserId, label: bundle.initiatorDisplayName || 'Partner 1' },
+          ...(bundle.family.partnerUserId ? [{ userId: bundle.family.partnerUserId, label: bundle.partnerDisplayName || 'Partner 2' }] : []),
         ]);
       }
     });

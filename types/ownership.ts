@@ -33,8 +33,8 @@ export interface OwnershipCardDocument {
   sourceTemplateId?: string | null;
   title: string;
   note: string;
-  ownerUserId: string;
-  focusLevel: OwnershipFocusLevel;
+  ownerUserId?: string | null;
+  focusLevel?: OwnershipFocusLevel | null;
   sortOrder: number;
   isDeleted: boolean;
   createdBy: string;

@@ -16,7 +16,6 @@ import {
 import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
 import { ownershipTaskPackageSeed } from '@/data/ownershipTaskPackageTemplates';
-import type { FamilyDocument } from '@/types/partner-flow';
 import type { Locale } from '@/types/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
 import type {
@@ -41,6 +40,11 @@ const focusOrder: Record<OwnershipFocusLevel, number> = {
   soon: 1,
   later: 2,
 };
+
+function resolveFocusSort(value?: OwnershipFocusLevel | null) {
+  if (!value) return 3;
+  return focusOrder[value];
+}
 
 function toReasonText(reasonCodes: RecommendationReasonCode[]) {
   if (reasonCodes.includes('high_test_load') && reasonCodes.includes('high_perceived_stress')) {
@@ -195,8 +199,6 @@ export async function initializeFamilyOwnership(params: {
   const familyRef = doc(db, firestoreCollections.families, params.familyId);
   const familySnap = await getDoc(familyRef);
   if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
-  const family = familySnap.data() as FamilyDocument;
-  const defaultOwner = family.initiatorUserId;
 
   const existingCardsSnap = activeCategoryList.length
     ? await getDocs(query(
@@ -248,8 +250,8 @@ export async function initializeFamilyOwnership(params: {
         sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
         title: template.title,
         note: template.note,
-        ownerUserId: defaultOwner,
-        focusLevel: template.sortOrder <= 2 ? 'now' : 'soon',
+        ownerUserId: null,
+        focusLevel: null,
         sortOrder: template.sortOrder,
         isDeleted: false,
         createdBy: params.actorUserId,
@@ -275,9 +277,6 @@ export async function ensureOwnershipCardsForCategories(params: {
   const familyRef = doc(db, firestoreCollections.families, params.familyId);
   const familySnap = await getDoc(familyRef);
   if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
-
-  const family = familySnap.data() as FamilyDocument;
-  const defaultOwner = family.initiatorUserId;
   const existingCardsSnap = activeCategoryList.length
     ? await getDocs(query(
       collection(db, firestoreCollections.families, params.familyId, 'ownershipCards'),
@@ -315,8 +314,8 @@ export async function ensureOwnershipCardsForCategories(params: {
         sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
         title: template.title,
         note: template.note,
-        ownerUserId: defaultOwner,
-        focusLevel: template.sortOrder <= 2 ? 'now' : 'soon',
+        ownerUserId: null,
+        focusLevel: null,
         sortOrder: template.sortOrder,
         isDeleted: false,
         createdBy: params.actorUserId,
@@ -367,7 +366,7 @@ export function observeOwnershipCards(
         .map((item) => ({ id: item.id, ...item.data() }) as OwnershipCardDocument)
         .sort((a, b) => {
           if (a.categoryKey !== b.categoryKey) return a.categoryKey.localeCompare(b.categoryKey);
-          if (focusOrder[a.focusLevel] !== focusOrder[b.focusLevel]) return focusOrder[a.focusLevel] - focusOrder[b.focusLevel];
+          if (resolveFocusSort(a.focusLevel) !== resolveFocusSort(b.focusLevel)) return resolveFocusSort(a.focusLevel) - resolveFocusSort(b.focusLevel);
           return a.sortOrder - b.sortOrder;
         });
 
