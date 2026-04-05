@@ -34,23 +34,22 @@ test('service wrappers are field-selective (owner/focus/meta/activation)', () =>
 
   const ownerBlock = src.match(/export async function updateOwnershipCardOwner[\s\S]*?\n}\n\nexport async function updateOwnershipCardFocus/);
   assert.ok(ownerBlock, 'owner wrapper block not found');
-  assert.match(ownerBlock[0], /ownerUserId: params\.ownerUserId/);
+  assert.match(ownerBlock[0], /ownerUserId: params\.patch\.ownerUserId/);
   assert.doesNotMatch(ownerBlock[0], /isActive:/);
 
   const focusBlock = src.match(/export async function updateOwnershipCardFocus[\s\S]*?\n}\n\nexport async function toggleOwnershipCardActive/);
   assert.ok(focusBlock, 'focus wrapper block not found');
-  assert.match(focusBlock[0], /focusLevel: params\.focusLevel/);
+  assert.match(focusBlock[0], /focusLevel: params\.patch\.focusLevel/);
   assert.doesNotMatch(focusBlock[0], /isActive:/);
 
   const metaBlock = src.match(/export async function updateOwnershipCardMeta[\s\S]*?\n}\n\nexport async function updateOwnershipCardOwner/);
   assert.ok(metaBlock, 'meta wrapper block not found');
-  assert.match(metaBlock[0], /title: params\.title/);
-  assert.match(metaBlock[0], /note: params\.note/);
+  assert.match(metaBlock[0], /\.\.\.params\.patch/);
   assert.doesNotMatch(metaBlock[0], /isActive:/);
 
   const toggleBlock = src.match(/export async function toggleOwnershipCardActive[\s\S]*?\n}\n\nexport async function softDeleteOwnershipCard/);
   assert.ok(toggleBlock, 'toggle wrapper block not found');
-  assert.match(toggleBlock[0], /isActive: params\.isActive/);
+  assert.match(toggleBlock[0], /isActive: params\.patch\.isActive/);
 });
 
 test('stale local snapshot cannot force isActive in unrelated owner update path', () => {
@@ -58,4 +57,12 @@ test('stale local snapshot cannot force isActive in unrelated owner update path'
   const ownerUpdateBlock = src.match(/async function cycleOwner[\s\S]*?\n  }\n\n  async function setCardActivation/);
   assert.ok(ownerUpdateBlock, 'cycleOwner block not found');
   assert.doesNotMatch(ownerUpdateBlock[0], /isActive:/);
+});
+
+test('type-level guard rails exist for ownership patch payload kinds', () => {
+  const src = read('services/ownership.service.ts');
+  assert.match(src, /export interface OwnershipCardOwnerPatch/);
+  assert.match(src, /export interface OwnershipCardFocusPatch/);
+  assert.match(src, /export interface OwnershipCardContentPatch/);
+  assert.match(src, /export interface OwnershipCardActivationPatch/);
 });

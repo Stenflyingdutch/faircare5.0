@@ -144,8 +144,10 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
       familyId,
       cardId: card.id,
       actorUserId: currentUserId,
-      title: next.title.trim() || card.title,
-      note: next.note.trim(),
+      patch: {
+        title: next.title.trim() || card.title,
+        note: next.note.trim(),
+      },
     });
   }
 
@@ -177,7 +179,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         familyId,
         cardId: card.id,
         actorUserId: currentUserId,
-        focusLevel: nextLevel,
+        patch: { focusLevel: nextLevel },
       });
     } catch {
       setFocusOverrides((prev) => ({ ...prev, [card.id]: previousLevel }));
@@ -230,7 +232,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         familyId,
         cardId: card.id,
         actorUserId: currentUserId,
-        ownerUserId: nextOwner,
+        patch: { ownerUserId: nextOwner },
       });
     } catch {
       setError('Die Zuordnung konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
@@ -248,7 +250,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         familyId,
         cardId: card.id,
         actorUserId: currentUserId,
-        isActive: nextActive,
+        patch: { isActive: nextActive },
       });
     } catch {
       setError('Der Aktivierungsstatus konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');

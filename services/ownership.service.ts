@@ -400,6 +400,23 @@ export function observeOwnershipCards(
 
 type OwnershipPatch = Record<string, unknown>;
 
+export interface OwnershipCardOwnerPatch {
+  ownerUserId: string | null;
+}
+
+export interface OwnershipCardFocusPatch {
+  focusLevel: OwnershipFocusLevel | null;
+}
+
+export interface OwnershipCardContentPatch {
+  title?: string;
+  note?: string;
+}
+
+export interface OwnershipCardActivationPatch {
+  isActive: boolean;
+}
+
 async function patchOwnershipCard(params: {
   familyId: string;
   cardId: string;
@@ -469,16 +486,14 @@ export async function updateOwnershipCardMeta(params: {
   familyId: string;
   cardId: string;
   actorUserId: string;
-  title: string;
-  note: string;
+  patch: OwnershipCardContentPatch;
 }) {
   return patchOwnershipCard({
     familyId: params.familyId,
     cardId: params.cardId,
     actorUserId: params.actorUserId,
     patch: {
-      title: params.title,
-      note: params.note,
+      ...params.patch,
     },
     action: 'meta_updated',
   });
@@ -488,14 +503,14 @@ export async function updateOwnershipCardOwner(params: {
   familyId: string;
   cardId: string;
   actorUserId: string;
-  ownerUserId: string | null;
+  patch: OwnershipCardOwnerPatch;
 }) {
   return patchOwnershipCard({
     familyId: params.familyId,
     cardId: params.cardId,
     actorUserId: params.actorUserId,
     patch: {
-      ownerUserId: params.ownerUserId,
+      ownerUserId: params.patch.ownerUserId,
     },
     action: 'owner_updated',
   });
@@ -505,14 +520,14 @@ export async function updateOwnershipCardFocus(params: {
   familyId: string;
   cardId: string;
   actorUserId: string;
-  focusLevel: OwnershipFocusLevel | null;
+  patch: OwnershipCardFocusPatch;
 }) {
   return patchOwnershipCard({
     familyId: params.familyId,
     cardId: params.cardId,
     actorUserId: params.actorUserId,
     patch: {
-      focusLevel: params.focusLevel,
+      focusLevel: params.patch.focusLevel,
     },
     action: 'focus_updated',
   });
@@ -522,14 +537,14 @@ export async function toggleOwnershipCardActive(params: {
   familyId: string;
   cardId: string;
   actorUserId: string;
-  isActive: boolean;
+  patch: OwnershipCardActivationPatch;
 }) {
   return patchOwnershipCard({
     familyId: params.familyId,
     cardId: params.cardId,
     actorUserId: params.actorUserId,
     patch: {
-      isActive: params.isActive,
+      isActive: params.patch.isActive,
     },
     action: 'activation_updated',
   });
