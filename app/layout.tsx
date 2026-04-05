@@ -7,7 +7,7 @@ import { Header } from '@/components/Header';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'mental carefair',
+  title: 'FairCare',
   description: 'Web-Plattform für faire Mental-Load-Verteilung in Familien.',
 };
 

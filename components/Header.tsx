@@ -19,7 +19,7 @@ export function Header() {
       <div className="container">
         <div className="header-inner">
           <Link href="/" className="brand">
-            mental carefair
+            FairCare
           </Link>
           <button
             type="button"

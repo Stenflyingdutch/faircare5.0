@@ -8,7 +8,7 @@ export default function HomePage() {
     <>
       <PageHero
         title="Mental Load sichtbar machen. Verantwortung klar verteilen."
-        subtitle="mental carefair hilft Eltern, unsichtbare Denk- und Planungsarbeit offen zu besprechen und als Team fair zu organisieren."
+        subtitle="FairCare hilft Eltern, unsichtbare Denk- und Planungsarbeit offen zu besprechen und als Team fair zu organisieren."
         actions={<CTAButton href="/quiz/filter">Jetzt kostenlosen Test machen</CTAButton>}
       />
 
@@ -19,7 +19,7 @@ export default function HomePage() {
             description="Mental Load ist die unsichtbare Organisationsarbeit im Familienalltag: mitdenken, planen, erinnern und koordinieren."
           />
           <Card
-            title="Was löst mental carefair?"
+            title="Was löst FairCare?"
             description="Ihr bekommt einen klaren Überblick, sprecht über echte Belastung und verteilt Verantwortung bewusst statt nebenbei."
           />
         </div>
@@ -60,7 +60,7 @@ export default function HomePage() {
       <SectionWrapper subdued>
         <Card
           title="Über uns"
-          description="Erfahre, warum wir mental carefair gegründet haben und weshalb faire Verantwortung in Familien unser Herzensthema ist."
+          description="Erfahre, warum wir FairCare gegründet haben und weshalb faire Verantwortung in Familien unser Herzensthema ist."
         >
           <div style={{ marginTop: '1rem' }}>
             <CTAButton href="/about">Zur Über-uns-Seite</CTAButton>
