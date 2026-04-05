@@ -37,13 +37,6 @@ function resolveDisplayName(value?: string | null, fallback = 'Nutzer') {
   return normalizeName(value) || normalizeName(fallback) || 'Nutzer';
 }
 
-function resolveFirstName(value?: string | null) {
-  const normalized = normalizeName(value);
-  if (!normalized) return null;
-  const [first] = normalized.split(/\s+/);
-  return first || null;
-}
-
 function deriveNameFromEmail(email?: string | null) {
   if (!email) return null;
   const local = email.split('@')[0]?.trim();
@@ -227,9 +220,6 @@ export function ReviewResultsContent() {
     : bundle?.partnerDisplayName;
   const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
   const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
-  const firstName = resolveFirstName(bundle?.profile?.firstName)
-    || resolveFirstName(bundle?.profile?.displayName)
-    || 'Du';
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
     return {
@@ -315,14 +305,7 @@ export function ReviewResultsContent() {
     <section className="section">
       <div className="container stack">
         <article className="card stack">
-          <h2 className="card-title">
-            {`${firstName}, das hier ist deine persönliche Zusammenfassung:`}
-          </h2>
           {discussedDate && <p className="helper" style={{ margin: 0 }}>Zuletzt gemeinsam besprochen am {discussedDate}.</p>}
-        </article>
-
-        <article className="card stack">
-          <h2 className="card-title">Eigenes Ergebnis</h2>
           {!ownResultText
             ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
             : (

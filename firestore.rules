@@ -5,12 +5,28 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
+
+    function hasUserProfile() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isSuspended() {
+      return hasUserProfile() && userDoc(request.auth.uid).data.suspended == true;
+    }
+
+    function isActiveSignedIn() {
+      return isSignedIn() && hasUserProfile() && !isSuspended();
+    }
+
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isActiveSignedIn() && userDoc(request.auth.uid).data.role == 'admin';
     }
 
     function familyDoc(familyId) {
@@ -18,7 +34,7 @@ service cloud.firestore {
     }
 
     function isFamilyMember(familyId) {
-      return exists(/databases/$(database)/documents/families/$(familyId)) && (
+      return isActiveSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)) && (
         familyDoc(familyId).data.initiatorUserId == request.auth.uid ||
         familyDoc(familyId).data.partnerUserId == request.auth.uid
       );
@@ -35,17 +51,19 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isSelf(userId);
-      allow create, update: if isSelf(userId);
+      allow read: if isSelf(userId) || isAdmin();
+      allow create: if isSelf(userId);
+      allow update: if isSelf(userId) && !isSuspended();
+      allow delete: if false;
     }
 
     match /families/{familyId} {
-      allow read: if isSignedIn() && (
+      allow read: if isActiveSignedIn() && (
         resource.data.initiatorUserId == request.auth.uid ||
         resource.data.partnerUserId == request.auth.uid
       );
-      allow create: if isSignedIn() && request.resource.data.initiatorUserId == request.auth.uid;
-      allow update: if isSignedIn() && (
+      allow create: if isActiveSignedIn() && request.resource.data.initiatorUserId == request.auth.uid;
+      allow update: if isActiveSignedIn() && (
         resource.data.initiatorUserId == request.auth.uid ||
         (
           resource.data.partnerUserId == request.auth.uid &&
@@ -83,13 +101,13 @@ service cloud.firestore {
     }
 
     match /taskPackageTemplates/{templateId} {
-      allow read: if isSignedIn();
+      allow read: if isActiveSignedIn();
       allow create, update, delete: if isAdmin();
     }
 
     match /invitations/{invitationId} {
       allow read: if true;
-      allow create, update: if isSignedIn() && request.resource.data.initiatorUserId == request.auth.uid;
+      allow create, update: if isActiveSignedIn() && request.resource.data.initiatorUserId == request.auth.uid;
     }
 
     match /quizSessions/{sessionId} {
@@ -98,7 +116,7 @@ service cloud.firestore {
     }
 
     match /quizResults/{resultId} {
-      allow read: if isSignedIn() && (
+      allow read: if isActiveSignedIn() && (
         resource.data.userId == request.auth.uid ||
         (
           isFamilyMember(resource.data.familyId) &&
@@ -106,24 +124,31 @@ service cloud.firestore {
           familySharedResultsOpened(resource.data.familyId)
         )
       );
-      allow create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create, update: if isActiveSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
     match /jointResults/{jointResultId} {
-      allow read: if isSignedIn() && (
+      allow read: if isActiveSignedIn() && (
         isFamilyMember(resource.data.familyId) && familyResultsUnlocked(resource.data.familyId)
         && familySharedResultsOpened(resource.data.familyId)
       );
-      allow create: if isSignedIn() &&
+      allow create: if isActiveSignedIn() &&
         isFamilyMember(request.resource.data.familyId) &&
         familyDoc(request.resource.data.familyId).data.initiatorUserId == request.auth.uid;
-      allow update: if isSignedIn() &&
+      allow update: if isActiveSignedIn() &&
         isFamilyMember(resource.data.familyId) &&
         familyDoc(resource.data.familyId).data.initiatorUserId == request.auth.uid;
     }
 
+
+    match /adminAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
     match /mailLogs/{mailLogId} {
-      allow create: if isSignedIn();
+      allow create: if isActiveSignedIn();
       allow read: if false;
     }
 
