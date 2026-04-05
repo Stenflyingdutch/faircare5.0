@@ -7,11 +7,30 @@ import { questionTemplates } from '@/data/questionTemplates';
 import { categoryLabelMap, calculateSummary } from '@/services/resultCalculator';
 import { saveAnonymousResult } from '@/services/sessionLinking';
 import { loadSessionFromStorage } from '@/services/sessionStorage';
-import type { StressSelection, TempQuizSession } from '@/types/quiz';
+import type { OwnershipAnswer, QuizCategory, StressSelection, TempQuizSession } from '@/types/quiz';
+
+const scoreMap: Record<OwnershipAnswer, number> = {
+  ich: 4,
+  eher_ich: 3,
+  beide: 2,
+  eher_partner: 1,
+  partner: 0,
+};
 
 function resolvePerceivedStressLabel(stressCategories: StressSelection[]) {
   if (!stressCategories.length || stressCategories[0] === 'keiner_genannten_bereiche') return 'In keiner der genannten Bereiche.';
   return `${categoryLabelMap[stressCategories[0]]}.`;
+}
+
+function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>) {
+  const maxScore = Math.max(...categories.map(([, value]) => value));
+  const highestCategories = categories
+    .filter(([, value]) => value === maxScore)
+    .map(([category]) => categoryLabelMap[category]);
+
+  if (highestCategories.length === 1) return `${highestCategories[0]} (${maxScore} %).`;
+  if (highestCategories.length === 2) return `${highestCategories[0]} und ${highestCategories[1]} (je ${maxScore} %).`;
+  return `Es wurde in mehreren Bereichen eine hohe Belastung gemessen (je ${maxScore} %).`;
 }
 
 
@@ -35,6 +54,25 @@ export default function QuizResultPage() {
     return calculateSummary(questions, session.answers);
   }, [session]);
 
+  const categoryBreakdown = useMemo(() => {
+    if (!session) return [] as Array<[QuizCategory, number]>;
+    const questions = questionTemplates.filter((q) => session.questionIds.includes(q.id));
+    const byCategory = new Map<QuizCategory, { sum: number; count: number }>();
+
+    questions.forEach((q) => {
+      const answer = session.answers[q.id];
+      if (!answer) return;
+      const current = byCategory.get(q.categoryKey) ?? { sum: 0, count: 0 };
+      current.sum += scoreMap[answer];
+      current.count += 1;
+      byCategory.set(q.categoryKey, current);
+    });
+
+    return [...byCategory.entries()]
+      .map(([category, value]) => [category, Math.round((value.sum / (value.count * 4)) * 100)] as [QuizCategory, number])
+      .sort((a, b) => b[1] - a[1]);
+  }, [session]);
+
   async function endAnonymous() {
     if (!session) return;
     setIsEnding(true);
@@ -47,22 +85,31 @@ export default function QuizResultPage() {
   return (
     <section className="section">
       <div className="container test-shell stack">
-        <h1 className="test-title">Vielen Dank für Deine Teilnahme!</h1>
-        <p className="helper" style={{ marginTop: -8 }}>Untenstehend findest Du deine persönliche Zusammenfassung.</p>
+        <h1 className="test-title">Du, das hier ist deine persönliche Zusammenfassung:</h1>
         <div className="result-card personal-result-summary detailed individual-result-panel single-result-dark stack">
           <p>{summary.summaryText}</p>
-          <div>
-            <p className="helper">Gesamtverteilung</p>
-            <div className="result-bar"><div className="result-bar-me" style={{ width: `${summary.selfPercent}%` }} /></div>
-            <p>Du {summary.selfPercent}% · Partner {summary.partnerPercent}%</p>
-          </div>
-          <div>
-            <p className="helper">Besonders sichtbar in:</p>
-            <ul>{summary.topCategories.slice(0, 3).map((category) => <li key={category}>{categoryLabelMap[category]}</li>)}</ul>
-          </div>
-          <div>
-            <p className="helper">Größte empfundene Belastung:</p>
-            <p>{resolvePerceivedStressLabel(session.stressCategories)}</p>
+          <div className="result-overview-grid">
+            <div className="result-donut-wrap">
+              <div
+                className="result-donut"
+                style={{ background: `conic-gradient(#7d74e8 0 ${summary.selfPercent}%, #d9d8e4 ${summary.selfPercent}% 100%)` }}
+              >
+                <div className="result-donut-inner">
+                  <strong>{summary.selfPercent}%</strong>
+                  <span>Du</span>
+                </div>
+              </div>
+              <p className="helper"><strong>Gesamtanteil</strong></p>
+            </div>
+            <div className="result-highlight-grid">
+              <p style={{ margin: 0 }}>
+                <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong>{' '}
+                {categoryBreakdown.length ? buildHighestLoadSummary(categoryBreakdown) : 'Noch keine ausreichenden Angaben.'}
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>Größte empfundene Belastung:</strong> {resolvePerceivedStressLabel(session.stressCategories)}
+              </p>
+            </div>
           </div>
           <div className="stack">
             <button type="button" className="button primary" onClick={() => router.push('/register')}>
