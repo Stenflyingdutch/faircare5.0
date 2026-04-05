@@ -365,12 +365,13 @@ function ResultBreakdown({
 
   return (
     <>
-      <h2 className="card-title">Persönliches Ergebnis {displayName}</h2>
+      <h2 className="card-title">Deine persönliche Zusammenfassung</h2>
+      <p className="helper" style={{ margin: 0 }}><strong>{displayName}</strong></p>
       <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
       <p className="helper" style={{ margin: 0 }}>
         Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise des Partners helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
       </p>
-      <div className="personal-result-summary detailed individual-result-panel">
+      <div className="personal-result-summary detailed individual-result-panel individual-result-light">
         <div className="result-overview-grid">
           <div className="result-donut-wrap">
             <div

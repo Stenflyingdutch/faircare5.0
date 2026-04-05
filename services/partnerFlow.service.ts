@@ -419,6 +419,14 @@ export async function resolveInvitationByToken(token: string) {
   const invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
   if (invitation.status === 'accepted') return { status: 'accepted' as const, invitation };
 
+  const familySnapshot = await getDoc(doc(db, firestoreCollections.families, invitation.familyId));
+  if (familySnapshot.exists()) {
+    const family = familySnapshot.data() as FamilyDocument;
+    if (family.partnerRegistered || family.partnerUserId) {
+      return { status: 'accepted' as const, invitation };
+    }
+  }
+
   if (Date.parse(invitation.expiresAt) < Date.now()) {
     await setDoc(doc(db, firestoreCollections.invitations, invitation.id), { status: 'expired' }, { merge: true });
     return { status: 'expired' as const, invitation };
@@ -549,12 +557,6 @@ export async function finalizePartnerRegistration(params: {
       questionSetSnapshot: session.questionSetSnapshot,
       createdAt,
     } satisfies QuizResultDocument);
-
-    transaction.set(doc(db, firestoreCollections.invitations, invitation.id), {
-      status: 'accepted',
-      acceptedAt: createdAt,
-      acceptedEmail: normalizedEmail,
-    }, { merge: true });
 
     transaction.set(doc(db, firestoreCollections.families, invitation.familyId), {
       partnerUserId: params.userId,
