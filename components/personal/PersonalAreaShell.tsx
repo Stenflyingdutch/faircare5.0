@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
 
 import { observeAuthState, signOutUser } from '@/services/auth.service';
+import { fetchDashboardBundle } from '@/services/partnerFlow.service';
+import { isTeamCheckBadgeVisible } from '@/services/teamCheck.logic';
 
 const personalNavItems = [
   { label: 'Home', href: '/app/home', tone: 'violet' },
@@ -17,13 +19,19 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
+  const [showTeamCheckDot, setShowTeamCheckDot] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = observeAuthState((user) => {
+    const unsubscribe = observeAuthState(async (user) => {
       if (!user) {
         router.replace('/login');
         return;
       }
+      const bundle = await fetchDashboardBundle(user.uid);
+      setShowTeamCheckDot(isTeamCheckBadgeVisible({
+        nextCheckInAt: bundle.family?.teamCheckPlan?.nextCheckInAt,
+        reminderActiveAt: bundle.family?.teamCheckPlan?.reminderActiveAt,
+      }));
       setIsReady(true);
     });
 
@@ -61,6 +69,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
                   className={`personal-area-nav-link ${isActive ? `active tone-${item.tone}` : ''}`}
                 >
                   {item.label}
+                  {item.href === '/app/review' && showTeamCheckDot && <span className="team-check-nav-dot" aria-hidden="true" />}
                 </Link>
               );
             })}

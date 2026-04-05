@@ -1,4 +1,5 @@
 import type { OwnershipAnswer, QuestionTemplate, QuizCategory, StressSelection } from '@/types/quiz';
+import type { TeamCheckPlan } from '@/types/team-check';
 
 export type FamilyStatus = 'invited' | 'partner_completed' | 'joint_pending' | 'joint_active';
 export type InvitationStatus = 'sent' | 'accepted' | 'expired';
@@ -11,6 +12,7 @@ export interface AppUserProfile {
   displayName?: string;
   familyId?: string | null;
   role?: FamilyRole;
+  teamCheckEmailReminderEnabled?: boolean;
   createdAt?: string;
 }
 
@@ -32,6 +34,7 @@ export interface FamilyDocument {
   resultsDiscussedAt?: string | null;
   resultsDiscussedBy?: string | null;
   invitationId?: string | null;
+  teamCheckPlan?: TeamCheckPlan;
   createdAt: string;
   activatedAt?: string | null;
 }
