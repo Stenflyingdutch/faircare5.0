@@ -14,6 +14,7 @@ export default function QuizQuestionPage() {
   const router = useRouter();
   const params = useParams<{ index: string }>();
   const [session, setSession] = useState<TempQuizSession | null>(null);
+  const [isAdvancing, setIsAdvancing] = useState(false);
   const index = Number(params?.index || 0);
 
   useEffect(() => {
@@ -41,21 +42,20 @@ export default function QuizQuestionPage() {
   const progress = Math.round(((index + 1) / selectedQuestions.length) * 100);
 
   async function selectAnswer(answer: OwnershipAnswer) {
-    if (!session) return;
+    if (!session || isAdvancing) return;
+    setIsAdvancing(true);
     const updated = { ...session, answers: { ...session.answers, [current.id]: answer } };
     setSession(updated);
     saveSessionToStorage(updated);
     try {
       await Promise.all([persistQuizSession(updated), persistQuizAnswers(updated)]);
     } catch {}
-  }
 
-  function next() {
-    if (!session || !session.answers[current.id]) return;
     if (index === selectedQuestions.length - 1) {
       router.push('/quiz/stress');
       return;
     }
+
     router.push(`/quiz/question/${index + 1}`);
   }
 
@@ -75,8 +75,14 @@ export default function QuizQuestionPage() {
         </div>
 
         <div className="quiz-actions">
-          <button type="button" className="button" onClick={() => router.push(index === 0 ? '/quiz/filter' : `/quiz/question/${index - 1}`)}>Zurück</button>
-          <button type="button" className="button primary" disabled={!session.answers[current.id]} onClick={next}>Weiter</button>
+          <button
+            type="button"
+            className="button"
+            onClick={() => router.push(index === 0 ? '/quiz/filter' : `/quiz/question/${index - 1}`)}
+            disabled={isAdvancing}
+          >
+            Zurück
+          </button>
         </div>
       </div>
     </section>

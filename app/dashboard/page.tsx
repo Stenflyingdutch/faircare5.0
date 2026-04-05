@@ -22,14 +22,20 @@ function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, numb
   return [...categories].sort(([, valueA], [, valueB]) => valueA - valueB);
 }
 
+function normalizeName(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
 function resolveDisplayName(value?: string | null, fallback = 'Nutzer') {
-  return value?.trim() || fallback;
+  return normalizeName(value) || normalizeName(fallback) || 'Nutzer';
 }
 
 function deriveNameFromEmail(email?: string | null) {
   if (!email) return null;
   const local = email.split('@')[0]?.trim();
-  return local || null;
+  return normalizeName(local);
 }
 
 
@@ -173,7 +179,9 @@ export default function DashboardPage() {
     ? bundle?.initiatorDisplayName
     : bundle?.partnerDisplayName;
   const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
-  const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Unbekannt');
+  const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
+
+  const canInvitePartner = bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered;
 
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
 
@@ -197,6 +205,20 @@ export default function DashboardPage() {
             )}
         </article>
 
+        {canInvitePartner && (
+          <article className="card stack">
+            <h2 className="card-title">Partner einladen</h2>
+            <p className="card-description">Trage die E-Mail-Adresse deines Partners ein. Danach kann er denselben Fragenkatalog ausfüllen.</p>
+            <form className="stack" onSubmit={onInviteSubmit}>
+              <input type="email" className="input" required placeholder="E-Mail deines Partners" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} disabled={inviteState === 'loading'} />
+              <textarea className="input" rows={5} value={invitePersonalMessage} onChange={(event) => setInvitePersonalMessage(event.target.value)} aria-label="Persönliche Nachricht" placeholder="Persönliche Nachricht" />
+              <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
+                {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung an Partner senden'}
+              </button>
+            </form>
+          </article>
+        )}
+
         <article className="card stack">
           {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
             <>
@@ -211,13 +233,6 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
-              <form className="stack" onSubmit={onInviteSubmit}>
-                <input type="email" className="input" required placeholder="E-Mail deines Partners" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} disabled={inviteState === 'loading'} />
-                <textarea className="input" rows={5} value={invitePersonalMessage} onChange={(event) => setInvitePersonalMessage(event.target.value)} aria-label="Persönliche Nachricht" placeholder="Persönliche Nachricht" />
-                <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
-                  {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung senden'}
-                </button>
-              </form>
             </>
           ) : bundle?.family?.resultsUnlocked ? (
             <>
@@ -265,18 +280,7 @@ export default function DashboardPage() {
           {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
         </article>
 
-        {!bundle?.family?.resultsUnlocked || !bundle?.family?.sharedResultsOpened ? (
-          <article className="card stack">
-            <h2 className="card-title">Status</h2>
-            <p className="helper">
-              {bundle?.family?.resultsUnlocked
-                ? 'Die gemeinsamen Ergebnisse wurden freigegeben. Öffnet jetzt gemeinsam die Ansicht.'
-                : bundle?.profile?.role === 'partner'
-                  ? 'Die gemeinsamen Ergebnisse werden sichtbar, sobald der Initiator sie freigegeben hat.'
-                  : 'Vor der Freischaltung siehst du nur dein eigenes Ergebnis.'}
-            </p>
-          </article>
-        ) : (
+        {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && (
           <JointResultPanel bundle={bundle} />
         )}
       </div>
@@ -290,7 +294,7 @@ function JointResultPanel({ bundle }: {
   if (!bundle.initiatorResult || !bundle.partnerResult) return null;
 
   const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, deriveNameFromEmail(bundle.profile?.email) ?? 'Initiator');
-  const partnerName = resolveDisplayName(bundle.partnerDisplayName, deriveNameFromEmail(bundle.invitationPartnerEmail) ?? 'Unbekannt');
+  const partnerName = resolveDisplayName(bundle.partnerDisplayName, deriveNameFromEmail(bundle.invitationPartnerEmail) ?? 'Partner');
 
   const initiatorScores = bundle.initiatorResult.categoryScores;
   const partnerScores = bundle.partnerResult.categoryScores;
@@ -361,12 +365,13 @@ function ResultBreakdown({
 
   return (
     <>
-      <h2 className="card-title">Persönliches Ergebnis {displayName}</h2>
+      <h2 className="card-title">Deine persönliche Zusammenfassung</h2>
+      <p className="helper" style={{ margin: 0 }}><strong>{displayName}</strong></p>
       <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
       <p className="helper" style={{ margin: 0 }}>
         Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise des Partners helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
       </p>
-      <div className="personal-result-summary detailed individual-result-panel">
+      <div className="personal-result-summary detailed individual-result-panel individual-result-light">
         <div className="result-overview-grid">
           <div className="result-donut-wrap">
             <div

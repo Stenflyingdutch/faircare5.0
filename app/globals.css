@@ -446,18 +446,18 @@ textarea.input {
 }
 
 .personal-result-summary.detailed {
-  background: linear-gradient(130deg, #4d4a67 0%, #465867 45%, #555369 100%);
-  color: #f5f3ff;
+  background: #f1f1f4;
+  color: #1f2937;
 }
 
 .individual-result-panel {
   border-radius: 18px;
   padding: 1.2rem 1.25rem;
-  box-shadow: inset 0 0 0 1px rgba(237, 233, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2);
 }
 
 .personal-result-summary.detailed .helper {
-  color: #cdcbc4;
+  color: #4b5563;
 }
 
 .result-overview-grid {
@@ -482,7 +482,7 @@ textarea.input {
 .result-donut-inner {
   width: 100%;
   height: 100%;
-  background: #4a4860;
+  background: #f4f4f6;
   border-radius: 50%;
   display: grid;
   place-content: center;
@@ -518,7 +518,7 @@ textarea.input {
   display: flex;
   gap: 1.2rem;
   flex-wrap: wrap;
-  color: #ece9ff;
+  color: #374151;
 }
 
 .result-legend span {
@@ -543,7 +543,7 @@ textarea.input {
 }
 
 .category-list {
-  border-top: 1px solid #cdc8e8;
+  border-top: 1px solid #d1d5db;
   padding-top: 1rem;
 }
 

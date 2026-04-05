@@ -8,8 +8,9 @@ import { observeAuthState } from '@/services/auth.service';
 import { fetchAppUserProfile } from '@/services/partnerFlow.service';
 import { generateQuestionSetFromCatalog, questionCatalogFallback } from '@/services/questionGenerator';
 import { fetchQuizCatalog, persistQuizSession } from '@/services/firestoreQuiz';
+import { createTextResolver, fetchContentBlocks, getDefaultContentBlocks } from '@/services/contentBlocks.service';
 import { createTempSessionId, saveSessionToStorage } from '@/services/sessionStorage';
-import { getCurrentLocale, t } from '@/lib/i18n';
+import { getCurrentLocale, t, uiTexts } from '@/lib/i18n';
 import type { AgeGroup, ChildCount, ChildcareTag, QuizFilterInput, SplitClarity, TempQuizSession } from '@/types/quiz';
 
 const childCountOptions: Array<{ value: ChildCount; label: string }> = [
@@ -24,11 +25,36 @@ export default function QuizFilterPage() {
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [textDictionary, setTextDictionary] = useState(uiTexts);
   const locale = getCurrentLocale();
+
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const blocks = await fetchContentBlocks();
+        const resolver = createTextResolver(blocks);
+        const merged = { ...uiTexts };
+        for (const key of resolver.keys) {
+          const value = resolver.resolve(key);
+          if (value) merged[key] = value;
+        }
+        setTextDictionary(merged);
+      } catch {
+        const fallback = createTextResolver(getDefaultContentBlocks());
+        const merged = { ...uiTexts };
+        for (const key of fallback.keys) {
+          const value = fallback.resolve(key);
+          if (value) merged[key] = value;
+        }
+        setTextDictionary(merged);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
-      if (!user) return;
+      if (!user || user.isAnonymous || !user.email) return;
       const profile = await fetchAppUserProfile(user.uid);
       if (profile?.role === 'partner') {
         router.replace('/dashboard');
@@ -57,12 +83,12 @@ export default function QuizFilterPage() {
     setError(null);
 
     if (!filter.childCount || !filter.youngestAgeGroup || !(filter.childcareTags ?? []).length || !filter.splitClarity) {
-      setError(t('quiz.error.selectFirst', locale));
+      setError(t('quiz.error.selectFirst', locale, undefined, textDictionary));
       return;
     }
 
     if (filter.youngestAgeGroup !== '0_1') {
-      setError(t('quiz.error.ageUnsupported', locale));
+      setError(t('quiz.error.ageUnsupported', locale, undefined, textDictionary));
       return;
     }
 
@@ -109,12 +135,12 @@ export default function QuizFilterPage() {
   return (
     <section className="section">
       <div className="container test-shell stack">
-        <h1 className="test-title">{t('quiz.filter.title', locale)}</h1>
-        <p className="helper">{t('quiz.filter.step', locale, { current: step + 1, total: 4 })}</p>
+        <h1 className="test-title">{t('quiz.filter.title', locale, undefined, textDictionary)}</h1>
+        <p className="helper">{t('quiz.filter.step', locale, { current: step + 1, total: 4 }, textDictionary)}</p>
         <form className="stack" onSubmit={handleSubmit}>
           {step === 0 && (
             <fieldset className="quiz-fieldset stack">
-              <legend>{t('quiz.filter.childCount', locale)}</legend>
+              <legend>{t('quiz.filter.childCount', locale, undefined, textDictionary)}</legend>
               <div className="stack">
                 {childCountOptions.map((option) => (
                   <button key={option.value} type="button" className={`option-chip ${filter.childCount === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, childCount: option.value }))}>
@@ -127,7 +153,7 @@ export default function QuizFilterPage() {
 
           {step === 1 && (
             <fieldset className="quiz-fieldset stack">
-              <legend>{t('quiz.filter.ageGroup', locale)}</legend>
+              <legend>{t('quiz.filter.ageGroup', locale, undefined, textDictionary)}</legend>
               <div className="stack">
                 {ageGroupOptions.map((option) => (
                   <button key={option.value} type="button" className={`option-chip ${filter.youngestAgeGroup === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, youngestAgeGroup: option.value as AgeGroup }))}>
@@ -140,7 +166,7 @@ export default function QuizFilterPage() {
 
           {step === 2 && (
             <fieldset className="quiz-fieldset stack">
-              <legend>{t('quiz.filter.childcare', locale)}</legend>
+              <legend>{t('quiz.filter.childcare', locale, undefined, textDictionary)}</legend>
               <div className="stack">
                 {childcareChoices.map((choice) => (
                   <button key={choice.value} type="button" className={`option-chip ${(filter.childcareTags ?? []).includes(choice.value) ? 'selected' : ''}`} onClick={() => toggleChildcare(choice.value)}>
@@ -153,7 +179,7 @@ export default function QuizFilterPage() {
 
           {step === 3 && (
             <fieldset className="quiz-fieldset stack">
-              <legend>{t('quiz.filter.split', locale)}</legend>
+              <legend>{t('quiz.filter.split', locale, undefined, textDictionary)}</legend>
               <div className="stack">
                 {splitClarityOptions.map((option) => (
                   <button key={option.value} type="button" className={`option-chip ${filter.splitClarity === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, splitClarity: option.value as SplitClarity }))}>
@@ -168,15 +194,15 @@ export default function QuizFilterPage() {
 
           <div className="quiz-actions">
             <button type="button" className="button" disabled={step === 0 || isSubmitting} onClick={() => setStep((current) => Math.max(0, current - 1))}>
-              {t('common.back', locale)}
+              {t('common.back', locale, undefined, textDictionary)}
             </button>
             {step < 3 ? (
               <button type="button" className="button primary" disabled={!canGoNext() || isSubmitting} onClick={() => setStep((current) => Math.min(3, current + 1))}>
-                {t('common.next', locale)}
+                {t('common.next', locale, undefined, textDictionary)}
               </button>
             ) : (
               <button type="submit" className="button primary" disabled={isSubmitting || !canGoNext()}>
-                {isSubmitting ? t('quiz.preparing', locale) : t('common.next', locale)}
+                {isSubmitting ? t('quiz.preparing', locale, undefined, textDictionary) : t('common.next', locale, undefined, textDictionary)}
               </button>
             )}
           </div>

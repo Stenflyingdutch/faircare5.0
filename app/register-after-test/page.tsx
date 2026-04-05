@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 
-import { registerUser } from '@/services/auth.service';
+import { registerUser, resolveRegistrationErrorMessage } from '@/services/auth.service';
 import { finalizePartnerRegistration } from '@/services/partnerFlow.service';
 import { clearPartnerLocalSession, loadPartnerLocalSession } from '@/services/partnerSessionStorage';
 
@@ -55,7 +55,7 @@ export default function RegisterAfterTestPage() {
       clearPartnerLocalSession();
       router.push('/dashboard');
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Registrierung fehlgeschlagen.');
+      setError(resolveRegistrationErrorMessage(submitError));
       setIsSubmitting(false);
     }
   }
@@ -64,7 +64,7 @@ export default function RegisterAfterTestPage() {
     <section className="section">
       <div className="container test-shell stack">
         <h1 className="test-title">Registrierung abschließen</h1>
-        <p className="helper">Damit dein Ergebnis final zugeordnet werden kann, registriere dich jetzt mit der eingeladenen E-Mail-Adresse.</p>
+        <p className="helper">Damit dein Ergebnis final zugeordnet werden kann, registriere dich jetzt. Du kannst dafür jede gültige E-Mail-Adresse verwenden.</p>
 
         <form className="form-shell" onSubmit={submit}>
           <input className="input" required placeholder="Name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />

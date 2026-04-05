@@ -2,6 +2,7 @@ import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, where 
 
 import { quizCatalog as localCatalog, questionTemplates as localTemplates } from '@/data/questionTemplates';
 import { db } from '@/lib/firebase';
+import { ensureValidQuizCatalog } from '@/services/catalogValidation';
 import { firestoreCollections } from '@/types/domain';
 import type { DetailedReport, QuestionTemplate, QuizCatalog, TempQuizSession } from '@/types/quiz';
 
@@ -11,7 +12,7 @@ export async function fetchQuizCatalog(): Promise<QuizCatalog> {
     if (!snapshot.empty) {
       const data = snapshot.docs[0].data();
       if (data.catalog?.categories && data.catalog?.questions) {
-        return data.catalog as QuizCatalog;
+        return ensureValidQuizCatalog(data.catalog, localCatalog);
       }
     }
   } catch {

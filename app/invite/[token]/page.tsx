@@ -4,9 +4,16 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { resolveInvitationByToken, startPartnerSession } from '@/services/partnerFlow.service';
+import { fetchAppUserProfile, resolveInvitationByToken, startPartnerSession } from '@/services/partnerFlow.service';
 import { savePartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { InvitationDocument } from '@/types/partner-flow';
+
+
+function normalizeName(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
 
 export default function InviteLandingPage() {
   const params = useParams<{ token: string }>();
@@ -35,6 +42,9 @@ export default function InviteLandingPage() {
     setStarting(true);
     try {
       const session = await startPartnerSession(invitation);
+      const initiatorProfile = await fetchAppUserProfile(invitation.initiatorUserId);
+      const fallbackFromEmail = initiatorProfile?.email?.split('@')[0]?.trim();
+
       savePartnerLocalSession({
         invitationToken: params.token,
         invitationId: invitation.id,
@@ -43,6 +53,7 @@ export default function InviteLandingPage() {
         questionSetId: session.questionSetId,
         questions: session.questionSetSnapshot,
         answers: {},
+        counterpartName: normalizeName(initiatorProfile?.displayName) || normalizeName(fallbackFromEmail) || 'Partner',
       });
       router.push(`/partner-test/${params.token}`);
     } catch {
