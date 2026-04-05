@@ -43,8 +43,8 @@ export default function PersonalHomePage() {
 
   useEffect(() => {
     if (!familyId) return;
-    const stopCards = observeOwnershipCards(familyId, setCards, (error) => setLoadError(error.message));
-    const stopCategories = observeOwnershipCategories(familyId, setCategories, (error) => setLoadError(error.message));
+    const stopCards = observeOwnershipCards(familyId, setCards, () => setLoadError('Die Karten konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
+    const stopCategories = observeOwnershipCategories(familyId, setCategories, () => setLoadError('Die Kategorien konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
     return () => {
       stopCards();
       stopCategories();
@@ -62,7 +62,7 @@ export default function PersonalHomePage() {
       actorUserId: userId,
       locale: getCurrentLocale(),
       categoryKeys,
-    }).catch((error) => setLoadError(error instanceof Error ? error.message : 'Ownership-Karten konnten nicht ergänzt werden.'));
+    }).catch(() => setLoadError('Die Karten konnten gerade nicht geladen oder angelegt werden. Bitte versuche es erneut.'));
   }, [familyId, userId, ageGroup, categories, cards.length]);
 
   if (!userId || !familyId) {

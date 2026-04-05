@@ -270,7 +270,8 @@ export function ReviewResultsContent() {
       router.push('/app/ownership-dashboard');
     } catch (error) {
       setOwnershipInitState('error');
-      setOwnershipInitMessage(error instanceof Error ? error.message : 'Ownership konnte nicht vorbereitet werden.');
+      console.error('ownership-init-failed', error);
+      setOwnershipInitMessage('Die Karten konnten gerade nicht geladen oder angelegt werden. Bitte versuche es erneut.');
     } finally {
       setOwnershipInitState((current) => (current === 'error' ? 'error' : 'idle'));
     }

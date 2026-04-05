@@ -7,9 +7,9 @@ import {
   onSnapshot,
   orderBy,
   query,
-  runTransaction,
   serverTimestamp,
   setDoc,
+  writeBatch,
   where,
 } from 'firebase/firestore';
 
@@ -191,69 +191,76 @@ export async function initializeFamilyOwnership(params: {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
   const recommendedByCategory = new Map(params.recommendations.map((item, index) => [item.categoryKey, { ...item, rank: index + 1 }]));
   const signalByCategory = new Map(params.allSignals.map((item) => [item.categoryKey, item]));
-  const activeCategorySet = new Set(params.selectedCategories);
+  const activeCategoryList = [...new Set(params.selectedCategories)];
+  const familyRef = doc(db, firestoreCollections.families, params.familyId);
+  const familySnap = await getDoc(familyRef);
+  if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
+  const family = familySnap.data() as FamilyDocument;
+  const defaultOwner = family.initiatorUserId;
 
-  await runTransaction(db, async (transaction) => {
-    const familyRef = doc(db, firestoreCollections.families, params.familyId);
-    const familySnap = await transaction.get(familyRef);
-    if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
+  const existingCardsSnap = activeCategoryList.length
+    ? await getDocs(query(
+      collection(db, firestoreCollections.families, params.familyId, 'ownershipCards'),
+      where('categoryKey', 'in', activeCategoryList),
+    ))
+    : null;
+  const existingCardIds = new Set(existingCardsSnap?.docs.map((entry) => entry.id) ?? []);
 
-    const family = familySnap.data() as FamilyDocument;
-    const defaultOwner = family.initiatorUserId;
+  const batch = writeBatch(db);
 
-    for (const categoryKey of activeCategorySet) {
-      const recommendation = recommendedByCategory.get(categoryKey);
-      const signal = signalByCategory.get(categoryKey);
-      const categoryRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCategories', categoryKey);
-      transaction.set(categoryRef, {
+  for (const categoryKey of activeCategoryList) {
+    const recommendation = recommendedByCategory.get(categoryKey);
+    const signal = signalByCategory.get(categoryKey);
+    const categoryRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCategories', categoryKey);
+    batch.set(categoryRef, {
+      categoryKey,
+      isRecommended: Boolean(recommendation),
+      recommendationRank: recommendation?.rank ?? null,
+      relevanceScore: signal?.relevanceScore ?? recommendation?.relevanceScore ?? 0,
+      reasonCodes: signal?.reasonCodes ?? recommendation?.reasonCodes ?? [],
+      activatedAt: nowIso(),
+      updatedAt: serverTimestamp(),
+      initializedAt: nowIso(),
+    }, { merge: true });
+
+    const categoryTemplates = templates
+      .filter((template) => template.categoryKey === categoryKey)
+      .slice(0, 10);
+    const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
+    const templatesForFamily = categoryTemplates.length > 0
+      ? categoryTemplates.map((template) => ({
+        id: template.id,
+        categoryKey: template.categoryKey,
+        title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
+        note: mapTemplateLocale(template.note, params.locale, ''),
+        sortOrder: template.sortOrder,
+      }))
+      : fallbackTemplates;
+
+    for (const template of templatesForFamily) {
+      const cardId = `${categoryKey}_${template.id}`;
+      if (existingCardIds.has(cardId)) continue;
+      const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
+
+      batch.set(cardRef, {
+        id: cardId,
         categoryKey,
-        isRecommended: Boolean(recommendation),
-        recommendationRank: recommendation?.rank ?? null,
-        relevanceScore: signal?.relevanceScore ?? recommendation?.relevanceScore ?? 0,
-        reasonCodes: signal?.reasonCodes ?? recommendation?.reasonCodes ?? [],
-        activatedAt: nowIso(),
+        sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
+        title: template.title,
+        note: template.note,
+        ownerUserId: defaultOwner,
+        focusLevel: template.sortOrder <= 2 ? 'now' : 'soon',
+        sortOrder: template.sortOrder,
+        isDeleted: false,
+        createdBy: params.actorUserId,
+        updatedBy: params.actorUserId,
+        createdAt: nowIso(),
         updatedAt: serverTimestamp(),
       }, { merge: true });
-
-      const categoryTemplates = templates
-        .filter((template) => template.categoryKey === categoryKey)
-        .slice(0, 10);
-      const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
-      const templatesForFamily = categoryTemplates.length > 0
-        ? categoryTemplates.map((template) => ({
-          id: template.id,
-          categoryKey: template.categoryKey,
-          title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
-          note: mapTemplateLocale(template.note, params.locale, ''),
-          sortOrder: template.sortOrder,
-        }))
-        : fallbackTemplates;
-
-      for (const template of templatesForFamily) {
-        const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', `${categoryKey}_${template.id}`);
-        const existingCard = await transaction.get(cardRef);
-        if (existingCard.exists()) {
-          continue;
-        }
-
-        transaction.set(cardRef, {
-          id: `${categoryKey}_${template.id}`,
-          categoryKey,
-          sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
-          title: template.title,
-          note: template.note,
-          ownerUserId: defaultOwner,
-          focusLevel: template.sortOrder <= 2 ? 'now' : 'soon',
-          sortOrder: template.sortOrder,
-          isDeleted: false,
-          createdBy: params.actorUserId,
-          updatedBy: params.actorUserId,
-          createdAt: nowIso(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      }
     }
-  });
+  }
+
+  await batch.commit();
 }
 
 export async function ensureOwnershipCardsForCategories(params: {
@@ -264,54 +271,66 @@ export async function ensureOwnershipCardsForCategories(params: {
   categoryKeys: QuizCategory[];
 }) {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
-  const activeCategorySet = new Set(params.categoryKeys);
+  const activeCategoryList = [...new Set(params.categoryKeys)];
+  const familyRef = doc(db, firestoreCollections.families, params.familyId);
+  const familySnap = await getDoc(familyRef);
+  if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
 
-  await runTransaction(db, async (transaction) => {
-    const familyRef = doc(db, firestoreCollections.families, params.familyId);
-    const familySnap = await transaction.get(familyRef);
-    if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
+  const family = familySnap.data() as FamilyDocument;
+  const defaultOwner = family.initiatorUserId;
+  const existingCardsSnap = activeCategoryList.length
+    ? await getDocs(query(
+      collection(db, firestoreCollections.families, params.familyId, 'ownershipCards'),
+      where('categoryKey', 'in', activeCategoryList),
+    ))
+    : null;
+  const existingCardIds = new Set(existingCardsSnap?.docs.map((entry) => entry.id) ?? []);
 
-    const family = familySnap.data() as FamilyDocument;
-    const defaultOwner = family.initiatorUserId;
+  const batch = writeBatch(db);
+  let writes = 0;
 
-    for (const categoryKey of activeCategorySet) {
-      const categoryTemplates = templates
-        .filter((template) => template.categoryKey === categoryKey)
-        .slice(0, 10);
-      const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
-      const templatesForFamily = categoryTemplates.length > 0
-        ? categoryTemplates.map((template) => ({
-          id: template.id,
-          categoryKey: template.categoryKey,
-          title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
-          note: mapTemplateLocale(template.note, params.locale, ''),
-          sortOrder: template.sortOrder,
-        }))
-        : fallbackTemplates;
+  for (const categoryKey of activeCategoryList) {
+    const categoryTemplates = templates
+      .filter((template) => template.categoryKey === categoryKey)
+      .slice(0, 10);
+    const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
+    const templatesForFamily = categoryTemplates.length > 0
+      ? categoryTemplates.map((template) => ({
+        id: template.id,
+        categoryKey: template.categoryKey,
+        title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
+        note: mapTemplateLocale(template.note, params.locale, ''),
+        sortOrder: template.sortOrder,
+      }))
+      : fallbackTemplates;
 
-      for (const template of templatesForFamily) {
-        const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', `${categoryKey}_${template.id}`);
-        const existingCard = await transaction.get(cardRef);
-        if (existingCard.exists()) continue;
+    for (const template of templatesForFamily) {
+      const cardId = `${categoryKey}_${template.id}`;
+      if (existingCardIds.has(cardId)) continue;
+      const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
 
-        transaction.set(cardRef, {
-          id: `${categoryKey}_${template.id}`,
-          categoryKey,
-          sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
-          title: template.title,
-          note: template.note,
-          ownerUserId: defaultOwner,
-          focusLevel: template.sortOrder <= 2 ? 'now' : 'soon',
-          sortOrder: template.sortOrder,
-          isDeleted: false,
-          createdBy: params.actorUserId,
-          updatedBy: params.actorUserId,
-          createdAt: nowIso(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      }
+      batch.set(cardRef, {
+        id: cardId,
+        categoryKey,
+        sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
+        title: template.title,
+        note: template.note,
+        ownerUserId: defaultOwner,
+        focusLevel: template.sortOrder <= 2 ? 'now' : 'soon',
+        sortOrder: template.sortOrder,
+        isDeleted: false,
+        createdBy: params.actorUserId,
+        updatedBy: params.actorUserId,
+        createdAt: nowIso(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      writes += 1;
     }
-  });
+  }
+
+  if (writes > 0) {
+    await batch.commit();
+  }
 }
 
 export function observeOwnershipCategories(
