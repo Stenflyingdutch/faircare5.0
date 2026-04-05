@@ -659,6 +659,9 @@ textarea.input {
   border-radius: 16px;
   padding: 1rem;
   background: #fff;
+  position: sticky;
+  top: 12px;
+  z-index: 20;
 }
 
 .personal-area-headline-row {
@@ -707,6 +710,18 @@ textarea.input {
   border-color: var(--color-primary);
   color: var(--color-primary);
   background: rgba(108, 76, 241, 0.08);
+}
+
+.personal-area-nav-link.active.tone-violet {
+  border-color: #6c4cf1;
+  color: #4b33c7;
+  background: rgba(108, 76, 241, 0.16);
+}
+
+.personal-area-nav-link.active.tone-petrol {
+  border-color: #1f5f5a;
+  color: #1f5f5a;
+  background: rgba(31, 95, 90, 0.16);
 }
 
 .personal-area-content {

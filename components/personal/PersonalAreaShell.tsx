@@ -7,17 +7,16 @@ import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { observeAuthState, signOutUser } from '@/services/auth.service';
 
 const personalNavItems = [
-  { label: 'Home', href: '/app/home' },
-  { label: 'Aufgabengebiete', href: '/app/ownership-dashboard' },
-  { label: 'Team-Check', href: '/app/review' },
-  { label: 'Einstellungen', href: '/app/einstellungen' },
+  { label: 'Home', href: '/app/home', tone: 'violet' },
+  { label: 'Aufgabengebiete', href: '/app/ownership-dashboard', tone: 'petrol' },
+  { label: 'Team-Check', href: '/app/review', tone: 'violet' },
+  { label: 'Einstellungen', href: '/app/einstellungen', tone: 'violet' },
 ] as const;
 
 function pageTitle(pathname: string) {
   if (pathname.startsWith('/app/home')) return 'Home';
   if (pathname.startsWith('/app/ownership-dashboard')) return 'Aufgabengebiete';
   if (pathname.startsWith('/app/einstellungen')) return 'Einstellungen';
-  if (pathname.startsWith('/app/ergebnisse')) return 'Ergebnisse';
   return 'Team-Check';
 }
 
@@ -67,9 +66,14 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           </div>
           <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
             {personalNavItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
+              const isTeamCheckContext = item.href === '/app/review' && pathname.startsWith('/app/ergebnisse');
+              const isActive = pathname.startsWith(item.href) || isTeamCheckContext;
               return (
-                <Link key={item.href} href={item.href} className={`personal-area-nav-link ${isActive ? 'active' : ''}`}>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`personal-area-nav-link ${isActive ? `active tone-${item.tone}` : ''}`}
+                >
                   {item.label}
                 </Link>
               );
