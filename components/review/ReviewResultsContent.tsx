@@ -285,37 +285,10 @@ export function ReviewResultsContent() {
 
         {!!ownershipRecommendations.length && (
           <article className="card stack">
-            <h2 className="card-title">Empfohlene Startkategorien</h2>
+            <h2 className="card-title">Hinweis</h2>
             <p className="card-description">
-              Die Empfehlung basiert auf drei Signalen: Testbelastung, empfundene Belastung und wahrgenommene Unterschiede.
+              Unten auf dieser Seite findest du als nächsten Schritt empfohlene Startkategorien.
             </p>
-            <div className="stack">
-              {ownershipRecommendations.slice(0, 2).map((recommendation) => (
-                <div key={recommendation.categoryKey} className="report-block stack">
-                  <strong>{categoryLabelMap[recommendation.categoryKey]}</strong>
-                  <p className="helper" style={{ margin: 0 }}>{recommendation.reasonText}</p>
-                </div>
-              ))}
-            </div>
-            <div className="stack">
-              <button
-                type="button"
-                className="button primary"
-                onClick={() => startOwnership('recommended')}
-                disabled={ownershipInitState === 'loading'}
-              >
-                {ownershipInitState === 'loading' ? 'Ownership wird vorbereitet …' : 'Mit empfohlenen Kategorien starten'}
-              </button>
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => startOwnership('all')}
-                disabled={ownershipInitState === 'loading'}
-              >
-                Mit allen Kategorien starten
-              </button>
-              {ownershipInitState === 'error' && <p className="inline-error">{ownershipInitMessage}</p>}
-            </div>
           </article>
         )}
 
@@ -414,6 +387,42 @@ export function ReviewResultsContent() {
 
         {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && (
           <JointResultPanel bundle={bundle} />
+        )}
+
+        {!!ownershipRecommendations.length && (
+          <article className="card stack">
+            <h2 className="card-title">Empfohlene Startkategorien</h2>
+            <p className="card-description">
+              Die Empfehlung basiert auf drei Signalen: Testbelastung, empfundene Belastung und wahrgenommene Unterschiede.
+            </p>
+            <div className="stack">
+              {ownershipRecommendations.slice(0, 2).map((recommendation) => (
+                <div key={recommendation.categoryKey} className="report-block stack">
+                  <strong>{categoryLabelMap[recommendation.categoryKey]}</strong>
+                  <p className="helper" style={{ margin: 0 }}>{recommendation.reasonText}</p>
+                </div>
+              ))}
+            </div>
+            <div className="stack">
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => startOwnership('recommended')}
+                disabled={ownershipInitState === 'loading'}
+              >
+                {ownershipInitState === 'loading' ? 'Ownership wird vorbereitet …' : 'Mit empfohlenen Kategorien starten'}
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => startOwnership('all')}
+                disabled={ownershipInitState === 'loading'}
+              >
+                Mit allen Kategorien starten
+              </button>
+              {ownershipInitState === 'error' && <p className="inline-error">{ownershipInitMessage}</p>}
+            </div>
+          </article>
         )}
       </div>
     </section>
