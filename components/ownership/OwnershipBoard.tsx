@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { MouseEvent, useEffect, useMemo, useState } from 'react';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
 import { softDeleteOwnershipCard, upsertOwnershipCard } from '@/services/ownership.service';
@@ -13,6 +13,7 @@ interface OwnershipBoardProps {
   cards: OwnershipCardDocument[];
   mode: 'dashboard' | 'home';
   ownerOptions: Array<{ userId: string; label: string }>;
+  categoryKeys?: QuizCategory[];
 }
 
 const focusLevelLabel: Record<OwnershipFocusLevel, string> = {
@@ -21,21 +22,28 @@ const focusLevelLabel: Record<OwnershipFocusLevel, string> = {
   later: 'Im Blick behalten',
 };
 
-const focusOrder: OwnershipFocusLevel[] = ['now', 'soon', 'later'];
-
 interface DraftState {
   title: string;
   note: string;
-  ownerUserId: string;
-  focusLevel: OwnershipFocusLevel;
 }
 
-export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOptions }: OwnershipBoardProps) {
-  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+function focusTone(level?: OwnershipFocusLevel | null) {
+  if (level === 'now') return '#ece5ff';
+  if (level === 'soon') return '#f3eeff';
+  if (level === 'later') return '#faf7ff';
+  return 'white';
+}
+
+export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOptions, categoryKeys = [] }: OwnershipBoardProps) {
+  const [openedCardId, setOpenedCardId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeCategoryForCreate, setActiveCategoryForCreate] = useState<QuizCategory | null>(null);
+  const [focusOverrides, setFocusOverrides] = useState<Record<string, OwnershipFocusLevel | null>>({});
+  const [homeOrder, setHomeOrder] = useState<Record<string, number> | null>(null);
+
+  const openedCard = useMemo(() => cards.find((item) => item.id === openedCardId) ?? null, [cards, openedCardId]);
 
   const visibleCards = useMemo(() => {
     if (mode === 'home') {
@@ -44,8 +52,27 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     return cards;
   }, [cards, currentUserId, mode]);
 
+  useEffect(() => {
+    if (mode !== 'home' || homeOrder) return;
+    if (!visibleCards.length) return;
+    const indexMap: Record<string, number> = {};
+    visibleCards.forEach((card, index) => {
+      indexMap[card.id] = index;
+    });
+    setHomeOrder(indexMap);
+  }, [mode, homeOrder, visibleCards]);
+
+  function resolveFocus(card: OwnershipCardDocument) {
+    if (focusOverrides[card.id] !== undefined) return focusOverrides[card.id];
+    return card.focusLevel ?? null;
+  }
+
   const grouped = useMemo(() => {
     const map = new Map<QuizCategory, OwnershipCardDocument[]>();
+    if (mode === 'dashboard') {
+      categoryKeys.forEach((categoryKey) => map.set(categoryKey, []));
+    }
+
     visibleCards.forEach((card) => {
       const list = map.get(card.categoryKey) ?? [];
       list.push(card);
@@ -53,28 +80,66 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     });
 
     for (const [category, list] of map.entries()) {
-      map.set(category, [...list].sort((a, b) => focusOrder.indexOf(a.focusLevel) - focusOrder.indexOf(b.focusLevel) || a.sortOrder - b.sortOrder));
+      const sorted = [...list].sort((a, b) => {
+        if (mode === 'home' && homeOrder) {
+          return (homeOrder[a.id] ?? Number.MAX_SAFE_INTEGER) - (homeOrder[b.id] ?? Number.MAX_SAFE_INTEGER);
+        }
+        return a.sortOrder - b.sortOrder;
+      });
+      map.set(category, sorted);
     }
 
     return [...map.entries()].sort((a, b) => categoryLabelMap[a[0]].localeCompare(categoryLabelMap[b[0]]));
-  }, [visibleCards]);
+  }, [visibleCards, mode, categoryKeys, homeOrder]);
 
-  function beginEdit(card: OwnershipCardDocument) {
-    setEditingCardId(card.id);
+  function openDetails(card: OwnershipCardDocument) {
+    setOpenedCardId(card.id);
     setDraft({
       title: card.title,
       note: card.note,
-      ownerUserId: card.ownerUserId,
-      focusLevel: card.focusLevel,
     });
     setError(null);
   }
 
-  async function saveEdit(card: OwnershipCardDocument) {
+  async function saveCardMeta(card: OwnershipCardDocument, next: DraftState) {
+    await upsertOwnershipCard({
+      familyId,
+      cardId: card.id,
+      actorUserId: currentUserId,
+      payload: {
+        categoryKey: card.categoryKey,
+        title: next.title.trim() || card.title,
+        note: next.note.trim(),
+        ownerUserId: card.ownerUserId ?? null,
+        focusLevel: card.focusLevel ?? null,
+        sortOrder: card.sortOrder,
+      },
+    });
+  }
+
+  async function saveDetails(card: OwnershipCardDocument) {
     if (!draft) return;
     setSaving(true);
     setError(null);
 
+    try {
+      await saveCardMeta(card, draft);
+      setOpenedCardId(null);
+      setDraft(null);
+    } catch {
+      setError('Die Karte konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function setFocus(card: OwnershipCardDocument, level: OwnershipFocusLevel) {
+    const nextLevel = resolveFocus(card) === level ? null : level;
+    const previousLevel = resolveFocus(card);
+    setFocusOverrides((prev) => ({ ...prev, [card.id]: nextLevel }));
+
+    setSaving(true);
+    setError(null);
     try {
       await upsertOwnershipCard({
         familyId,
@@ -82,17 +147,75 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         actorUserId: currentUserId,
         payload: {
           categoryKey: card.categoryKey,
-          title: draft.title.trim() || card.title,
-          note: draft.note.trim(),
-          ownerUserId: draft.ownerUserId,
-          focusLevel: draft.focusLevel,
+          title: card.title,
+          note: card.note,
+          ownerUserId: card.ownerUserId ?? null,
+          focusLevel: nextLevel,
           sortOrder: card.sortOrder,
         },
       });
-      setEditingCardId(null);
-      setDraft(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Speichern fehlgeschlagen.');
+    } catch {
+      setFocusOverrides((prev) => ({ ...prev, [card.id]: previousLevel }));
+      setError('Der Fokus konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function ownerVisual(ownerUserId?: string | null) {
+    const ownerIndex = ownerOptions.findIndex((option) => option.userId === ownerUserId);
+    if (!ownerUserId || ownerIndex === -1) {
+      return {
+        label: 'Noch nicht zugeordnet',
+        buttonBackground: '#ececec',
+        buttonColor: '#414141',
+        cardBackground: '#fafafa',
+      };
+    }
+
+    const ownerLabel = ownerOptions.find((option) => option.userId === ownerUserId)?.label ?? 'Noch nicht zugeordnet';
+    if (ownerIndex === 0) {
+      return {
+        label: ownerLabel,
+        buttonBackground: '#6850db',
+        buttonColor: '#ffffff',
+        cardBackground: '#f2edff',
+      };
+    }
+
+    return {
+      label: ownerLabel,
+      buttonBackground: '#1f5f5a',
+      buttonColor: '#ffffff',
+      cardBackground: '#eaf6f4',
+    };
+  }
+
+  async function cycleOwner(card: OwnershipCardDocument, event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    const otherOwner = ownerOptions.find((option) => option.userId !== currentUserId)?.userId ?? null;
+    const cycle: Array<string | null> = [null, currentUserId, otherOwner].filter((value, index, list) => list.indexOf(value) === index);
+    const currentIndex = cycle.indexOf(card.ownerUserId ?? null);
+    const nextOwner = cycle[(currentIndex + 1) % cycle.length] ?? null;
+
+    setSaving(true);
+    setError(null);
+    try {
+      await upsertOwnershipCard({
+        familyId,
+        cardId: card.id,
+        actorUserId: currentUserId,
+        payload: {
+          categoryKey: card.categoryKey,
+          title: card.title,
+          note: card.note,
+          ownerUserId: nextOwner,
+          focusLevel: card.focusLevel ?? null,
+          sortOrder: card.sortOrder,
+        },
+      });
+    } catch {
+      setError('Die Zuordnung konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
     } finally {
       setSaving(false);
     }
@@ -110,15 +233,15 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
           categoryKey,
           title: draft.title.trim() || 'Verantwortungsbereich planen und umsetzen',
           note: draft.note.trim(),
-          ownerUserId: draft.ownerUserId,
-          focusLevel: draft.focusLevel,
+          ownerUserId: null,
+          focusLevel: null,
           sortOrder: Date.now(),
         },
       });
       setActiveCategoryForCreate(null);
       setDraft(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Karte konnte nicht erstellt werden.');
+    } catch {
+      setError('Die Karte konnte gerade nicht erstellt werden. Bitte versuche es erneut.');
     } finally {
       setSaving(false);
     }
@@ -129,9 +252,10 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     setError(null);
     try {
       await softDeleteOwnershipCard(familyId, cardId, currentUserId);
-      setEditingCardId(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Karte konnte nicht gelöscht werden.');
+      setOpenedCardId(null);
+      setDraft(null);
+    } catch {
+      setError('Die Karte konnte gerade nicht gelöscht werden. Bitte versuche es erneut.');
     } finally {
       setSaving(false);
     }
@@ -149,7 +273,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
                 className="button"
                 onClick={() => {
                   setActiveCategoryForCreate(category);
-                  setDraft({ title: '', note: '', ownerUserId: ownerOptions[0]?.userId ?? currentUserId, focusLevel: 'soon' });
+                  setDraft({ title: '', note: '' });
                 }}
               >
                 Neue Karte
@@ -159,16 +283,9 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
 
           {activeCategoryForCreate === category && draft && mode === 'dashboard' && (
             <div className="report-block stack">
+              <p className="helper" style={{ margin: 0 }}>Neue lokale Karte in dieser Kategorie.</p>
               <input className="input" value={draft.title} placeholder="Titel" onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
               <textarea className="input" rows={3} value={draft.note} placeholder="Notiz" onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
-              <select className="input" value={draft.ownerUserId} onChange={(e) => setDraft({ ...draft, ownerUserId: e.target.value })}>
-                {ownerOptions.map((option) => (
-                  <option key={option.userId} value={option.userId}>{option.label}</option>
-                ))}
-              </select>
-              <select className="input" value={draft.focusLevel} onChange={(e) => setDraft({ ...draft, focusLevel: e.target.value as OwnershipFocusLevel })}>
-                {focusOrder.map((level) => <option key={level} value={level}>{focusLevelLabel[level]}</option>)}
-              </select>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" className="button primary" disabled={saving} onClick={() => createCard(category)}>Erstellen</button>
                 <button type="button" className="button" onClick={() => { setActiveCategoryForCreate(null); setDraft(null); }}>Abbrechen</button>
@@ -177,46 +294,94 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
           )}
 
           <div className="stack">
-            {categoryCards.map((card) => (
-              <div key={card.id} className="report-block stack">
-                {editingCardId === card.id && draft ? (
-                  <>
-                    <input className="input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-                    <textarea className="input" rows={3} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
-                    <select className="input" value={draft.ownerUserId} onChange={(e) => setDraft({ ...draft, ownerUserId: e.target.value })}>
-                      {ownerOptions.map((option) => (
-                        <option key={option.userId} value={option.userId}>{option.label}</option>
+            {categoryCards.map((card) => {
+              const focusLevel = resolveFocus(card);
+              const ownerStyle = ownerVisual(card.ownerUserId);
+              return (
+                <div
+                  key={card.id}
+                  className="report-block stack"
+                  style={{
+                    textAlign: 'left',
+                    border: '1px solid #ddd',
+                    background: mode === 'dashboard' ? ownerStyle.cardBackground : focusTone(focusLevel),
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => openDetails(card)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      openDetails(card);
+                    }
+                  }}
+                >
+                  <strong>{card.title}</strong>
+                  {card.note ? <p className="helper" style={{ margin: 0 }}>{card.note}</p> : null}
+
+                  {mode === 'dashboard' ? (
+                    <button
+                      type="button"
+                      className="button"
+                      style={{ background: ownerStyle.buttonBackground, color: ownerStyle.buttonColor, borderColor: 'transparent' }}
+                      onClick={(event) => cycleOwner(card, event)}
+                      disabled={saving}
+                    >
+                      {ownerStyle.label}
+                    </button>
+                  ) : (
+                    <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} onClick={(event) => event.stopPropagation()}>
+                      {(['now', 'soon', 'later'] as OwnershipFocusLevel[]).map((level) => (
+                        <button
+                          key={level}
+                          type="button"
+                          className={`option-chip ${focusLevel === level ? 'selected' : ''}`}
+                          onClick={() => setFocus(card, level)}
+                          disabled={saving}
+                          style={
+                            focusLevel === level
+                              ? {
+                                background: level === 'now' ? '#4b33c7' : level === 'soon' ? '#7b66e6' : '#d9d0ff',
+                                color: level === 'later' ? '#31255a' : '#ffffff',
+                              }
+                              : undefined
+                          }
+                        >
+                          {focusLevelLabel[level]}
+                        </button>
                       ))}
-                    </select>
-                    <select className="input" value={draft.focusLevel} onChange={(e) => setDraft({ ...draft, focusLevel: e.target.value as OwnershipFocusLevel })}>
-                      {focusOrder.map((level) => <option key={level} value={level}>{focusLevelLabel[level]}</option>)}
-                    </select>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button type="button" className="button primary" disabled={saving} onClick={() => saveEdit(card)}>Speichern</button>
-                      {mode === 'dashboard' && <button type="button" className="button" disabled={saving} onClick={() => deleteCard(card.id)}>Löschen</button>}
-                      <button type="button" className="button" onClick={() => { setEditingCardId(null); setDraft(null); }}>Abbrechen</button>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <strong>{card.title}</strong>
-                    {card.note ? <p className="helper" style={{ margin: 0 }}>{card.note}</p> : null}
-                    <p className="helper" style={{ margin: 0 }}>Fokus: {focusLevelLabel[card.focusLevel]}</p>
-                    <p className="helper" style={{ margin: 0 }}>
-                      Owner: {ownerOptions.find((option) => option.userId === card.ownerUserId)?.label ?? (card.ownerUserId === currentUserId ? 'Du' : 'Partner')}
-                    </p>
-                    <button type="button" className="button" onClick={() => beginEdit(card)}>Bearbeiten</button>
-                  </>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
             {!categoryCards.length && <p className="helper">Noch keine Karten in dieser Kategorie.</p>}
           </div>
         </article>
       ))}
 
-      {!grouped.length && <p className="helper">Noch keine Ownership-Karten verfügbar.</p>}
+      {!grouped.length && (
+        <p className="helper">
+          {mode === 'home'
+            ? 'Es sind aktuell keine Karten dir zugeordnet.'
+            : 'Noch keine Aufgabengebiete aktiviert.'}
+        </p>
+      )}
       {error && <p className="inline-error">{error}</p>}
+
+      {openedCard && draft && (
+        <div className="card stack" style={{ position: 'fixed', left: 12, right: 12, bottom: 12, zIndex: 30, maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.2)' }}>
+          <h3 className="card-title" style={{ margin: 0 }}>{categoryLabelMap[openedCard.categoryKey]}</h3>
+          <input className="input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+          <textarea className="input" rows={4} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="button primary" disabled={saving} onClick={() => saveDetails(openedCard)}>Speichern</button>
+            {mode === 'dashboard' && <button type="button" className="button" disabled={saving} onClick={() => deleteCard(openedCard.id)}>Löschen</button>}
+            <button type="button" className="button" onClick={() => { setOpenedCardId(null); setDraft(null); }}>Schließen</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

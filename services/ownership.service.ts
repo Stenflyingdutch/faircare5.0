@@ -5,16 +5,17 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
+  orderBy,
   query,
-  runTransaction,
   serverTimestamp,
   setDoc,
+  writeBatch,
   where,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
-import type { FamilyDocument } from '@/types/partner-flow';
+import { ownershipTaskPackageSeed } from '@/data/ownershipTaskPackageTemplates';
 import type { Locale } from '@/types/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
 import type {
@@ -40,23 +41,28 @@ const focusOrder: Record<OwnershipFocusLevel, number> = {
   later: 2,
 };
 
+function resolveFocusSort(value?: OwnershipFocusLevel | null) {
+  if (!value) return 3;
+  return focusOrder[value];
+}
+
 function toReasonText(reasonCodes: RecommendationReasonCode[]) {
   if (reasonCodes.includes('high_test_load') && reasonCodes.includes('high_perceived_stress')) {
-    return 'Empfohlen, weil dieser Bereich im Test stark belastet wirkt und zusätzlich als belastend empfunden wird.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich im Test aktuell stark sichtbar ist und im Alltag als belastend erlebt wird.';
   }
   if (reasonCodes.includes('high_test_load') && reasonCodes.includes('different_perception')) {
-    return 'Empfohlen, weil dieser Bereich im Alltag relevant erscheint und gleichzeitig unterschiedlich wahrgenommen wird.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich aktuell sichtbar ist und unterschiedlich wahrgenommen wird.';
   }
   if (reasonCodes.includes('high_perceived_stress') && reasonCodes.includes('different_perception')) {
-    return 'Empfohlen, weil dieser Bereich im Moment besonders relevant wirkt und unterschiedlich wahrgenommen wird.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich im Moment besonders relevant wirkt und die Wahrnehmung auseinandergeht.';
   }
   if (reasonCodes.includes('high_test_load')) {
-    return 'Empfohlen, weil dieser Bereich im Test aktuell besonders relevant wirkt.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich im Test im Moment besonders relevant ist.';
   }
   if (reasonCodes.includes('high_perceived_stress')) {
-    return 'Empfohlen, weil dieser Bereich aktuell als belastend empfunden wird.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich aktuell spürbar belastend ist.';
   }
-  return 'Empfohlen, weil dieser Bereich aktuell als guter Startpunkt sichtbar ist.';
+  return 'Als Startpunkt empfohlen, weil dieser Bereich aktuell als relevant sichtbar wird.';
 }
 
 export function computeOwnershipSignals(input: OwnershipComputationInput): OwnershipSignalBreakdown[] {
@@ -104,6 +110,16 @@ function mapTemplateLocale(value: Record<string, string> | undefined, locale: Lo
   return value?.[locale] || value?.de || fallback;
 }
 
+function buildSeedFallbackTemplates(categoryKey: QuizCategory, locale: Locale) {
+  return (ownershipTaskPackageSeed[categoryKey] ?? []).slice(0, 10).map((entry, index) => ({
+    id: `seed_${categoryKey}_${index + 1}`,
+    categoryKey,
+    title: mapTemplateLocale(entry.title, locale, 'Ownership-Bereich'),
+    note: mapTemplateLocale(entry.note, locale, ''),
+    sortOrder: index + 1,
+  }));
+}
+
 export async function fetchTaskPackageTemplates(ageGroup: AgeGroup) {
   const snapshot = await getDocs(query(
     collection(db, firestoreCollections.taskPackageTemplates),
@@ -116,6 +132,17 @@ export async function fetchTaskPackageTemplates(ageGroup: AgeGroup) {
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
+export async function fetchTaskPackageTemplatesForAdmin(ageGroup: AgeGroup) {
+  const snapshot = await getDocs(query(
+    collection(db, firestoreCollections.taskPackageTemplates),
+    where('ageGroup', '==', ageGroup),
+    orderBy('categoryKey'),
+    orderBy('sortOrder'),
+  ));
+
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as TaskPackageTemplate);
+}
+
 export async function saveTaskPackageTemplate(template: TaskPackageTemplate, actorUserId: string) {
   await setDoc(doc(db, firestoreCollections.taskPackageTemplates, template.id), {
     ...template,
@@ -125,63 +152,184 @@ export async function saveTaskPackageTemplate(template: TaskPackageTemplate, act
   }, { merge: true });
 }
 
+export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: string) {
+  const existing = await fetchTaskPackageTemplatesForAdmin(ageGroup);
+  const existingByCategory = new Map<QuizCategory, number>();
+  existing.forEach((entry) => {
+    existingByCategory.set(entry.categoryKey, (existingByCategory.get(entry.categoryKey) ?? 0) + 1);
+  });
+
+  const writes = Object.entries(ownershipTaskPackageSeed).flatMap(([categoryKey, items]) => {
+    const count = existingByCategory.get(categoryKey as QuizCategory) ?? 0;
+    if (count >= 10) return [];
+
+    return items.slice(count, 10).map((entry, index) => {
+      const id = `${ageGroup}_${categoryKey}_${count + index + 1}`;
+      const payload: TaskPackageTemplate = {
+        id,
+        ageGroup,
+        categoryKey: categoryKey as QuizCategory,
+        title: entry.title,
+        note: entry.note,
+        sortOrder: count + index + 1,
+        isActive: true,
+        version: 1,
+      };
+      return saveTaskPackageTemplate(payload, actorUserId);
+    });
+  });
+
+  await Promise.all(writes);
+  return writes.length;
+}
+
 export async function initializeFamilyOwnership(params: {
   familyId: string;
   ageGroup: AgeGroup;
   actorUserId: string;
   selectedCategories: QuizCategory[];
   recommendations: OwnershipRecommendation[];
+  allSignals: OwnershipSignalBreakdown[];
   locale: Locale;
 }) {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
   const recommendedByCategory = new Map(params.recommendations.map((item, index) => [item.categoryKey, { ...item, rank: index + 1 }]));
-  const activeCategorySet = new Set(params.selectedCategories);
+  const signalByCategory = new Map(params.allSignals.map((item) => [item.categoryKey, item]));
+  const activeCategoryList = [...new Set(params.selectedCategories)];
+  const familyRef = doc(db, firestoreCollections.families, params.familyId);
+  const familySnap = await getDoc(familyRef);
+  if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
 
-  await runTransaction(db, async (transaction) => {
-    const familyRef = doc(db, firestoreCollections.families, params.familyId);
-    const familySnap = await transaction.get(familyRef);
-    if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
+  const existingCardsSnap = activeCategoryList.length
+    ? await getDocs(query(
+      collection(db, firestoreCollections.families, params.familyId, 'ownershipCards'),
+      where('categoryKey', 'in', activeCategoryList),
+    ))
+    : null;
+  const existingCardIds = new Set(existingCardsSnap?.docs.map((entry) => entry.id) ?? []);
 
-    const family = familySnap.data() as FamilyDocument;
-    const defaultOwner = family.initiatorUserId;
+  const batch = writeBatch(db);
 
-    for (const categoryKey of activeCategorySet) {
-      const recommendation = recommendedByCategory.get(categoryKey);
-      const categoryRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCategories', categoryKey);
-      transaction.set(categoryRef, {
+  for (const categoryKey of activeCategoryList) {
+    const recommendation = recommendedByCategory.get(categoryKey);
+    const signal = signalByCategory.get(categoryKey);
+    const categoryRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCategories', categoryKey);
+    batch.set(categoryRef, {
+      categoryKey,
+      isRecommended: Boolean(recommendation),
+      recommendationRank: recommendation?.rank ?? null,
+      relevanceScore: signal?.relevanceScore ?? recommendation?.relevanceScore ?? 0,
+      reasonCodes: signal?.reasonCodes ?? recommendation?.reasonCodes ?? [],
+      activatedAt: nowIso(),
+      updatedAt: serverTimestamp(),
+      initializedAt: nowIso(),
+    }, { merge: true });
+
+    const categoryTemplates = templates
+      .filter((template) => template.categoryKey === categoryKey)
+      .slice(0, 10);
+    const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
+    const templatesForFamily = categoryTemplates.length > 0
+      ? categoryTemplates.map((template) => ({
+        id: template.id,
+        categoryKey: template.categoryKey,
+        title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
+        note: mapTemplateLocale(template.note, params.locale, ''),
+        sortOrder: template.sortOrder,
+      }))
+      : fallbackTemplates;
+
+    for (const template of templatesForFamily) {
+      const cardId = `${categoryKey}_${template.id}`;
+      if (existingCardIds.has(cardId)) continue;
+      const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
+
+      batch.set(cardRef, {
+        id: cardId,
         categoryKey,
-        isRecommended: Boolean(recommendation),
-        recommendationRank: recommendation?.rank ?? null,
-        relevanceScore: recommendation?.relevanceScore ?? 0,
-        reasonCodes: recommendation?.reasonCodes ?? [],
-        activatedAt: nowIso(),
+        sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
+        title: template.title,
+        note: template.note,
+        ownerUserId: null,
+        focusLevel: null,
+        sortOrder: template.sortOrder,
+        isDeleted: false,
+        createdBy: params.actorUserId,
+        updatedBy: params.actorUserId,
+        createdAt: nowIso(),
         updatedAt: serverTimestamp(),
       }, { merge: true });
-
-      const categoryTemplates = templates
-        .filter((template) => template.categoryKey === categoryKey)
-        .slice(0, 10);
-
-      categoryTemplates.forEach((template, index) => {
-        const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', `${categoryKey}_${template.id}`);
-        transaction.set(cardRef, {
-          id: `${categoryKey}_${template.id}`,
-          categoryKey,
-          sourceTemplateId: template.id,
-          title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
-          note: mapTemplateLocale(template.note, params.locale, ''),
-          ownerUserId: defaultOwner,
-          focusLevel: index === 0 ? 'now' : 'soon',
-          sortOrder: template.sortOrder,
-          isDeleted: false,
-          createdBy: params.actorUserId,
-          updatedBy: params.actorUserId,
-          createdAt: nowIso(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      });
     }
-  });
+  }
+
+  await batch.commit();
+}
+
+export async function ensureOwnershipCardsForCategories(params: {
+  familyId: string;
+  ageGroup: AgeGroup;
+  actorUserId: string;
+  locale: Locale;
+  categoryKeys: QuizCategory[];
+}) {
+  const templates = await fetchTaskPackageTemplates(params.ageGroup);
+  const activeCategoryList = [...new Set(params.categoryKeys)];
+  const familyRef = doc(db, firestoreCollections.families, params.familyId);
+  const familySnap = await getDoc(familyRef);
+  if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
+  const existingCardsSnap = activeCategoryList.length
+    ? await getDocs(query(
+      collection(db, firestoreCollections.families, params.familyId, 'ownershipCards'),
+      where('categoryKey', 'in', activeCategoryList),
+    ))
+    : null;
+  const existingCardIds = new Set(existingCardsSnap?.docs.map((entry) => entry.id) ?? []);
+
+  const batch = writeBatch(db);
+  let writes = 0;
+
+  for (const categoryKey of activeCategoryList) {
+    const categoryTemplates = templates
+      .filter((template) => template.categoryKey === categoryKey)
+      .slice(0, 10);
+    const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
+    const templatesForFamily = categoryTemplates.length > 0
+      ? categoryTemplates.map((template) => ({
+        id: template.id,
+        categoryKey: template.categoryKey,
+        title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
+        note: mapTemplateLocale(template.note, params.locale, ''),
+        sortOrder: template.sortOrder,
+      }))
+      : fallbackTemplates;
+
+    for (const template of templatesForFamily) {
+      const cardId = `${categoryKey}_${template.id}`;
+      if (existingCardIds.has(cardId)) continue;
+      const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
+
+      batch.set(cardRef, {
+        id: cardId,
+        categoryKey,
+        sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
+        title: template.title,
+        note: template.note,
+        ownerUserId: null,
+        focusLevel: null,
+        sortOrder: template.sortOrder,
+        isDeleted: false,
+        createdBy: params.actorUserId,
+        updatedBy: params.actorUserId,
+        createdAt: nowIso(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      writes += 1;
+    }
+  }
+
+  if (writes > 0) {
+    await batch.commit();
+  }
 }
 
 export function observeOwnershipCategories(
@@ -218,7 +366,7 @@ export function observeOwnershipCards(
         .map((item) => ({ id: item.id, ...item.data() }) as OwnershipCardDocument)
         .sort((a, b) => {
           if (a.categoryKey !== b.categoryKey) return a.categoryKey.localeCompare(b.categoryKey);
-          if (focusOrder[a.focusLevel] !== focusOrder[b.focusLevel]) return focusOrder[a.focusLevel] - focusOrder[b.focusLevel];
+          if (resolveFocusSort(a.focusLevel) !== resolveFocusSort(b.focusLevel)) return resolveFocusSort(a.focusLevel) - resolveFocusSort(b.focusLevel);
           return a.sortOrder - b.sortOrder;
         });
 

@@ -5,15 +5,19 @@ import { useEffect, useState } from 'react';
 
 import { OwnershipBoard } from '@/components/ownership/OwnershipBoard';
 import { observeAuthState } from '@/services/auth.service';
-import { observeOwnershipCards } from '@/services/ownership.service';
+import { ensureOwnershipCardsForCategories, observeOwnershipCards, observeOwnershipCategories } from '@/services/ownership.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
-import type { OwnershipCardDocument } from '@/types/ownership';
+import { getCurrentLocale } from '@/lib/i18n';
+import type { AgeGroup, QuizCategory } from '@/types/quiz';
+import type { OwnershipCardDocument, OwnershipCategoryDocument } from '@/types/ownership';
 
 export default function PersonalHomePage() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
+  const [categories, setCategories] = useState<OwnershipCategoryDocument[]>([]);
+  const [ageGroup, setAgeGroup] = useState<AgeGroup | null>(null);
   const [ownerOptions, setOwnerOptions] = useState<Array<{ userId: string; label: string }>>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -26,10 +30,11 @@ export default function PersonalHomePage() {
       setUserId(user.uid);
       const bundle = await fetchDashboardBundle(user.uid);
       setFamilyId(bundle.profile?.familyId ?? null);
+      setAgeGroup(bundle.ageGroupForOwnership ?? null);
       if (bundle.family) {
         setOwnerOptions([
-          { userId: bundle.family.initiatorUserId, label: 'Partner 1' },
-          ...(bundle.family.partnerUserId ? [{ userId: bundle.family.partnerUserId, label: 'Partner 2' }] : []),
+          { userId: bundle.family.initiatorUserId, label: bundle.initiatorDisplayName || 'Partner 1' },
+          ...(bundle.family.partnerUserId ? [{ userId: bundle.family.partnerUserId, label: bundle.partnerDisplayName || 'Partner 2' }] : []),
         ]);
       }
     });
@@ -38,9 +43,27 @@ export default function PersonalHomePage() {
 
   useEffect(() => {
     if (!familyId) return;
-    const stop = observeOwnershipCards(familyId, setCards, (error) => setLoadError(error.message));
-    return () => stop();
+    const stopCards = observeOwnershipCards(familyId, setCards, () => setLoadError('Die Karten konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
+    const stopCategories = observeOwnershipCategories(familyId, setCategories, () => setLoadError('Die Kategorien konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
+    return () => {
+      stopCards();
+      stopCategories();
+    };
   }, [familyId]);
+
+  useEffect(() => {
+    if (!familyId || !userId || !ageGroup) return;
+    const categoryKeys = categories.map((item) => item.categoryKey as QuizCategory);
+    if (!categoryKeys.length || cards.length > 0) return;
+
+    ensureOwnershipCardsForCategories({
+      familyId,
+      ageGroup,
+      actorUserId: userId,
+      locale: getCurrentLocale(),
+      categoryKeys,
+    }).catch(() => setLoadError('Die Karten konnten gerade nicht geladen oder angelegt werden. Bitte versuche es erneut.'));
+  }, [familyId, userId, ageGroup, categories, cards.length]);
 
   if (!userId || !familyId) {
     return (
@@ -57,7 +80,14 @@ export default function PersonalHomePage() {
         <h2 className="card-title">Home</h2>
         <p className="card-description">Hier siehst du nur Karten, die dir zugeordnet sind. Du kannst sie direkt anpassen.</p>
       </article>
-      <OwnershipBoard familyId={familyId} currentUserId={userId} cards={cards} mode="home" ownerOptions={ownerOptions} />
+      <OwnershipBoard
+        familyId={familyId}
+        currentUserId={userId}
+        cards={cards}
+        mode="home"
+        ownerOptions={ownerOptions}
+        categoryKeys={categories.map((item) => item.categoryKey)}
+      />
       {loadError && <p className="inline-error">{loadError}</p>}
     </div>
   );

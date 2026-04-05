@@ -8,14 +8,14 @@ import { observeAuthState, signOutUser } from '@/services/auth.service';
 
 const personalNavItems = [
   { label: 'Home', href: '/app/home' },
-  { label: 'OwnershipDashboard', href: '/app/ownership-dashboard' },
+  { label: 'Aufgabengebiete', href: '/app/ownership-dashboard' },
   { label: 'Review', href: '/app/review' },
   { label: 'Einstellungen', href: '/app/einstellungen' },
 ] as const;
 
 function pageTitle(pathname: string) {
   if (pathname.startsWith('/app/home')) return 'Home';
-  if (pathname.startsWith('/app/ownership-dashboard')) return 'OwnershipDashboard';
+  if (pathname.startsWith('/app/ownership-dashboard')) return 'Aufgabengebiete';
   if (pathname.startsWith('/app/einstellungen')) return 'Einstellungen';
   return 'Review';
 }

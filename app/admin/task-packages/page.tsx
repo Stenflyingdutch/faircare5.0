@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
-import { saveTaskPackageTemplate } from '@/services/ownership.service';
+import { fetchTaskPackageTemplatesForAdmin, saveTaskPackageTemplate, seedTaskPackageTemplates } from '@/services/ownership.service';
 import { quizCatalog } from '@/data/questionTemplates';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
 import type { TaskPackageTemplate } from '@/types/ownership';
@@ -27,6 +27,7 @@ function createTemplate(ageGroup: AgeGroup, categoryKey: QuizCategory): TaskPack
 export default function AdminTaskPackagesPage() {
   const [activeAge, setActiveAge] = useState<AgeGroup>('0_1');
   const [draft, setDraft] = useState<TaskPackageTemplate | null>(null);
+  const [templates, setTemplates] = useState<TaskPackageTemplate[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -34,6 +35,15 @@ export default function AdminTaskPackagesPage() {
     () => quizCatalog.categories.filter((item) => item.ageGroup === activeAge).map((item) => item.key),
     [activeAge],
   );
+
+  const loadTemplates = useCallback(async () => {
+    const result = await fetchTaskPackageTemplatesForAdmin(activeAge);
+    setTemplates(result);
+  }, [activeAge]);
+
+  useEffect(() => {
+    void loadTemplates();
+  }, [loadTemplates]);
 
   async function onSave() {
     if (!draft) return;
@@ -43,8 +53,23 @@ export default function AdminTaskPackagesPage() {
       await saveTaskPackageTemplate(draft, 'admin-local');
       setMessage('Vorlage gespeichert.');
       setDraft(null);
+      await loadTemplates();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Speichern fehlgeschlagen.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function seedDefaults() {
+    setSaving(true);
+    setMessage('');
+    try {
+      const created = await seedTaskPackageTemplates(activeAge, 'admin-local');
+      setMessage(created > 0 ? `${created} Vorlagen ergänzt.` : 'Es waren bereits ausreichend Vorlagen vorhanden.');
+      await loadTemplates();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Seed fehlgeschlagen.');
     } finally {
       setSaving(false);
     }
@@ -55,12 +80,13 @@ export default function AdminTaskPackagesPage() {
       <div className="container stack">
         <article className="card stack">
           <h1 className="test-title">Admin · Ownership-Aufgabenpakete</h1>
-          <p className="card-description">Globale Vorlagen werden hier gepflegt und später als familienlokale Karten kopiert.</p>
+          <p className="card-description">Globale Vorlagen werden hier gepflegt und bei Aktivierung in familienlokale Karten kopiert.</p>
           <div className="chip-row">
             {ageGroups.map((group) => (
               <button type="button" key={group} className={`option-chip ${group === activeAge ? 'selected' : ''}`} onClick={() => setActiveAge(group)}>{group}</button>
             ))}
           </div>
+          <button type="button" className="button" disabled={saving} onClick={seedDefaults}>Standardpakete (10 pro Kategorie) ergänzen</button>
         </article>
 
         <article className="card stack">
@@ -89,6 +115,20 @@ export default function AdminTaskPackagesPage() {
               <textarea className="input" rows={3} placeholder="Notitie (nl)" value={draft.note.nl || ''} onChange={(e) => setDraft({ ...draft, note: { ...draft.note, nl: e.target.value } })} />
               <label><input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} /> Aktiv</label>
               <button type="button" className="button primary" disabled={saving} onClick={onSave}>{saving ? 'Speichert …' : 'Vorlage speichern'}</button>
+            </div>
+          )}
+
+          {!!templates.length && (
+            <div className="stack">
+              <h3 className="card-title" style={{ marginBottom: 0 }}>Vorhandene Vorlagen</h3>
+              {templates.map((template) => (
+                <div key={template.id} className="report-block stack">
+                  <strong>{template.categoryKey}</strong>
+                  <p className="helper" style={{ margin: 0 }}>{template.title.de || template.title.en || template.title.nl || 'Ohne Titel'}</p>
+                  <p className="helper" style={{ margin: 0 }}>Sortierung: {template.sortOrder} · Version: {template.version} · {template.isActive ? 'Aktiv' : 'Inaktiv'}</p>
+                  <button type="button" className="button" onClick={() => setDraft(template)}>Bearbeiten</button>
+                </div>
+              ))}
             </div>
           )}
 
