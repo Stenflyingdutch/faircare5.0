@@ -70,8 +70,8 @@ export default function OwnershipDashboardPage() {
   if (!userId || !familyId) {
     return (
       <article className="card stack">
-        <h2 className="card-title">OwnershipDashboard</h2>
-        <p className="card-description">Ownership-Bereich wird vorbereitet …</p>
+        <h2 className="card-title">Aufgabengebiete</h2>
+        <p className="card-description">Aufgabengebiete werden vorbereitet …</p>
       </article>
     );
   }
@@ -81,7 +81,7 @@ export default function OwnershipDashboardPage() {
   return (
     <div className="stack">
       <article className="card stack">
-        <h2 className="card-title">OwnershipDashboard</h2>
+        <h2 className="card-title">Aufgabengebiete</h2>
         <p className="card-description">
           Jede Karte steht für einen klar zugeordneten Verantwortungsbereich inklusive Planung und Durchführung.
         </p>
