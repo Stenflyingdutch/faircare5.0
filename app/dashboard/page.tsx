@@ -227,8 +227,7 @@ export default function DashboardPage() {
   return (
     <section className="section">
       <div className="container stack">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 className="test-title">Dashboard</h1>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
           <button type="button" className="button" onClick={logout}>Logout</button>
         </div>
 
@@ -247,7 +246,7 @@ export default function DashboardPage() {
         {canInvitePartner && (
           <article className="card stack">
             <h2 className="card-title">Partner einladen</h2>
-            <p className="card-description">Trage die E-Mail-Adresse deines Partners ein. Danach kann er denselben Fragenkatalog ausfüllen.</p>
+            <p className="card-description">Schicke Deinem Partner eine Einladung, um auch am Quiz teilzunehmen. Du wirst benachrichtigt, sobald er es abgeschlossen hat. Dann könnt ihr die Gesamtergebnisse gemeinsam anschauen.</p>
             <form className="stack" onSubmit={onInviteSubmit}>
               <input type="email" className="input" required placeholder="E-Mail deines Partners" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} disabled={inviteState === 'loading'} />
               <textarea className="input" rows={5} value={invitePersonalMessage} onChange={(event) => setInvitePersonalMessage(event.target.value)} aria-label="Persönliche Nachricht" placeholder="Persönliche Nachricht" />
@@ -463,7 +462,7 @@ function ResultBreakdown({
                   Es zeigt nur einen kleinen Ausschnitt: die <strong>„Dran-Denken“-Aufgaben</strong> bei der Erziehung.
                 </p>
                 <p style={{ margin: 0 }}>
-                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr gemeinsam überlegen, ob die Verteilung für euch passt. Es gibt dabei kein richtig oder falsch, sondern nur eine Verteilung, in der ihr euch beide wiederfinden könnt.
+                  Schaut gemeinsam, ob diese Verteilung für euch passt und wo ihr euch Entlastung wünscht.
                 </p>
               </div>
             ) : (
@@ -475,7 +474,7 @@ function ResultBreakdown({
                   <strong>Größte empfundene Belastung:</strong> {result.perceivedStressLabel}.
                 </p>
                 <p style={{ margin: 0 }}>
-                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr wertschätzend prüfen, ob die Verteilung für euch beide stimmig ist. Es gibt dabei kein richtig oder falsch, sondern nur eine Verteilung, in der ihr euch beide wiederfinden könnt.
+                  Schaut gemeinsam, ob diese Verteilung für euch passt und wo ihr euch Entlastung wünscht.
                 </p>
               </div>
             )}
