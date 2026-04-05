@@ -3,6 +3,13 @@
 import { MouseEvent, useEffect, useMemo, useState } from 'react';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
+import {
+  buildOwnershipActivationPatch,
+  buildOwnershipCreatePayload,
+  buildOwnershipFocusPatch,
+  buildOwnershipMetaPatch,
+  buildOwnershipOwnerPatch,
+} from '@/services/ownershipCardPayloads';
 import { softDeleteOwnershipCard, upsertOwnershipCard } from '@/services/ownership.service';
 import type { OwnershipCardDocument, OwnershipFocusLevel } from '@/types/ownership';
 import type { QuizCategory } from '@/types/quiz';
@@ -137,15 +144,10 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
       familyId,
       cardId: card.id,
       actorUserId: currentUserId,
-      payload: {
-        categoryKey: card.categoryKey,
+      payload: buildOwnershipMetaPatch({
         title: next.title.trim() || card.title,
         note: next.note.trim(),
-        ownerUserId: card.ownerUserId ?? null,
-        focusLevel: card.focusLevel ?? null,
-        isActive: resolveCardIsActive(card),
-        sortOrder: card.sortOrder,
-      },
+      }),
     });
   }
 
@@ -177,15 +179,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         familyId,
         cardId: card.id,
         actorUserId: currentUserId,
-        payload: {
-          categoryKey: card.categoryKey,
-          title: card.title,
-          note: card.note,
-          ownerUserId: card.ownerUserId ?? null,
-          focusLevel: nextLevel,
-          isActive: resolveCardIsActive(card),
-          sortOrder: card.sortOrder,
-        },
+        payload: buildOwnershipFocusPatch(nextLevel),
       });
     } catch {
       setFocusOverrides((prev) => ({ ...prev, [card.id]: previousLevel }));
@@ -238,15 +232,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         familyId,
         cardId: card.id,
         actorUserId: currentUserId,
-        payload: {
-          categoryKey: card.categoryKey,
-          title: card.title,
-          note: card.note,
-          ownerUserId: nextOwner,
-          focusLevel: card.focusLevel ?? null,
-          isActive: resolveCardIsActive(card),
-          sortOrder: card.sortOrder,
-        },
+        payload: buildOwnershipOwnerPatch(nextOwner),
       });
     } catch {
       setError('Die Zuordnung konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
@@ -264,15 +250,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         familyId,
         cardId: card.id,
         actorUserId: currentUserId,
-        payload: {
-          categoryKey: card.categoryKey,
-          title: card.title,
-          note: card.note,
-          ownerUserId: card.ownerUserId ?? null,
-          focusLevel: card.focusLevel ?? null,
-          isActive: nextActive,
-          sortOrder: card.sortOrder,
-        },
+        payload: buildOwnershipActivationPatch(nextActive),
       });
     } catch {
       setError('Der Aktivierungsstatus konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
@@ -289,15 +267,12 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
       await upsertOwnershipCard({
         familyId,
         actorUserId: currentUserId,
-        payload: {
+        payload: buildOwnershipCreatePayload({
           categoryKey,
           title: draft.title.trim() || 'Verantwortungsbereich planen und umsetzen',
           note: draft.note.trim(),
-          ownerUserId: null,
-          focusLevel: null,
-          isActive: false,
           sortOrder: Date.now(),
-        },
+        }),
       });
       setActiveCategoryForCreate(null);
       setDraft(null);

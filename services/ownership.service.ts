@@ -401,23 +401,34 @@ export async function upsertOwnershipCard(params: {
   familyId: string;
   cardId?: string;
   actorUserId: string;
-  payload: Pick<OwnershipCardDocument, 'categoryKey' | 'title' | 'note' | 'ownerUserId' | 'focusLevel' | 'sortOrder' | 'isActive'>;
+  payload: Partial<Pick<OwnershipCardDocument, 'categoryKey' | 'title' | 'note' | 'ownerUserId' | 'focusLevel' | 'sortOrder' | 'isActive'>>;
 }) {
   const cardId = params.cardId ?? doc(collection(db, firestoreCollections.families, params.familyId, 'ownershipCards')).id;
   const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
   const existing = await getDoc(cardRef);
   const before = existing.exists() ? existing.data() : null;
 
-  const nextPayload = {
+  if (!existing.exists()) {
+    if (!params.payload.categoryKey || !params.payload.title || params.payload.note === undefined || params.payload.sortOrder === undefined) {
+      throw new Error('Für neue Karten sind categoryKey, title, note und sortOrder erforderlich.');
+    }
+  }
+
+  const nextPayload: Record<string, unknown> = {
     id: cardId,
     ...params.payload,
-    isActive: params.payload.isActive,
     isDeleted: false,
-    createdBy: (before as { createdBy?: string } | null)?.createdBy ?? params.actorUserId,
     updatedBy: params.actorUserId,
-    createdAt: (before as { createdAt?: string } | null)?.createdAt ?? nowIso(),
     updatedAt: serverTimestamp(),
   };
+
+  if (!existing.exists()) {
+    nextPayload.createdBy = params.actorUserId;
+    nextPayload.createdAt = nowIso();
+    nextPayload.isActive = params.payload.isActive ?? false;
+    nextPayload.ownerUserId = params.payload.ownerUserId ?? null;
+    nextPayload.focusLevel = params.payload.focusLevel ?? null;
+  }
 
   await setDoc(cardRef, nextPayload, { merge: true });
   await addDoc(collection(db, firestoreCollections.families, params.familyId, 'auditEvents'), {

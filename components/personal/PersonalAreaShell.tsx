@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 
 import { observeAuthState, signOutUser } from '@/services/auth.service';
 
@@ -12,13 +12,6 @@ const personalNavItems = [
   { label: 'Team-Check', href: '/app/review', tone: 'violet' },
   { label: 'Einstellungen', href: '/app/einstellungen', tone: 'violet' },
 ] as const;
-
-function pageTitle(pathname: string) {
-  if (pathname.startsWith('/app/home')) return 'Home';
-  if (pathname.startsWith('/app/ownership-dashboard')) return 'Aufgabengebiete';
-  if (pathname.startsWith('/app/einstellungen')) return 'Einstellungen';
-  return 'Team-Check';
-}
 
 export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -36,8 +29,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
 
     return () => unsubscribe();
   }, [router]);
-
-  const currentTitle = useMemo(() => pageTitle(pathname), [pathname]);
 
   async function onLogout() {
     await signOutUser();
@@ -57,11 +48,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
       <div className="container personal-area-shell stack">
         <header className="personal-area-header stack">
           <div className="personal-area-headline-row">
-            <div>
-              <p className="personal-area-kicker">Persönlicher Bereich</p>
-              <h1 className="personal-area-title">{currentTitle}</h1>
-              <p className="helper" style={{ margin: 0 }}>Willkommen in deinem persönlichen Bereich.</p>
-            </div>
             <button type="button" className="button" onClick={onLogout}>Logout</button>
           </div>
           <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
