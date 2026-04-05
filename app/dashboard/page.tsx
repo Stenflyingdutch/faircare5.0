@@ -362,9 +362,6 @@ function ResultBreakdown({
   const sortedCategories = [...result.categories].sort((a, b) => b[1] - a[1]);
   const highestLoad = sortedCategories[0];
   const hasNoCategoryAboveHalf = highestLoad[1] < 50;
-  const contextualSummaryText = hasNoCategoryAboveHalf
-    ? `Dein höchster Anteil liegt hier unter 50 %. Das bedeutet nicht, dass du zu wenig zur Familie beiträgst – es zeigt nur, dass du bei den „Dran-Denken“-Aufgaben in der Erziehung aktuell einen kleineren Teil übernimmst. Diese Sicht ist bewusst sehr eingegrenzt und bildet nur einen Ausschnitt von allem ab, was Familien jeden Tag leisten. Zusammen mit der Auswertung von ${partnerName} ist das ein transparenter Startpunkt, um wertschätzend zu schauen, was sich für euch beide stimmig anfühlt und wo ihr vielleicht nachjustieren möchtet.`
-    : `Dein größter Anteil liegt aktuell bei ${categoryLabelMap[highestLoad[0]]} (${highestLoad[1]} %). Gemeinsam mit der Auswertung von ${partnerName} könnt ihr diese Übersicht als wertschätzenden Startpunkt nutzen, um zu prüfen, ob sich die Verteilung für euch beide stimmig anfühlt oder ob ihr etwas anpassen möchtet.`;
 
   return (
     <>
@@ -389,9 +386,28 @@ function ResultBreakdown({
             <p className="helper"><strong>Gesamtanteil</strong></p>
           </div>
           <div className="result-highlight-grid">
-            <p className="helper" style={{ margin: 0, lineHeight: 1.6, fontSize: '1.02rem' }}>
-              {contextualSummaryText}
-            </p>
+            {hasNoCategoryAboveHalf ? (
+              <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
+                <p style={{ margin: '0 0 8px' }}>
+                  <strong>Wichtig:</strong> Unter 50 % heißt <strong>nicht</strong>, dass du zu wenig zur Familie beiträgst.
+                </p>
+                <p style={{ margin: '0 0 8px' }}>
+                  Es zeigt nur einen kleinen Ausschnitt: die <strong>„Dran-Denken“-Aufgaben</strong> bei der Erziehung.
+                </p>
+                <p style={{ margin: 0 }}>
+                  Mit der Auswertung von <strong>{partnerName}</strong> habt ihr einen guten, transparenten Startpunkt, um gemeinsam zu schauen, was für euch passt.
+                </p>
+              </div>
+            ) : (
+              <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
+                <p style={{ margin: '0 0 8px' }}>
+                  <strong>Dein stärkster Bereich:</strong> {categoryLabelMap[highestLoad[0]]} ({highestLoad[1]} %).
+                </p>
+                <p style={{ margin: 0 }}>
+                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr wertschätzend prüfen, ob die Verteilung für euch beide stimmig ist.
+                </p>
+              </div>
+            )}
           </div>
         </div>
         <div className="result-legend">
