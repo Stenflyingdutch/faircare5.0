@@ -42,7 +42,7 @@ export default function RegisterPage() {
       if (session) {
         await linkAnonymousSessionToUser(credential.user, session);
       }
-      router.push('/dashboard');
+      router.push('/app/review');
     } catch (registrationError) {
       setError(resolveRegistrationErrorMessage(registrationError));
       setIsSubmitting(false);

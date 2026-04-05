@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
-import { Footer } from '@/components/Footer';
-import { Header } from '@/components/Header';
+import { RootChrome } from '@/components/RootChrome';
 
 import './globals.css';
 
@@ -15,9 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="de">
       <body>
-        <Header />
-        <main>{children}</main>
-        <Footer />
+        <RootChrome>{children}</RootChrome>
       </body>
     </html>
   );
