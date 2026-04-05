@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 import { questionTemplates } from '@/data/questionTemplates';
 import { categoryLabelMap } from '@/services/resultCalculator';
@@ -69,6 +70,13 @@ function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>) {
     return `${highestCategories[0]} und ${highestCategories[1]} (je ${maxScore} %).`;
   }
   return `Es wurde in mehreren Bereichen eine hohe Belastung gemessen (je ${maxScore} %).`;
+}
+
+function formatDiscussedDate(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(parsed);
 }
 
 export function ReviewResultsContent() {
@@ -223,6 +231,7 @@ export function ReviewResultsContent() {
   const canInvitePartner = bundle?.profile?.role !== 'partner'
     && !bundle?.family?.partnerRegistered
     && !hasUnlockedResults;
+  const discussedDate = formatDiscussedDate(bundle?.family?.resultsDiscussedAt ?? null);
 
   const ownershipSignals = useMemo(() => {
     if (!bundle?.ownResult) return [];
@@ -282,15 +291,13 @@ export function ReviewResultsContent() {
   return (
     <section className="section">
       <div className="container stack">
-
-        {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && !!ownershipRecommendations.length && (
-          <article className="card stack">
-            <h2 className="card-title">Hinweis</h2>
-            <p className="card-description">
-              Unten auf dieser Seite kannst du Arbeitspakete für ausgewählte Kategorien anschauen und zuordnen.
-            </p>
-          </article>
-        )}
+        <article className="card stack">
+          <h2 className="card-title">
+            {discussedDate
+              ? `Hier sind eure Testergebnisse, durchgesprochen am ${discussedDate}`
+              : 'Hier sind eure Testergebnisse'}
+          </h2>
+        </article>
 
         <article className="card stack">
           <h2 className="card-title">Eigenes Ergebnis</h2>
@@ -405,7 +412,10 @@ export function ReviewResultsContent() {
           <JointResultPanel bundle={bundle} />
         )}
 
-        {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && !!ownershipRecommendations.length && (
+        {bundle?.family?.resultsUnlocked
+          && bundle?.family?.sharedResultsOpened
+          && !bundle?.family?.resultsDiscussedAt
+          && !!ownershipRecommendations.length && (
           <article className="card stack">
             <h2 className="card-title">Arbeitspakete für ausgewählte Kategorien anschauen und zuordnen</h2>
             <p className="card-description">
@@ -438,6 +448,14 @@ export function ReviewResultsContent() {
               </button>
               {ownershipInitState === 'error' && <p className="inline-error">{ownershipInitMessage}</p>}
             </div>
+          </article>
+        )}
+
+        {bundle?.family?.resultsDiscussedAt && (
+          <article className="card stack">
+            <Link href="/app/ownership-dashboard" className="button" style={{ width: 'fit-content' }}>
+              Zu Aufgabengebieten
+            </Link>
           </article>
         )}
       </div>

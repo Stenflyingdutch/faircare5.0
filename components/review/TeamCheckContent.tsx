@@ -14,6 +14,13 @@ function resolveCardIsActive(card: OwnershipCardDocument) {
   return Boolean(card.ownerUserId || card.focusLevel);
 }
 
+function formatDiscussedDate(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(parsed);
+}
+
 export function TeamCheckContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -44,6 +51,7 @@ export function TeamCheckContent() {
   const activatedCardsCount = useMemo(() => cards.filter(resolveCardIsActive).length, [cards]);
   const showOwnershipHint = activatedCardsCount === 0;
   const canSeeJointResults = Boolean(bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened);
+  const discussedDate = formatDiscussedDate(bundle?.family?.resultsDiscussedAt ?? null);
 
   if (loading || !currentUserId) {
     return <section className="section"><div className="container">Lade Team-Check …</div></section>;
@@ -56,9 +64,19 @@ export function TeamCheckContent() {
           <h2 className="card-title">Team-Check</h2>
           <p className="card-description">Bereitet euren nächsten Team-Check vor und haltet offene Punkte fest.</p>
           <p className="helper" style={{ margin: 0 }}>Ein Team-Check hilft euch, nächste Schritte gemeinsam zu priorisieren.</p>
-          <Link href="/app/ergebnisse" className="button" style={{ width: 'fit-content' }}>
-            Testergebnisse ansehen
-          </Link>
+          {discussedDate ? (
+            <div className="report-block stack">
+              <strong>Quiz-Ergebnisse durchgesprochen</strong>
+              <p className="helper" style={{ margin: 0 }}>am {discussedDate}</p>
+              <Link href="/app/ergebnisse" className="button" style={{ width: 'fit-content' }}>
+                Testergebnisse ansehen
+              </Link>
+            </div>
+          ) : (
+            <Link href="/app/ergebnisse" className="button" style={{ width: 'fit-content' }}>
+              Testergebnisse ansehen
+            </Link>
+          )}
         </article>
 
         {showOwnershipHint && (

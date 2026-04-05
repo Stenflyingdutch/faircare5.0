@@ -7,6 +7,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   writeBatch,
@@ -264,6 +265,22 @@ export async function initializeFamilyOwnership(params: {
   }
 
   await batch.commit();
+  await setResultsDiscussedAtIfMissing(params.familyId, params.actorUserId);
+}
+
+export async function setResultsDiscussedAtIfMissing(familyId: string, actorUserId: string) {
+  const familyRef = doc(db, firestoreCollections.families, familyId);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(familyRef);
+    if (!snapshot.exists()) throw new Error('Familie nicht gefunden.');
+    const family = snapshot.data() as { resultsDiscussedAt?: string | null };
+    if (family.resultsDiscussedAt) return;
+    transaction.set(familyRef, {
+      resultsDiscussedAt: nowIso(),
+      resultsDiscussedBy: actorUserId,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  });
 }
 
 export async function ensureOwnershipCardsForCategories(params: {
