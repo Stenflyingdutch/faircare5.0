@@ -45,7 +45,7 @@ export default function ActivateJointResultPage() {
         <h1 className="test-title">Gesamtergebnis aktivieren</h1>
         <article className="result-card stack">
           <p>{message}</p>
-          {state !== 'loading' && <Link href="/app/review" className="button primary">Zum Dashboard</Link>}
+          {state !== 'loading' && <Link href="/app/ergebnisse" className="button primary">Zum Dashboard</Link>}
         </article>
       </div>
     </section>
