@@ -365,8 +365,7 @@ function ResultBreakdown({
 
   return (
     <>
-      <h2 className="card-title">Deine persönliche Zusammenfassung</h2>
-      <p className="helper" style={{ margin: 0 }}><strong>{displayName}</strong></p>
+      <h2 className="card-title">{displayName}, das hier ist deine persönliche Zusammenfassung:</h2>
       <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
       <div className="personal-result-summary detailed individual-result-panel individual-result-light">
         <div className="result-overview-grid">
