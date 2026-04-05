@@ -737,6 +737,15 @@ textarea.input {
   gap: 1rem;
 }
 
+.team-check-nav-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #6c4cf1;
+  margin-left: 6px;
+  box-shadow: 0 0 0 2px rgba(108, 76, 241, 0.2);
+}
+
 @media (min-width: 860px) {
   .personal-area-nav {
     grid-template-columns: repeat(4, minmax(0, 1fr));
