@@ -368,9 +368,6 @@ function ResultBreakdown({
       <h2 className="card-title">Deine persönliche Zusammenfassung</h2>
       <p className="helper" style={{ margin: 0 }}><strong>{displayName}</strong></p>
       <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
-      <p className="helper" style={{ margin: 0 }}>
-        Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise von {partnerName} helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
-      </p>
       <div className="personal-result-summary detailed individual-result-panel individual-result-light">
         <div className="result-overview-grid">
           <div className="result-donut-wrap">
@@ -395,7 +392,7 @@ function ResultBreakdown({
                   Es zeigt nur einen kleinen Ausschnitt: die <strong>„Dran-Denken“-Aufgaben</strong> bei der Erziehung.
                 </p>
                 <p style={{ margin: 0 }}>
-                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr gemeinsam überlegen, ob die Verteilung für euch passt oder ob ihr kleine Änderungen vornehmen möchtet.
+                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr gemeinsam überlegen, ob die Verteilung für euch passt. Es gibt dabei kein richtig oder falsch, sondern nur eine Verteilung, in der ihr euch beide wiederfinden könnt.
                 </p>
               </div>
             ) : (
@@ -404,7 +401,7 @@ function ResultBreakdown({
                   <strong>Dein stärkster Bereich:</strong> {categoryLabelMap[highestLoad[0]]} ({highestLoad[1]} %).
                 </p>
                 <p style={{ margin: 0 }}>
-                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr wertschätzend prüfen, ob die Verteilung für euch beide stimmig ist.
+                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr wertschätzend prüfen, ob die Verteilung für euch beide stimmig ist. Es gibt dabei kein richtig oder falsch, sondern nur eine Verteilung, in der ihr euch beide wiederfinden könnt.
                 </p>
               </div>
             )}
