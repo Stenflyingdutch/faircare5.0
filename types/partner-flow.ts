@@ -58,6 +58,7 @@ export interface QuizSessionDocument {
   questionSetId: string;
   questionSetSnapshot: QuestionTemplate[];
   filterAnswers?: Record<string, string> | null;
+  stressCategories?: StressSelection[];
   answers: Partial<Record<string, OwnershipAnswer>>;
   createdAt: string;
   completedAt?: string | null;

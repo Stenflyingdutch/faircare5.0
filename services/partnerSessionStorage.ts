@@ -1,4 +1,4 @@
-import type { OwnershipAnswer, QuestionTemplate } from '@/types/quiz';
+import type { OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
 
 export interface PartnerLocalSession {
   invitationToken: string;
@@ -9,6 +9,7 @@ export interface PartnerLocalSession {
   questions: QuestionTemplate[];
   answers: Partial<Record<string, OwnershipAnswer>>;
   perceptionAnswer?: string;
+  stressSelection?: StressSelection;
   completedAt?: string;
   counterpartName?: string;
 }
