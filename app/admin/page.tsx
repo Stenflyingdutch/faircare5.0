@@ -3,7 +3,7 @@ import { PageHero } from '@/components/PageHero';
 import { SectionWrapper } from '@/components/SectionWrapper';
 import Link from 'next/link';
 
-const adminAreas = ['Ergebnis-Texte', 'Aufgabenkatalog', 'Seiteninhalte', 'Weekly Check-in Templates'];
+const adminAreas = ['Ergebnis-Texte', 'Aufgabenkatalog', 'Seiteninhalte', 'Weekly Check-in Templates', 'Ownership-Vorlagen'];
 const ageGroups = ['0–1', '1–3', '3–6', '6–10', '10+'];
 
 export default function AdminPage() {
@@ -38,6 +38,11 @@ export default function AdminPage() {
             <h3 className="card-title">Ergebnislogik</h3>
             <p className="card-description">Transparente Dokumentation zu Berechnung, Vergleich, Schwellenwerten und Empfehlungen.</p>
             <Link href="/admin/logic" className="button primary">Zur Logik-Seite</Link>
+          </article>
+          <article className="card">
+            <h3 className="card-title">Ownership-Aufgabenpakete</h3>
+            <p className="card-description">Globale Vorlagen pro Altersgruppe, Kategorie und Sprache für den Ownership-Start.</p>
+            <Link href="/admin/task-packages" className="button primary">Ownership-Vorlagen verwalten</Link>
           </article>
         </div>
       </SectionWrapper>

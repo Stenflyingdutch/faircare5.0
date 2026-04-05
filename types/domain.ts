@@ -94,6 +94,7 @@ export const firestoreCollections = {
   couples: 'couples',
   taskAssignments: 'taskAssignments',
   weeklyCheckins: 'weeklyCheckins',
+  taskPackageTemplates: 'taskPackageTemplates',
   newsletterSubscribers: 'newsletterSubscribers',
 } as const;
 
