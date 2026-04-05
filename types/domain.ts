@@ -1,3 +1,5 @@
+import type { LocalizedText } from '@/types/i18n';
+
 export type UserRole = 'user' | 'admin';
 
 export interface UserProfile {
@@ -56,6 +58,17 @@ export interface WeeklyCheckinTemplate {
   title: string;
   prompts: string[];
   moodScaleEnabled: boolean;
+}
+
+
+export interface ContentTextBlock {
+  key: string;
+  group: string;
+  label: string;
+  description: string;
+  text: LocalizedText;
+  isActive: boolean;
+  sortOrder: number;
 }
 
 export interface NewsletterSubscriber {

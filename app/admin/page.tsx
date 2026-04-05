@@ -3,7 +3,7 @@ import { PageHero } from '@/components/PageHero';
 import { SectionWrapper } from '@/components/SectionWrapper';
 import Link from 'next/link';
 
-const adminAreas = ['Quizfragen', 'Ergebnis-Texte', 'Aufgabenkatalog', 'Seiteninhalte', 'Weekly Check-in Templates'];
+const adminAreas = ['Ergebnis-Texte', 'Aufgabenkatalog', 'Seiteninhalte', 'Weekly Check-in Templates'];
 const ageGroups = ['0–1', '1–3', '3–6', '6–10', '10+'];
 
 export default function AdminPage() {
@@ -28,6 +28,12 @@ export default function AdminPage() {
           {adminAreas.map((item) => (
             <Card key={item} title={item} description="Dieser Bereich ist als Platzhalter vorbereitet." />
           ))}
+
+          <article className="card">
+            <h3 className="card-title">Textbausteine</h3>
+            <p className="card-description">Zentrale mehrsprachige UI-Texte für Navigation, Quiz, Admin und Systemmeldungen.</p>
+            <Link href="/admin/texts" className="button primary">Textbausteine bearbeiten</Link>
+          </article>
           <article className="card">
             <h3 className="card-title">Ergebnislogik</h3>
             <p className="card-description">Transparente Dokumentation zu Berechnung, Vergleich, Schwellenwerten und Empfehlungen.</p>
