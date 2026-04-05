@@ -39,9 +39,9 @@ function deriveNameFromEmail(email?: string | null) {
 }
 
 
-function buildNeutralDistributionStatement(selfPercent: number) {
+function buildNeutralDistributionStatement(selfPercent: number, partnerName: string) {
   if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
-  if (selfPercent < 45) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei deinem Partner.';
+  if (selfPercent < 45) return `Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei ${partnerName}.`;
   return 'Aus deiner Sicht ist die Mental Load aktuell eher gleich verteilt.';
 }
 
@@ -165,21 +165,21 @@ export default function DashboardPage() {
     router.push('/login');
   }
 
-  const ownResultText = useMemo(() => {
-    if (!bundle?.ownResult) return null;
-    return {
-      selfPercent: bundle.ownResult.totalScore,
-      statement: buildNeutralDistributionStatement(bundle.ownResult.totalScore),
-      categories: sortCategoriesByOwnShareAscending(
-        Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
-      ),
-    };
-  }, [bundle?.ownResult]);
   const resolvedPartnerName = bundle?.profile?.role === 'partner'
     ? bundle?.initiatorDisplayName
     : bundle?.partnerDisplayName;
   const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
   const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
+  const ownResultText = useMemo(() => {
+    if (!bundle?.ownResult) return null;
+    return {
+      selfPercent: bundle.ownResult.totalScore,
+      statement: buildNeutralDistributionStatement(bundle.ownResult.totalScore, partnerLabel),
+      categories: sortCategoriesByOwnShareAscending(
+        Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
+      ),
+    };
+  }, [bundle?.ownResult, partnerLabel]);
 
   const canInvitePartner = bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered;
 
@@ -361,7 +361,7 @@ function ResultBreakdown({
   const displayName = resolveDisplayName(title, 'Nicole');
   const sortedCategories = [...result.categories].sort((a, b) => b[1] - a[1]);
   const highestLoad = sortedCategories[0];
-  const mostBalanced = [...result.categories].sort((a, b) => Math.abs(a[1] - 50) - Math.abs(b[1] - 50))[0];
+  const hasNoCategoryAboveHalf = highestLoad[1] < 50;
 
   return (
     <>
@@ -369,7 +369,7 @@ function ResultBreakdown({
       <p className="helper" style={{ margin: 0 }}><strong>{displayName}</strong></p>
       <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
       <p className="helper" style={{ margin: 0 }}>
-        Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise des Partners helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
+        Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise von {partnerName} helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
       </p>
       <div className="personal-result-summary detailed individual-result-panel individual-result-light">
         <div className="result-overview-grid">
@@ -386,18 +386,28 @@ function ResultBreakdown({
             <p className="helper"><strong>Gesamtanteil</strong></p>
           </div>
           <div className="result-highlight-grid">
-            <div>
-              <p className="helper">Höchste Last</p>
-              <p className="result-highlight-primary">
-                {categoryLabelMap[highestLoad[0]]} · {highestLoad[1]}%
-              </p>
-            </div>
-            <div>
-              <p className="helper">Ausgeglichen</p>
-              <p className="result-highlight-accent">
-                {categoryLabelMap[mostBalanced[0]]} · {mostBalanced[1]}%
-              </p>
-            </div>
+            {hasNoCategoryAboveHalf ? (
+              <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
+                <p style={{ margin: '0 0 8px' }}>
+                  <strong>Wichtig:</strong> Unter 50 % heißt <strong>nicht</strong>, dass du zu wenig zur Familie beiträgst.
+                </p>
+                <p style={{ margin: '0 0 8px' }}>
+                  Es zeigt nur einen kleinen Ausschnitt: die <strong>„Dran-Denken“-Aufgaben</strong> bei der Erziehung.
+                </p>
+                <p style={{ margin: 0 }}>
+                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr gemeinsam überlegen, ob die Verteilung für euch passt oder ob ihr kleine Änderungen vornehmen möchtet.
+                </p>
+              </div>
+            ) : (
+              <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
+                <p style={{ margin: '0 0 8px' }}>
+                  <strong>Dein stärkster Bereich:</strong> {categoryLabelMap[highestLoad[0]]} ({highestLoad[1]} %).
+                </p>
+                <p style={{ margin: 0 }}>
+                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr wertschätzend prüfen, ob die Verteilung für euch beide stimmig ist.
+                </p>
+              </div>
+            )}
           </div>
         </div>
         <div className="result-legend">
