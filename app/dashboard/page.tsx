@@ -415,9 +415,6 @@ function ResultBreakdown({
                 <p style={{ margin: '0 0 8px' }}>
                   Es zeigt nur einen kleinen Ausschnitt: die <strong>„Dran-Denken“-Aufgaben</strong> bei der Erziehung.
                 </p>
-                <p style={{ margin: 0 }}>
-                  Schaut gemeinsam, ob diese Verteilung für euch passt und wo ihr euch Entlastung wünscht.
-                </p>
               </div>
             ) : (
               <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
@@ -426,9 +423,6 @@ function ResultBreakdown({
                 </p>
                 <p style={{ margin: '0 0 8px' }}>
                   <strong>Größte empfundene Belastung:</strong> {result.perceivedStressLabel}.
-                </p>
-                <p style={{ margin: 0 }}>
-                  Schaut gemeinsam, ob diese Verteilung für euch passt und wo ihr euch Entlastung wünscht.
                 </p>
               </div>
             )}
