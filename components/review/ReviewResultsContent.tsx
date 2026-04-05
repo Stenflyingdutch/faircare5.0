@@ -86,8 +86,6 @@ export function ReviewResultsContent() {
   const [unlockMessage, setUnlockMessage] = useState('');
   const [unlockProgress, setUnlockProgress] = useState(0);
   const [unlockBannerIndex, setUnlockBannerIndex] = useState(0);
-  const [openSharedState, setOpenSharedState] = useState<'idle' | 'loading' | 'error'>('idle');
-  const [openSharedMessage, setOpenSharedMessage] = useState('');
   const [ownershipInitState, setOwnershipInitState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [ownershipInitMessage, setOwnershipInitMessage] = useState('');
   const unlockBannerPool = useMemo(
@@ -199,22 +197,6 @@ export function ReviewResultsContent() {
     }
   }
 
-  async function openSharedViewForBoth() {
-    const userId = currentUserId;
-    if (!userId) return;
-    setOpenSharedState('loading');
-    setOpenSharedMessage('');
-    try {
-      await openSharedResultsView(userId);
-      setOpenSharedState('idle');
-      await refreshDashboard(userId);
-    } catch (error) {
-      setOpenSharedState('error');
-      setOpenSharedMessage(error instanceof Error ? error.message : 'Gemeinsame Ansicht konnte nicht geöffnet werden.');
-    }
-  }
-
-
   const resolvedPartnerName = bundle?.profile?.role === 'partner'
     ? bundle?.initiatorDisplayName
     : bundle?.partnerDisplayName;
@@ -232,9 +214,15 @@ export function ReviewResultsContent() {
     };
   }, [bundle?.ownResult, partnerLabel]);
 
+  const hasUnlockedResults = Boolean(
+    bundle?.family?.resultsUnlocked
+      || bundle?.family?.sharedResultsOpened
+      || bundle?.family?.status === 'joint_pending'
+      || bundle?.family?.status === 'joint_active',
+  );
   const canInvitePartner = bundle?.profile?.role !== 'partner'
     && !bundle?.family?.partnerRegistered
-    && !bundle?.family?.resultsUnlocked;
+    && !hasUnlockedResults;
   const ownershipRecommendations = useMemo(() => {
     if (!bundle?.ownResult) return [] as OwnershipRecommendation[];
     return buildOwnershipRecommendations({
@@ -366,76 +354,63 @@ export function ReviewResultsContent() {
           </article>
         )}
 
-        <article className="card stack">
-          {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered && !bundle?.family?.resultsUnlocked ? (
-            <>
-              <h2 className="card-title">Status</h2>
-              <div className="report-block stack">
-                <p className="helper">Partner-Ergebnis wird nach Freischaltung hier ergänzt.</p>
-                {(ownResultText?.categories ?? []).map(([category]) => (
-                  <div key={`ghost-${category}`} className="report-block" style={{ opacity: 0.5 }}>
-                    <strong>{categoryLabelMap[category]}</strong>
-                    <div className="result-bar" />
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : bundle?.family?.resultsUnlocked ? (
-            <>
-              <h2 className="card-title">Status</h2>
-              <p className="card-description">
-                {bundle?.family?.sharedResultsOpened
-                  ? 'Eure gemeinsamen Ergebnisse werden unten angezeigt.'
-                  : 'Eure gemeinsamen Ergebnisse sind bereit.'}
-              </p>
-              {!bundle?.family?.sharedResultsOpened && (
-                <button className="button primary" type="button" onClick={openSharedViewForBoth} disabled={openSharedState === 'loading'}>
-                  Gemeinsame Ergebnisse anschauen
-                </button>
-              )}
-              {openSharedState === 'error' && <p className="inline-error">{openSharedMessage}</p>}
-            </>
-          ) : bundle?.profile?.role === 'partner' ? (
-            <>
-              <h2 className="card-title">Status</h2>
-              <p className="card-description">
-                {bundle?.family?.partnerRegistered
-                  ? `${bundle?.initiatorDisplayName ?? 'Der Initiator'} hat eine E-Mail erhalten und kann jetzt euer gemeinsames Ergebnis freischalten.`
-                  : 'Warte auf Abschluss der Registrierung.'}
-              </p>
-            </>
-          ) : (
-            <>
-              <h2 className="card-title">Status</h2>
-              <p className="card-description">
-                {bundle?.family?.partnerRegistered
-                  ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die gemeinsamen Ergebnisse jetzt generieren.'
-                  : 'Warte auf die Bewertung deines Partners.'}
-              </p>
-              {bundle?.family?.partnerRegistered && (
-                <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
-                  {unlockState === 'loading' ? 'Gemeinsame Ergebnisse werden berechnet …' : 'Gemeinsame Ergebnisse generieren'}
-                </button>
-              )}
-              {unlockState === 'loading' && (
-                <>
-                  <div className="quiz-progress" aria-label="Berechnungsfortschritt">
-                    <div className="quiz-progress-bar" style={{ width: `${unlockProgress}%`, transition: 'width 100ms linear' }} />
-                  </div>
-                  <p className="helper">{unlockProgress}%</p>
-                  <div className="card" style={{ overflow: 'hidden' }}>
-                    <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Denkaufgaben sichtbar gemacht</p>
-                    <p style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {Array.from({ length: 4 }).map((_, offset) => unlockBannerPool[(unlockBannerIndex + offset) % unlockBannerPool.length]).join(' - ')}
-                    </p>
-                  </div>
-                </>
-              )}
-              {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
-              {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
-            </>
-          )}
-        </article>
+        {!hasUnlockedResults && (
+          <article className="card stack">
+            {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
+              <>
+                <h2 className="card-title">Status</h2>
+                <div className="report-block stack">
+                  <p className="helper">Partner-Ergebnis wird nach Freischaltung hier ergänzt.</p>
+                  {(ownResultText?.categories ?? []).map(([category]) => (
+                    <div key={`ghost-${category}`} className="report-block" style={{ opacity: 0.5 }}>
+                      <strong>{categoryLabelMap[category]}</strong>
+                      <div className="result-bar" />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : bundle?.profile?.role === 'partner' ? (
+              <>
+                <h2 className="card-title">Status</h2>
+                <p className="card-description">
+                  {bundle?.family?.partnerRegistered
+                    ? `${bundle?.initiatorDisplayName ?? 'Der Initiator'} hat eine E-Mail erhalten und kann jetzt euer gemeinsames Ergebnis freischalten.`
+                    : 'Warte auf Abschluss der Registrierung.'}
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="card-title">Status</h2>
+                <p className="card-description">
+                  {bundle?.family?.partnerRegistered
+                    ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die gemeinsamen Ergebnisse jetzt generieren.'
+                    : 'Warte auf die Bewertung deines Partners.'}
+                </p>
+                {bundle?.family?.partnerRegistered && (
+                  <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
+                    {unlockState === 'loading' ? 'Gemeinsame Ergebnisse werden berechnet …' : 'Gemeinsame Ergebnisse generieren'}
+                  </button>
+                )}
+                {unlockState === 'loading' && (
+                  <>
+                    <div className="quiz-progress" aria-label="Berechnungsfortschritt">
+                      <div className="quiz-progress-bar" style={{ width: `${unlockProgress}%`, transition: 'width 100ms linear' }} />
+                    </div>
+                    <p className="helper">{unlockProgress}%</p>
+                    <div className="card" style={{ overflow: 'hidden' }}>
+                      <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Denkaufgaben sichtbar gemacht</p>
+                      <p style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {Array.from({ length: 4 }).map((_, offset) => unlockBannerPool[(unlockBannerIndex + offset) % unlockBannerPool.length]).join(' - ')}
+                      </p>
+                    </div>
+                  </>
+                )}
+                {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
+                {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
+              </>
+            )}
+          </article>
+        )}
 
         {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && (
           <JointResultPanel bundle={bundle} />
