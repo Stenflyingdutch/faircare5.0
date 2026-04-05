@@ -36,6 +36,12 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+function deriveNameFromEmail(email?: string | null) {
+  if (!email) return null;
+  const local = email.split('@')[0]?.trim();
+  return local || null;
+}
+
 async function sha256(value: string) {
   const enc = new TextEncoder();
   const digest = await crypto.subtle.digest('SHA-256', enc.encode(value));
@@ -88,15 +94,18 @@ function buildInviteError(
   });
 }
 
-export async function ensureUserProfile(params: { userId: string; email: string; displayName?: string; role?: FamilyRole }) {
+export async function ensureUserProfile(params: { userId: string; email: string; displayName?: string | null; role?: FamilyRole }) {
   const userRef = doc(db, firestoreCollections.users, params.userId);
   const payload: Record<string, unknown> = {
     id: params.userId,
     email: normalizeEmail(params.email),
-    displayName: params.displayName ?? null,
     createdAt: nowIso(),
     updatedAt: serverTimestamp(),
   };
+  const normalizedDisplayName = params.displayName?.trim();
+  if (typeof params.displayName === 'string' && normalizedDisplayName) {
+    payload.displayName = normalizedDisplayName;
+  }
   if (params.role) {
     payload.role = params.role;
   }
@@ -505,12 +514,13 @@ export async function finalizePartnerRegistration(params: {
 
   const resultId = doc(collection(db, firestoreCollections.quizResults)).id;
   const createdAt = nowIso();
+  const normalizedDisplayName = params.displayName?.trim() || deriveNameFromEmail(normalizedEmail);
 
   await runTransaction(db, async (transaction) => {
     transaction.set(doc(db, firestoreCollections.users, params.userId), {
       id: params.userId,
       email: normalizedEmail,
-      displayName: params.displayName ?? null,
+      displayName: normalizedDisplayName ?? null,
       familyId: invitation.familyId,
       role: 'partner',
       createdAt,
@@ -825,17 +835,20 @@ export async function fetchDashboardBundle(userId: string) {
     family = familySnap.exists() ? (familySnap.data() as FamilyDocument) : null;
     if (family?.initiatorUserId) {
       const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
-      initiatorDisplayName = initiatorProfile?.displayName || 'Initiator';
+      initiatorDisplayName = initiatorProfile?.displayName || deriveNameFromEmail(initiatorProfile?.email) || 'Initiator';
     }
     if (family?.partnerUserId) {
       const partnerProfile = await fetchAppUserProfile(family.partnerUserId);
-      partnerDisplayName = partnerProfile?.displayName || 'Partner';
+      partnerDisplayName = partnerProfile?.displayName || deriveNameFromEmail(partnerProfile?.email) || null;
     }
     if (family?.invitationId) {
       const invitationSnap = await getDoc(doc(db, firestoreCollections.invitations, family.invitationId));
       if (invitationSnap.exists()) {
         const invitation = invitationSnap.data() as InvitationDocument;
         invitationPartnerEmail = invitation.partnerEmail ?? null;
+        if (!partnerDisplayName) {
+          partnerDisplayName = deriveNameFromEmail(invitationPartnerEmail);
+        }
       }
     }
 

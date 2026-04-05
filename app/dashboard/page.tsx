@@ -173,7 +173,7 @@ export default function DashboardPage() {
     ? bundle?.initiatorDisplayName
     : bundle?.partnerDisplayName;
   const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
-  const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
+  const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Unbekannt');
 
   if (loading) return <section className="section"><div className="container">Lade Dashboard …</div></section>;
 
@@ -289,7 +289,7 @@ function JointResultPanel({ bundle }: {
 }) {
   if (!bundle.initiatorResult || !bundle.partnerResult) return null;
 
-  const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, deriveNameFromEmail(bundle.profile?.email) ?? 'Unbekannt');
+  const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, deriveNameFromEmail(bundle.profile?.email) ?? 'Initiator');
   const partnerName = resolveDisplayName(bundle.partnerDisplayName, deriveNameFromEmail(bundle.invitationPartnerEmail) ?? 'Unbekannt');
 
   const initiatorScores = bundle.initiatorResult.categoryScores;

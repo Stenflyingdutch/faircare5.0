@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 
 import { registerUser } from '@/services/auth.service';
+import { ensureUserProfile } from '@/services/partnerFlow.service';
 import { linkAnonymousSessionToUser } from '@/services/sessionLinking';
 import { loadSessionFromStorage } from '@/services/sessionStorage';
 
@@ -29,7 +30,14 @@ export default function RegisterPage() {
 
     try {
       const credential = await registerUser(email, password);
-      await updateProfile(credential.user, { displayName: displayName.trim() });
+      const normalizedDisplayName = displayName.trim();
+      await updateProfile(credential.user, { displayName: normalizedDisplayName });
+      await ensureUserProfile({
+        userId: credential.user.uid,
+        email,
+        displayName: normalizedDisplayName,
+        role: 'initiator',
+      });
       const session = loadSessionFromStorage();
       if (session) {
         await linkAnonymousSessionToUser(credential.user, session);

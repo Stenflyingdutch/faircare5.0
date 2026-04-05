@@ -9,7 +9,7 @@ export default function HomePage() {
       <PageHero
         title="Mental Load sichtbar machen. Verantwortung klar verteilen."
         subtitle="mental carefair hilft Eltern, unsichtbare Denk- und Planungsarbeit offen zu besprechen und als Team fair zu organisieren."
-        actions={<CTAButton href="/quiz/start">Jetzt kostenlosen Test machen</CTAButton>}
+        actions={<CTAButton href="/quiz/filter">Jetzt kostenlosen Test machen</CTAButton>}
       />
 
       <SectionWrapper>
