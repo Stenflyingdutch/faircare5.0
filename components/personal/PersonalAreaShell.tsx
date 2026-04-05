@@ -48,7 +48,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
       <div className="container personal-area-shell stack">
         <header className="personal-area-header stack">
           <div className="personal-area-headline-row">
-            <button type="button" className="button" onClick={onLogout}>Logout</button>
+            <button type="button" className="button personal-area-logout" onClick={onLogout}>Logout</button>
           </div>
           <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
             {personalNavItems.map((item) => {

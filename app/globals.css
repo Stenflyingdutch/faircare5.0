@@ -667,10 +667,17 @@ textarea.input {
 
 .personal-area-headline-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: flex-start;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+.personal-area-logout {
+  min-height: 32px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.9rem;
+  border-radius: 999px;
 }
 
 .personal-area-kicker {
