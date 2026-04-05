@@ -51,6 +51,8 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
     );
   }
 
+  const showNavigation = !pathname.startsWith('/app/ergebnisse');
+
   return (
     <section className="section personal-area-section">
       <div className="container personal-area-shell stack">
@@ -58,22 +60,24 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           <div className="personal-area-headline-row">
             <button type="button" className="button personal-area-logout" onClick={onLogout}>Logout</button>
           </div>
-          <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
-            {personalNavItems.map((item) => {
-              const isTeamCheckContext = item.href === '/app/review' && pathname.startsWith('/app/ergebnisse');
-              const isActive = pathname.startsWith(item.href) || isTeamCheckContext;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`personal-area-nav-link ${isActive ? `active tone-${item.tone}` : ''}`}
-                >
-                  {item.label}
-                  {item.href === '/app/review' && showTeamCheckDot && <span className="team-check-nav-dot" aria-hidden="true" />}
-                </Link>
-              );
-            })}
-          </nav>
+          {showNavigation && (
+            <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
+              {personalNavItems.map((item) => {
+                const isTeamCheckContext = item.href === '/app/review' && pathname.startsWith('/app/ergebnisse');
+                const isActive = pathname.startsWith(item.href) || isTeamCheckContext;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`personal-area-nav-link ${isActive ? `active tone-${item.tone}` : ''}`}
+                  >
+                    {item.label}
+                    {item.href === '/app/review' && showTeamCheckDot && <span className="team-check-nav-dot" aria-hidden="true" />}
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
         </header>
         <div className="personal-area-content">{children}</div>
       </div>

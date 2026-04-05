@@ -17,7 +17,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await loginUser(email, password);
-      router.push('/app/review');
+      router.push('/app/ergebnisse');
     } catch {
       setError('Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.');
     }

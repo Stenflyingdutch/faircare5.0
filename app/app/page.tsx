@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function PersonalAreaIndexPage() {
-  redirect('/app/review');
+  redirect('/app/ergebnisse');
 }
