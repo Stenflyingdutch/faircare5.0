@@ -5,7 +5,6 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
-  orderBy,
   query,
   runTransaction,
   serverTimestamp,
@@ -196,7 +195,6 @@ export function observeOwnershipCards(familyId: string, onData: (items: Ownershi
   const cardsQuery = query(
     collection(db, firestoreCollections.families, familyId, 'ownershipCards'),
     where('isDeleted', '==', false),
-    orderBy('sortOrder', 'asc'),
   );
 
   return onSnapshot(cardsQuery, (snapshot) => {
