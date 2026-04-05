@@ -175,6 +175,7 @@ export default function DashboardPage() {
 
     try {
       const result = await unlockPartnerAndJointResults(userId);
+      await openSharedResultsView(userId);
       await new Promise((resolve) => window.setTimeout(resolve, Math.max(0, TOTAL_DURATION_MS - (Date.now() - startedAt))));
       setUnlockProgress(100);
       setUnlockState('success');
@@ -347,7 +348,7 @@ export default function DashboardPage() {
                   </div>
                   <p className="helper">{unlockProgress}%</p>
                   <div className="card" style={{ overflow: 'hidden' }}>
-                    <p className="helper" style={{ marginBottom: 8 }}>Kurzer Gedanken-Check</p>
+                    <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Denkaufgaben sichtbar gemacht</p>
                     <p style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {Array.from({ length: 4 }).map((_, offset) => unlockBannerPool[(unlockBannerIndex + offset) % unlockBannerPool.length]).join(' - ')}
                     </p>
