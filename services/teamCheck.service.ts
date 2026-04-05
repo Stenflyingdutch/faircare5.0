@@ -140,6 +140,24 @@ export function observePreparationPair(params: {
   );
 }
 
+
+export function observeTeamCheckRecords(params: {
+  familyId: string;
+  onData: (records: TeamCheckRecord[]) => void;
+  maxEntries?: number;
+}) {
+  return onSnapshot(
+    query(
+      collection(db, firestoreCollections.families, params.familyId, 'teamCheckRecords'),
+      orderBy('checkInAt', 'desc'),
+      limit(params.maxEntries ?? 10),
+    ),
+    (snapshot) => {
+      params.onData(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() } as TeamCheckRecord)));
+    },
+  );
+}
+
 export function observeLatestTeamCheckRecord(params: {
   familyId: string;
   onData: (record: TeamCheckRecord | null) => void;

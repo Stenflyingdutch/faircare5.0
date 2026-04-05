@@ -9,8 +9,8 @@ import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { observeOwnershipCards, updateOwnershipCardOwner } from '@/services/ownership.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
-  observeLatestTeamCheckRecord,
   observePreparationPair,
+  observeTeamCheckRecords,
   resolveScheduledForKey,
   saveTeamCheckPreparation,
   saveTeamCheckRecord,
@@ -39,7 +39,8 @@ export function TeamCheckContent() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
   const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
-  const [latestRecord, setLatestRecord] = useState<TeamCheckRecord | null>(null);
+  const [records, setRecords] = useState<TeamCheckRecord[]>([]);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [preparations, setPreparations] = useState<TeamCheckPreparation[]>([]);
 
   const [mode, setMode] = useState<'overview' | 'prepare' | 'conduct'>('overview');
@@ -78,7 +79,7 @@ export function TeamCheckContent() {
 
   useEffect(() => {
     if (!bundle?.profile?.familyId) return;
-    return observeLatestTeamCheckRecord({ familyId: bundle.profile.familyId, onData: setLatestRecord });
+    return observeTeamCheckRecords({ familyId: bundle.profile.familyId, onData: setRecords, maxEntries: 10 });
   }, [bundle?.profile?.familyId]);
 
   useEffect(() => {
@@ -100,6 +101,8 @@ export function TeamCheckContent() {
 
   const hasPlan = Boolean(bundle?.family?.teamCheckPlan?.frequency && bundle?.family?.teamCheckPlan?.dayOfWeek !== undefined);
   const nextCheckInLabel = formatTeamCheckDate(bundle?.family?.teamCheckPlan?.nextCheckInAt ?? null, Boolean(bundle?.family?.teamCheckPlan?.time));
+  const latestRecord = records[0] ?? null;
+  const selectedRecord = records.find((entry) => entry.id === selectedRecordId) ?? latestRecord;
   const lastCheckInLabel = formatTeamCheckDate(bundle?.family?.teamCheckPlan?.lastCheckInAt ?? latestRecord?.checkInAt ?? null);
 
   const ownerOptions = useMemo(() => {
@@ -239,18 +242,47 @@ export function TeamCheckContent() {
             </button>
           ) : (
             <>
-              <div className="stack" style={{ gap: 4 }}>
-                {nextCheckInLabel && <p style={{ margin: 0 }}>Nächster Check-in am {nextCheckInLabel}</p>}
-                {lastCheckInLabel && <p className="helper" style={{ margin: 0 }}>Check-in durchgeführt am {lastCheckInLabel}</p>}
-              </div>
               {mode === 'overview' && (
                 <button type="button" className="button primary" onClick={() => setMode('prepare')}>
                   Check-in vorbereiten
                 </button>
               )}
+              <div className="stack" style={{ gap: 4 }}>
+                {nextCheckInLabel && <p style={{ margin: 0 }}>Nächster Check-in am {nextCheckInLabel}</p>}
+                {lastCheckInLabel && <p className="helper" style={{ margin: 0 }}>Check-in durchgeführt am {lastCheckInLabel}</p>}
+              </div>
             </>
           )}
         </article>
+
+        {records.length > 0 && (
+          <article className="card stack">
+            <h3 className="card-title" style={{ margin: 0 }}>Vergangene Team-Checks</h3>
+            <div className="stack" style={{ gap: 8 }}>
+              {records.map((record) => {
+                const formatted = formatTeamCheckDate(record.checkInAt);
+                return (
+                  <button
+                    type="button"
+                    key={record.id}
+                    className="button"
+                    style={{ justifyContent: 'space-between' }}
+                    onClick={() => setSelectedRecordId(record.id)}
+                  >
+                    <span>Check-in durchgeführt am {formatted ?? '—'}</span>
+                    <span>Notiz ansehen</span>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedRecord && (
+              <div className="report-block stack" id="team-check-notiz">
+                <strong>Notiz zum Team-Check</strong>
+                <p className="helper" style={{ margin: 0 }}>{selectedRecord.note?.trim() || 'Keine Notiz hinterlegt.'}</p>
+              </div>
+            )}
+          </article>
+        )}
 
         {mode === 'prepare' && hasPlan && (
           <article className="card stack">
@@ -360,9 +392,7 @@ export function TeamCheckContent() {
           {canSeeJointResults && (
             <p className="helper" style={{ margin: 0 }}>Gemeinsame Vergleichsergebnisse sind verfügbar und im Bereich Ergebnisse jederzeit einsehbar.</p>
           )}
-          {latestRecord?.checkInAt && (
-            <p className="helper" style={{ margin: 0 }}>Check-in durchgeführt am {formatTeamCheckDate(latestRecord.checkInAt) ?? '—'}</p>
-          )}
+          {latestRecord?.checkInAt && <p className="helper" style={{ margin: 0 }}>Letzter Team-Check am {formatTeamCheckDate(latestRecord.checkInAt) ?? '—'}</p>}
         </article>
 
         {error && <p className="inline-error">{error}</p>}

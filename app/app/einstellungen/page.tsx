@@ -160,6 +160,14 @@ export default function EinstellungenPage() {
         </div>
       </article>
 
+      <article className="card stack">
+        <h3 className="card-title" style={{ margin: 0 }}>Quiz-Ergebnisse</h3>
+        <p className="helper" style={{ margin: 0 }}>Die durchgesprochenen Quiz-Ergebnisse sind jederzeit einsehbar.</p>
+        <a href="/app/ergebnisse" className="button" style={{ width: 'fit-content' }}>
+          Quiz-Ergebnisse ansehen
+        </a>
+      </article>
+
       {error && <p className="inline-error">{error}</p>}
       {message && <p className="helper" style={{ margin: 0 }}>{message}</p>}
     </div>
