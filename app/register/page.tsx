@@ -4,7 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 
-import { registerUser } from '@/services/auth.service';
+import { registerUser, resolveRegistrationErrorMessage } from '@/services/auth.service';
 import { ensureUserProfile } from '@/services/partnerFlow.service';
 import { linkAnonymousSessionToUser } from '@/services/sessionLinking';
 import { loadSessionFromStorage } from '@/services/sessionStorage';
@@ -43,8 +43,8 @@ export default function RegisterPage() {
         await linkAnonymousSessionToUser(credential.user, session);
       }
       router.push('/dashboard');
-    } catch {
-      setError('Registrierung fehlgeschlagen. Bitte prüfe deine Eingaben.');
+    } catch (registrationError) {
+      setError(resolveRegistrationErrorMessage(registrationError));
       setIsSubmitting(false);
     }
   }

@@ -19,7 +19,7 @@ const stressCategoryDescriptions: Record<StressCategory, string> = {
 export default function QuizStressPage() {
   const router = useRouter();
   const [session, setSession] = useState<TempQuizSession | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const existing = loadSessionFromStorage();
@@ -30,31 +30,25 @@ export default function QuizStressPage() {
     setSession(existing);
   }, [router]);
 
-  function toggleCategory(category: StressCategory) {
-    if (!session) return;
-    setError(null);
-    const exists = session.stressCategories.includes(category);
-    if (!exists && session.stressCategories.length >= 3) {
-      setError('Du kannst maximal 3 Bereiche auswählen.');
-      return;
-    }
+  async function selectCategory(category: StressCategory) {
+    if (!session || isSaving) return;
+
+    setIsSaving(true);
 
     const updated = {
       ...session,
-      stressCategories: exists ? session.stressCategories.filter((item) => item !== category) : [...session.stressCategories, category],
+      stressCategories: [category],
       completedAt: new Date().toISOString(),
     };
 
     setSession(updated);
     saveSessionToStorage(updated);
-  }
 
-  async function finish() {
-    if (!session) return;
     try {
-      await persistQuizSession(session);
+      await persistQuizSession(updated);
     } catch {}
-    router.push('/quiz/result');
+
+    router.push('/quiz/preparing');
   }
 
   if (!session) return <section className="section"><div className="container test-shell">Lade Session …</div></section>;
@@ -62,18 +56,22 @@ export default function QuizStressPage() {
   return (
     <section className="section">
       <div className="container test-shell stack">
-        <h1 className="test-title">Welche Bereiche belasten dich aktuell am meisten?</h1>
-        <p className="helper">Optional · Mehrfachauswahl (max. 3)</p>
+        <h1 className="test-title">Welcher Bereich belastet dich aktuell am meisten?</h1>
+        <p className="helper">Einzelauswahl · Nach Auswahl geht es automatisch weiter</p>
         <div className="stack">
           {stressOptions.map((option) => (
-            <button key={option.value} type="button" className={`answer-button ${session.stressCategories.includes(option.value) ? 'selected' : ''}`} onClick={() => toggleCategory(option.value)}>
+            <button
+              key={option.value}
+              type="button"
+              className={`answer-button ${session.stressCategories.includes(option.value) ? 'selected' : ''}`}
+              onClick={() => selectCategory(option.value)}
+              disabled={isSaving}
+            >
               <strong>{option.label}</strong>
               <span className="helper" style={{ marginTop: 4, display: 'block' }}>{stressCategoryDescriptions[option.value]}</span>
             </button>
           ))}
         </div>
-        {error && <p className="inline-error">{error}</p>}
-        <button type="button" className="button primary" onClick={finish}>Kurz-Auswertung anzeigen</button>
       </div>
     </section>
   );

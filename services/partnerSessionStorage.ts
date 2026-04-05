@@ -10,6 +10,7 @@ export interface PartnerLocalSession {
   answers: Partial<Record<string, OwnershipAnswer>>;
   perceptionAnswer?: string;
   completedAt?: string;
+  counterpartName?: string;
 }
 
 const KEY = 'faircare_partner_session_v1';

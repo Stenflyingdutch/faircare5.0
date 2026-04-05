@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { resolveInvitationByToken, startPartnerSession } from '@/services/partnerFlow.service';
+import { fetchAppUserProfile, resolveInvitationByToken, startPartnerSession } from '@/services/partnerFlow.service';
 import { savePartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { InvitationDocument } from '@/types/partner-flow';
 
@@ -35,6 +35,9 @@ export default function InviteLandingPage() {
     setStarting(true);
     try {
       const session = await startPartnerSession(invitation);
+      const initiatorProfile = await fetchAppUserProfile(invitation.initiatorUserId);
+      const fallbackFromEmail = initiatorProfile?.email?.split('@')[0]?.trim();
+
       savePartnerLocalSession({
         invitationToken: params.token,
         invitationId: invitation.id,
@@ -43,6 +46,7 @@ export default function InviteLandingPage() {
         questionSetId: session.questionSetId,
         questions: session.questionSetSnapshot,
         answers: {},
+        counterpartName: initiatorProfile?.displayName || fallbackFromEmail || 'Partner',
       });
       router.push(`/partner-test/${params.token}`);
     } catch {

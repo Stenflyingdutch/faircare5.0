@@ -1,12 +1,16 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { ownershipOptions, splitClarityOptions } from '@/components/test/test-config';
 import { completePartnerSession, resolveInvitationByToken, savePartnerFilterPerception, savePartnerSessionAnswer } from '@/services/partnerFlow.service';
 import { loadPartnerLocalSession, savePartnerLocalSession, type PartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { OwnershipAnswer } from '@/types/quiz';
+
+function resolveCounterpartName(session: PartnerLocalSession | null) {
+  return session?.counterpartName?.trim() || 'Partner';
+}
 
 export default function PartnerTestPage() {
   const params = useParams<{ token: string }>();
@@ -35,6 +39,13 @@ export default function PartnerTestPage() {
     });
   }, [params?.token, router]);
 
+  const counterpartName = useMemo(() => resolveCounterpartName(session), [session]);
+  const resolvedOwnershipOptions = useMemo(() => ownershipOptions.map((option) => {
+    if (option.value === 'partner') return { ...option, label: counterpartName };
+    if (option.value === 'eher_partner') return { ...option, label: `eher ${counterpartName}` };
+    return option;
+  }), [counterpartName]);
+
   if (loading || !session) return <section className="section"><div className="container test-shell">Partner-Test wird geladen …</div></section>;
 
   const question = session.questions[index];
@@ -43,44 +54,58 @@ export default function PartnerTestPage() {
   const progress = Math.round((currentStep / totalSteps) * 100);
 
   async function selectPerception(value: string) {
-    if (!session) return;
+    if (!session || finishing) return;
     const next = { ...session, perceptionAnswer: value };
     setSession(next);
     savePartnerLocalSession(next);
-    await savePartnerFilterPerception(session.sessionId, value);
+    try {
+      await savePartnerFilterPerception(next.sessionId, value);
+    } catch {
+      setError('Antwort konnte nicht gespeichert werden. Bitte erneut auswählen.');
+    }
+  }
+
+  async function finishWithAnswers(nextAnswers: Partial<Record<string, OwnershipAnswer>>) {
+    if (!session) return;
+    setFinishing(true);
+    setError(null);
+    try {
+      const completed = await completePartnerSession(session.sessionId, nextAnswers);
+      savePartnerLocalSession({ ...session, answers: nextAnswers, completedAt: completed.resultDraft.completedAt });
+      router.push(`/register-after-test?token=${session.invitationToken}`);
+    } catch {
+      setError('Der Test konnte nicht final gespeichert werden. Bitte erneut versuchen.');
+      setFinishing(false);
+    }
   }
 
   async function selectAnswer(answer: OwnershipAnswer) {
-    if (!session) return;
-    const next = {
-      ...session,
-      answers: {
-        ...session.answers,
-        [question.id]: answer,
-      },
+    if (!session || finishing) return;
+    const nextAnswers = {
+      ...session.answers,
+      [question.id]: answer,
     };
-    setSession(next);
-    savePartnerLocalSession(next);
-    await savePartnerSessionAnswer(session.sessionId, next.answers);
-  }
 
-  async function next() {
-    if (!session) return;
-    if (!session.perceptionAnswer) return;
-    if (!session.answers[question.id]) return;
-    if (index === session.questions.length - 1) {
-      setFinishing(true);
-      setError(null);
-      try {
-        const completed = await completePartnerSession(session.sessionId, session.answers);
-        savePartnerLocalSession({ ...session, completedAt: completed.resultDraft.completedAt });
-        router.push(`/register-after-test?token=${session.invitationToken}`);
-      } catch {
-        setError('Der Test konnte nicht final gespeichert werden. Bitte erneut versuchen.');
-        setFinishing(false);
-      }
+    const nextSession = {
+      ...session,
+      answers: nextAnswers,
+    };
+
+    setSession(nextSession);
+    savePartnerLocalSession(nextSession);
+
+    try {
+      await savePartnerSessionAnswer(session.sessionId, nextAnswers);
+    } catch {
+      setError('Antwort konnte nicht gespeichert werden. Bitte erneut auswählen.');
       return;
     }
+
+    if (index === session.questions.length - 1) {
+      await finishWithAnswers(nextAnswers);
+      return;
+    }
+
     setIndex((current) => current + 1);
   }
 
@@ -101,6 +126,7 @@ export default function PartnerTestPage() {
                     type="button"
                     className={`option-chip ${session.perceptionAnswer === option.value ? 'selected' : ''}`}
                     onClick={() => selectPerception(option.value)}
+                    disabled={finishing}
                   >
                     {option.label}
                   </button>
@@ -113,12 +139,13 @@ export default function PartnerTestPage() {
             <p className="helper">Frage {index + 1} von {session.questions.length}</p>
             <h1 className="test-question">{question.questionText?.de ?? question.id}</h1>
             <div className="stack">
-              {ownershipOptions.map((option) => (
+              {resolvedOwnershipOptions.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   className={`answer-button ${session.answers[question.id] === option.value ? 'selected' : ''}`}
                   onClick={() => selectAnswer(option.value)}
+                  disabled={finishing}
                 >
                   {option.label}
                 </button>
@@ -130,14 +157,13 @@ export default function PartnerTestPage() {
         {error && <p className="inline-error">{error}</p>}
 
         <div className="quiz-actions">
-          <button type="button" className="button" onClick={() => setIndex((current) => Math.max(current - 1, 0))} disabled={index === 0 || finishing || !session.perceptionAnswer}>Zurück</button>
           <button
             type="button"
-            className="button primary"
-            onClick={next}
-            disabled={!session.perceptionAnswer || !session.answers[question.id] || finishing}
+            className="button"
+            onClick={() => setIndex((current) => Math.max(current - 1, 0))}
+            disabled={index === 0 || finishing || !session.perceptionAnswer}
           >
-            {index === session.questions.length - 1 ? (finishing ? 'Wird gespeichert …' : 'Abschließen') : 'Weiter'}
+            Zurück
           </button>
         </div>
       </div>
