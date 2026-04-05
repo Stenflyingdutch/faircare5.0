@@ -163,7 +163,8 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
   }
 
   function ownerVisual(ownerUserId?: string | null) {
-    if (!ownerUserId) {
+    const ownerIndex = ownerOptions.findIndex((option) => option.userId === ownerUserId);
+    if (!ownerUserId || ownerIndex === -1) {
       return {
         label: 'Noch nicht zugeordnet',
         buttonBackground: '#ececec',
@@ -172,7 +173,6 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
       };
     }
 
-    const ownerIndex = ownerOptions.findIndex((option) => option.userId === ownerUserId);
     const ownerLabel = ownerOptions.find((option) => option.userId === ownerUserId)?.label ?? 'Noch nicht zugeordnet';
     if (ownerIndex === 0) {
       return {
