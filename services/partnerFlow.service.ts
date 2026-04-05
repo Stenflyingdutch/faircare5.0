@@ -36,10 +36,16 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+function normalizeName(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
 function deriveNameFromEmail(email?: string | null) {
   if (!email) return null;
   const local = email.split('@')[0]?.trim();
-  return local || null;
+  return normalizeName(local);
 }
 
 async function sha256(value: string) {
@@ -499,9 +505,6 @@ export async function finalizePartnerRegistration(params: {
 
   const invitation = invitationState.invitation;
   const normalizedEmail = normalizeEmail(params.email);
-  if (normalizeEmail(invitation.partnerEmail) !== normalizedEmail) {
-    throw new Error('Bitte registriere dich mit der eingeladenen E-Mail-Adresse.');
-  }
 
   const sessionRef = doc(db, firestoreCollections.quizSessions, params.sessionId);
   const sessionSnapshot = await getDoc(sessionRef);
@@ -514,13 +517,13 @@ export async function finalizePartnerRegistration(params: {
 
   const resultId = doc(collection(db, firestoreCollections.quizResults)).id;
   const createdAt = nowIso();
-  const normalizedDisplayName = params.displayName?.trim() || deriveNameFromEmail(normalizedEmail);
+  const normalizedDisplayName = normalizeName(params.displayName?.trim()) || deriveNameFromEmail(normalizedEmail);
 
   await runTransaction(db, async (transaction) => {
     transaction.set(doc(db, firestoreCollections.users, params.userId), {
       id: params.userId,
       email: normalizedEmail,
-      displayName: normalizedDisplayName ?? null,
+      displayName: normalizeName(normalizedDisplayName) ?? null,
       familyId: invitation.familyId,
       role: 'partner',
       createdAt,
@@ -550,6 +553,7 @@ export async function finalizePartnerRegistration(params: {
     transaction.set(doc(db, firestoreCollections.invitations, invitation.id), {
       status: 'accepted',
       acceptedAt: createdAt,
+      acceptedEmail: normalizedEmail,
     }, { merge: true });
 
     transaction.set(doc(db, firestoreCollections.families, invitation.familyId), {

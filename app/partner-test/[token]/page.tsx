@@ -8,8 +8,14 @@ import { completePartnerSession, resolveInvitationByToken, savePartnerFilterPerc
 import { loadPartnerLocalSession, savePartnerLocalSession, type PartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { OwnershipAnswer } from '@/types/quiz';
 
+function normalizeName(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
 function resolveCounterpartName(session: PartnerLocalSession | null) {
-  return session?.counterpartName?.trim() || 'Partner';
+  return normalizeName(session?.counterpartName) || 'Partner';
 }
 
 export default function PartnerTestPage() {

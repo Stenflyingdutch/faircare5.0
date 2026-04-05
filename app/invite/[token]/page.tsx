@@ -8,6 +8,13 @@ import { fetchAppUserProfile, resolveInvitationByToken, startPartnerSession } fr
 import { savePartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { InvitationDocument } from '@/types/partner-flow';
 
+
+function normalizeName(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
 export default function InviteLandingPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
@@ -46,7 +53,7 @@ export default function InviteLandingPage() {
         questionSetId: session.questionSetId,
         questions: session.questionSetSnapshot,
         answers: {},
-        counterpartName: initiatorProfile?.displayName || fallbackFromEmail || 'Partner',
+        counterpartName: normalizeName(initiatorProfile?.displayName) || normalizeName(fallbackFromEmail) || 'Partner',
       });
       router.push(`/partner-test/${params.token}`);
     } catch {

@@ -22,14 +22,20 @@ function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, numb
   return [...categories].sort(([, valueA], [, valueB]) => valueA - valueB);
 }
 
+function normalizeName(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
 function resolveDisplayName(value?: string | null, fallback = 'Nutzer') {
-  return value?.trim() || fallback;
+  return normalizeName(value) || normalizeName(fallback) || 'Nutzer';
 }
 
 function deriveNameFromEmail(email?: string | null) {
   if (!email) return null;
   const local = email.split('@')[0]?.trim();
-  return local || null;
+  return normalizeName(local);
 }
 
 
