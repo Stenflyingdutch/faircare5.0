@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { questionTemplates } from '@/data/questionTemplates';
@@ -12,8 +12,6 @@ import { observeAuthState, signOutUser } from '@/services/auth.service';
 import {
   ensureUserProfile,
   fetchDashboardBundle,
-  fetchAppUserProfile,
-  sendPartnerInvitation,
   openSharedResultsView,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
@@ -58,13 +56,6 @@ export default function DashboardPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [invitePersonalMessage, setInvitePersonalMessage] = useState(
-    'Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.',
-  );
-  const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
-  const [inviteMessage, setInviteMessage] = useState('');
-
   const [unlockState, setUnlockState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [unlockMessage, setUnlockMessage] = useState('');
   const [unlockProgress, setUnlockProgress] = useState(0);
@@ -95,48 +86,6 @@ export default function DashboardPage() {
 
     return () => unsubscribe();
   }, [router]);
-
-  async function onInviteSubmit(event: FormEvent) {
-    event.preventDefault();
-    const email = inviteEmail.trim();
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email) {
-      setInviteState('error');
-      setInviteMessage('Bitte gib eine E-Mail-Adresse ein.');
-      return;
-    }
-    if (!emailPattern.test(email)) {
-      setInviteState('error');
-      setInviteMessage('Bitte gib eine gültige E-Mail-Adresse ein.');
-      return;
-    }
-
-    setInviteState('loading');
-    setInviteMessage('');
-    try {
-      const result = await sendPartnerInvitation(email, invitePersonalMessage);
-      if (result.delivery === 'saved_without_email') {
-        setInviteState('warning');
-        setInviteMessage('Einladung gespeichert. Es wurde keine echte E-Mail verschickt, weil der Mail-Provider auf noop steht.');
-      } else {
-        setInviteState('success');
-        setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
-      }
-      if (currentUserId) {
-        const profile = await fetchAppUserProfile(currentUserId);
-        if (profile?.id) {
-          await refreshDashboard(profile.id);
-        }
-      }
-    } catch (error) {
-      const errorObject = error as { code?: string; message?: string };
-      console.error('sendPartnerInvite failed', error);
-      console.error('code', errorObject?.code);
-      console.error('message', errorObject?.message);
-      setInviteState('error');
-      setInviteMessage(errorObject?.message || 'Einladung konnte nicht gesendet werden.');
-    }
-  }
 
   async function unlockSharedResults() {
     const userId = currentUserId;
@@ -246,14 +195,7 @@ export default function DashboardPage() {
         {canInvitePartner && (
           <article className="card stack">
             <h2 className="card-title">Partner einladen</h2>
-            <p className="card-description">Schicke Deinem Partner eine Einladung, um auch am Quiz teilzunehmen. Du wirst benachrichtigt, sobald er es abgeschlossen hat. Dann könnt ihr die Gesamtergebnisse gemeinsam anschauen.</p>
-            <form className="stack" onSubmit={onInviteSubmit}>
-              <input type="email" className="input" required placeholder="E-Mail deines Partners" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} disabled={inviteState === 'loading'} />
-              <textarea className="input" rows={5} value={invitePersonalMessage} onChange={(event) => setInvitePersonalMessage(event.target.value)} aria-label="Persönliche Nachricht" placeholder="Persönliche Nachricht" />
-              <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
-                {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Einladung an Partner senden'}
-              </button>
-            </form>
+            <p className="card-description">Partner wurde per E-Mail eingeladen. Du wirst benachrichtigt, sobald er/sie das Quiz fertiggestellt hat.</p>
           </article>
         )}
 
@@ -261,7 +203,6 @@ export default function DashboardPage() {
           {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
             <>
               <h2 className="card-title">Status</h2>
-              <p className="card-description">Dein Ergebnis ist bereits da. Lade jetzt deinen Partner ein, damit ihr später auch euer gemeinsames Ergebnis sehen könnt.</p>
               <div className="report-block stack">
                 <p className="helper">Partner-Ergebnis wird nach Freischaltung hier ergänzt.</p>
                 {(ownResultText?.categories ?? []).map(([category]) => (
@@ -327,9 +268,6 @@ export default function DashboardPage() {
               {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
             </>
           )}
-          {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
-          {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
-          {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
         </article>
 
         {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && (
