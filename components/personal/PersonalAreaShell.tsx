@@ -10,7 +10,6 @@ const personalNavItems = [
   { label: 'Home', href: '/app/home' },
   { label: 'Aufgabengebiete', href: '/app/ownership-dashboard' },
   { label: 'Team-Check', href: '/app/review' },
-  { label: 'Ergebnisse', href: '/app/ergebnisse' },
   { label: 'Einstellungen', href: '/app/einstellungen' },
 ] as const;
 

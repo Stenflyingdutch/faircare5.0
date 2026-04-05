@@ -18,10 +18,10 @@ import {
   openSharedResultsView,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
-import { buildOwnershipRecommendations, computeOwnershipSignals, initializeFamilyOwnership } from '@/services/ownership.service';
+import { buildOwnershipRecommendations, computeOwnershipSignals, initializeFamilyOwnership, observeOwnershipCards } from '@/services/ownership.service';
 import { getCurrentLocale } from '@/lib/i18n';
 import type { QuizCategory, StressSelection } from '@/types/quiz';
-import type { OwnershipRecommendation } from '@/types/ownership';
+import type { OwnershipCardDocument, OwnershipRecommendation } from '@/types/ownership';
 
 function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
   return [...categories].sort(([, valueA], [, valueB]) => valueA - valueB);
@@ -79,6 +79,11 @@ function formatDiscussedDate(value?: string | null) {
   return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(parsed);
 }
 
+function resolveCardIsActive(card: OwnershipCardDocument) {
+  if (typeof card.isActive === 'boolean') return card.isActive;
+  return Boolean(card.ownerUserId || card.focusLevel);
+}
+
 export function ReviewResultsContent() {
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -96,6 +101,7 @@ export function ReviewResultsContent() {
   const [unlockBannerIndex, setUnlockBannerIndex] = useState(0);
   const [ownershipInitState, setOwnershipInitState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [ownershipInitMessage, setOwnershipInitMessage] = useState('');
+  const [ownershipCards, setOwnershipCards] = useState<OwnershipCardDocument[]>([]);
   const unlockBannerPool = useMemo(
     () => questionTemplates.slice(0, 12).map((entry) => entry.questionText?.de ?? entry.id),
     [],
@@ -120,6 +126,11 @@ export function ReviewResultsContent() {
 
     return () => unsubscribe();
   }, [router]);
+
+  useEffect(() => {
+    if (!bundle?.profile?.familyId) return;
+    return observeOwnershipCards(bundle.profile.familyId, setOwnershipCards);
+  }, [bundle?.profile?.familyId]);
 
   async function onInviteSubmit(event: FormEvent) {
     event.preventDefault();
@@ -232,6 +243,7 @@ export function ReviewResultsContent() {
     && !bundle?.family?.partnerRegistered
     && !hasUnlockedResults;
   const discussedDate = formatDiscussedDate(bundle?.family?.resultsDiscussedAt ?? null);
+  const hasActiveOwnershipCards = ownershipCards.some(resolveCardIsActive);
 
   const ownershipSignals = useMemo(() => {
     if (!bundle?.ownResult) return [];
@@ -415,6 +427,7 @@ export function ReviewResultsContent() {
         {bundle?.family?.resultsUnlocked
           && bundle?.family?.sharedResultsOpened
           && !bundle?.family?.resultsDiscussedAt
+          && !hasActiveOwnershipCards
           && !!ownershipRecommendations.length && (
           <article className="card stack">
             <h2 className="card-title">Arbeitspakete für ausgewählte Kategorien anschauen und zuordnen</h2>
@@ -451,7 +464,7 @@ export function ReviewResultsContent() {
           </article>
         )}
 
-        {bundle?.family?.resultsDiscussedAt && (
+        {(bundle?.family?.resultsDiscussedAt || hasActiveOwnershipCards) && (
           <article className="card stack">
             <Link href="/app/ownership-dashboard" className="button" style={{ width: 'fit-content' }}>
               Zu Aufgabengebieten
