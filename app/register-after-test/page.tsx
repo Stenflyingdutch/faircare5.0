@@ -53,7 +53,7 @@ export default function RegisterAfterTestPage() {
         displayName: normalizedDisplayName,
       });
       clearPartnerLocalSession();
-      router.push('/dashboard');
+      router.push('/app/review');
     } catch (submitError) {
       setError(resolveRegistrationErrorMessage(submitError));
       setIsSubmitting(false);
