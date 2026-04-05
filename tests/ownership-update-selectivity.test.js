@@ -66,3 +66,31 @@ test('type-level guard rails exist for ownership patch payload kinds', () => {
   assert.match(src, /export interface OwnershipCardContentPatch/);
   assert.match(src, /export interface OwnershipCardActivationPatch/);
 });
+
+test('P1 regression guard: forbidden stale activation pattern is absent', () => {
+  const board = read('components/ownership/OwnershipBoard.tsx');
+  const service = read('services/ownership.service.ts');
+
+  // Exact review snippet must never return.
+  assert.doesNotMatch(board, /isActive:\s*resolveCardIsActive\(card\)/);
+
+  // No broad helper with this name should exist in write path anymore.
+  assert.doesNotMatch(service, /upsertOwnershipCard/);
+
+  // Owner/Focus/Meta handlers should only send targeted patch keys.
+  const metaCall = board.match(/updateOwnershipCardMeta\(\{[\s\S]*?\}\);/);
+  assert.ok(metaCall);
+  assert.match(metaCall[0], /patch:\s*\{\s*title:/);
+  assert.match(metaCall[0], /note:/);
+  assert.doesNotMatch(metaCall[0], /isActive:/);
+
+  const ownerCall = board.match(/updateOwnershipCardOwner\(\{[\s\S]*?\}\);/);
+  assert.ok(ownerCall);
+  assert.match(ownerCall[0], /patch:\s*\{\s*ownerUserId:/);
+  assert.doesNotMatch(ownerCall[0], /isActive:/);
+
+  const focusCall = board.match(/updateOwnershipCardFocus\(\{[\s\S]*?\}\);/);
+  assert.ok(focusCall);
+  assert.match(focusCall[0], /patch:\s*\{\s*focusLevel:/);
+  assert.doesNotMatch(focusCall[0], /isActive:/);
+});
