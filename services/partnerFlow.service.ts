@@ -131,6 +131,7 @@ async function getLatestInitiatorResult(userId: string) {
     questionIds: string[];
     questionSetSnapshot?: QuestionTemplate[];
     answers: Partial<Record<string, OwnershipAnswer>>;
+    stressCategories?: StressSelection[];
     filter: Record<string, string>;
     detailedReport?: { summary?: { selfPercent: number } };
   };
@@ -847,6 +848,16 @@ export async function fetchDashboardBundle(userId: string) {
   let ownResult = profile.familyId
     ? await fetchResultByRole(profile.familyId, profile.role === 'partner' ? 'partner' : 'initiator')
     : null;
+
+  if (ownResult && profile.role !== 'partner' && (!ownResult.stressCategories || ownResult.stressCategories.length === 0)) {
+    const raw = await getLatestInitiatorResult(userId);
+    if (raw?.stressCategories) {
+      ownResult = {
+        ...ownResult,
+        stressCategories: raw.stressCategories,
+      };
+    }
+  }
 
   let family: FamilyDocument | null = null;
   let joint: JointResultDocument | null = null;
