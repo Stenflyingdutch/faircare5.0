@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
 import { OwnershipBoard } from '@/components/ownership/OwnershipBoard';
 import { observeAuthState } from '@/services/auth.service';
@@ -13,6 +13,14 @@ import type { AgeGroup, QuizCategory } from '@/types/quiz';
 import type { OwnershipCardDocument, OwnershipCategoryDocument } from '@/types/ownership';
 
 export default function OwnershipDashboardPage() {
+  return (
+    <Suspense fallback={<article className="card stack"><h2 className="card-title">Aufgabengebiete</h2><p className="card-description">Aufgabengebiete werden vorbereitet …</p></article>}>
+      <OwnershipDashboardPageContent />
+    </Suspense>
+  );
+}
+
+function OwnershipDashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [userId, setUserId] = useState<string | null>(null);

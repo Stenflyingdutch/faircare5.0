@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 
@@ -9,6 +9,14 @@ import { finalizePartnerRegistration } from '@/services/partnerFlow.service';
 import { clearPartnerLocalSession, loadPartnerLocalSession } from '@/services/partnerSessionStorage';
 
 export default function RegisterAfterTestPage() {
+  return (
+    <Suspense fallback={<section className="section"><div className="container">Lade Registrierung …</div></section>}>
+      <RegisterAfterTestContent />
+    </Suspense>
+  );
+}
+
+function RegisterAfterTestContent() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token') ?? '';
