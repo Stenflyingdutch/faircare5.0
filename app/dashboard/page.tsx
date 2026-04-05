@@ -361,8 +361,10 @@ function ResultBreakdown({
   const displayName = resolveDisplayName(title, 'Nicole');
   const sortedCategories = [...result.categories].sort((a, b) => b[1] - a[1]);
   const highestLoad = sortedCategories[0];
-  const mostBalanced = [...result.categories].sort((a, b) => Math.abs(a[1] - 50) - Math.abs(b[1] - 50))[0];
   const hasNoCategoryAboveHalf = highestLoad[1] < 50;
+  const contextualSummaryText = hasNoCategoryAboveHalf
+    ? `Dein höchster Anteil liegt hier unter 50 %. Das bedeutet nicht, dass du zu wenig zur Familie beiträgst – es zeigt nur, dass du bei den „Dran-Denken“-Aufgaben in der Erziehung aktuell einen kleineren Teil übernimmst. Diese Sicht ist bewusst sehr eingegrenzt und bildet nur einen Ausschnitt von allem ab, was Familien jeden Tag leisten. Zusammen mit der Auswertung von ${partnerName} ist das ein transparenter Startpunkt, um wertschätzend zu schauen, was sich für euch beide stimmig anfühlt und wo ihr vielleicht nachjustieren möchtet.`
+    : `Dein größter Anteil liegt aktuell bei ${categoryLabelMap[highestLoad[0]]} (${highestLoad[1]} %). Gemeinsam mit der Auswertung von ${partnerName} könnt ihr diese Übersicht als wertschätzenden Startpunkt nutzen, um zu prüfen, ob sich die Verteilung für euch beide stimmig anfühlt oder ob ihr etwas anpassen möchtet.`;
 
   return (
     <>
@@ -372,11 +374,6 @@ function ResultBreakdown({
       <p className="helper" style={{ margin: 0 }}>
         Diese Verteilung ist eine subjektive Momentaufnahme und sagt nicht, ob etwas richtig oder falsch ist. Entscheidend ist, ob ihr euch beide mit der Aufteilung glücklich fühlt. Transparenz und die Sichtweise von {partnerName} helfen euch dabei, gemeinsam zu prüfen, ob ihr etwas ändern möchtet.
       </p>
-      {hasNoCategoryAboveHalf && (
-        <p className="helper" style={{ margin: 0 }}>
-          Dein höchster Anteil liegt hier unter 50 %. Das bedeutet nicht, dass du zu wenig zur Familie beiträgst – es zeigt nur, dass du bei den „Dran-Denken“-Aufgaben in der Erziehung aktuell einen kleineren Teil übernimmst. Diese Sicht ist bewusst sehr eingegrenzt und bildet nur einen Ausschnitt von allem ab, was Familien jeden Tag leisten. Zusammen mit der Auswertung von {partnerName} ist das ein transparenter Startpunkt, um wertschätzend zu schauen, was sich für euch beide stimmig anfühlt und wo ihr vielleicht nachjustieren möchtet.
-        </p>
-      )}
       <div className="personal-result-summary detailed individual-result-panel individual-result-light">
         <div className="result-overview-grid">
           <div className="result-donut-wrap">
@@ -392,18 +389,9 @@ function ResultBreakdown({
             <p className="helper"><strong>Gesamtanteil</strong></p>
           </div>
           <div className="result-highlight-grid">
-            <div>
-              <p className="helper">Höchste Last</p>
-              <p className="result-highlight-primary">
-                {categoryLabelMap[highestLoad[0]]} · {highestLoad[1]}%
-              </p>
-            </div>
-            <div>
-              <p className="helper">{hasNoCategoryAboveHalf ? 'Nah an 50 %' : 'Ausgeglichen'}</p>
-              <p className="result-highlight-accent">
-                {categoryLabelMap[mostBalanced[0]]} · {mostBalanced[1]}%
-              </p>
-            </div>
+            <p className="helper" style={{ margin: 0, lineHeight: 1.6, fontSize: '1.02rem' }}>
+              {contextualSummaryText}
+            </p>
           </div>
         </div>
         <div className="result-legend">
