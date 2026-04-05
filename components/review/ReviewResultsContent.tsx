@@ -8,7 +8,7 @@ import { categoryLabelMap } from '@/services/resultCalculator';
 import {
   buildCategoryComparisons,
 } from '@/services/resultInsights';
-import { observeAuthState, signOutUser } from '@/services/auth.service';
+import { observeAuthState } from '@/services/auth.service';
 import {
   ensureUserProfile,
   fetchDashboardBundle,
@@ -210,11 +210,6 @@ export function ReviewResultsContent() {
   }
 
 
-  async function logout() {
-    await signOutUser();
-    router.push('/login');
-  }
-
   const resolvedPartnerName = bundle?.profile?.role === 'partner'
     ? bundle?.initiatorDisplayName
     : bundle?.partnerDisplayName;
@@ -239,9 +234,6 @@ export function ReviewResultsContent() {
   return (
     <section className="section">
       <div className="container stack">
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <button type="button" className="button" onClick={logout}>Logout</button>
-        </div>
 
         <article className="card stack">
           {!ownResultText

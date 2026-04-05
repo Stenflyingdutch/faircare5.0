@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 
-import { observeAuthState } from '@/services/auth.service';
+import { observeAuthState, signOutUser } from '@/services/auth.service';
 
 const personalNavItems = [
   { label: 'Home', href: '/app/home' },
@@ -39,6 +39,10 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
 
   const currentTitle = useMemo(() => pageTitle(pathname), [pathname]);
 
+  async function onLogout() {
+    await signOutUser();
+    router.push('/login');
+  }
 
   if (!isReady) {
     return (
@@ -58,6 +62,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
               <h1 className="personal-area-title">{currentTitle}</h1>
               <p className="helper" style={{ margin: 0 }}>Willkommen in deinem persönlichen Bereich.</p>
             </div>
+            <button type="button" className="button" onClick={onLogout}>Logout</button>
           </div>
           <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
             {personalNavItems.map((item) => {
