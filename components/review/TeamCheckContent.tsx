@@ -40,6 +40,7 @@ export function TeamCheckContent() {
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
   const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
   const [records, setRecords] = useState<TeamCheckRecord[]>([]);
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [preparations, setPreparations] = useState<TeamCheckPreparation[]>([]);
 
   const [mode, setMode] = useState<'overview' | 'prepare' | 'conduct'>('overview');
@@ -95,11 +96,11 @@ export function TeamCheckContent() {
 
   const activatedCardsCount = useMemo(() => cards.filter(resolveCardIsActive).length, [cards]);
   const showOwnershipHint = activatedCardsCount === 0;
-  const canSeeJointResults = Boolean(bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened);
   const discussedDate = formatDiscussedDate(bundle?.family?.resultsDiscussedAt ?? null);
 
   const hasPlan = Boolean(bundle?.family?.teamCheckPlan?.frequency && bundle?.family?.teamCheckPlan?.dayOfWeek !== undefined);
   const nextCheckInLabel = formatTeamCheckDate(bundle?.family?.teamCheckPlan?.nextCheckInAt ?? null, Boolean(bundle?.family?.teamCheckPlan?.time));
+  const selectedRecord = records.find((entry) => entry.id === selectedRecordId) ?? null;
 
   const ownerOptions = useMemo(() => {
     if (!bundle || !currentUserId) return [] as Array<{ userId: string; label: string }>;
@@ -256,12 +257,21 @@ export function TeamCheckContent() {
               {records.map((record) => {
                 const formatted = formatTeamCheckDate(record.checkInAt);
                 return (
-                  <div key={record.id} className="report-block">
-                    Team-Check vom {formatted ?? '—'}
+                  <div key={record.id} className="report-block" style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                    <span>Team-Check vom {formatted ?? '—'}</span>
+                    <button type="button" className="button" onClick={() => setSelectedRecordId(record.id)}>
+                      Notiz ansehen
+                    </button>
                   </div>
                 );
               })}
             </div>
+            {selectedRecord && (
+              <div className="report-block stack">
+                <strong>Notiz</strong>
+                <p className="helper" style={{ margin: 0 }}>{selectedRecord.note?.trim() || 'Keine Notiz hinterlegt.'}</p>
+              </div>
+            )}
           </article>
         )}
 
@@ -360,20 +370,6 @@ export function TeamCheckContent() {
             </Link>
           </article>
         )}
-
-        <article className="card stack">
-          <h3 className="card-title" style={{ margin: 0 }}>Status</h3>
-          {!bundle?.family && <p className="helper" style={{ margin: 0 }}>Noch keine gemeinsame Familie verknüpft.</p>}
-          {!!bundle?.family && !bundle.family.partnerRegistered && (
-            <p className="helper" style={{ margin: 0 }}>Partner noch nicht registriert. Sobald beide registriert sind, könnt ihr Vergleichsergebnisse gemeinsam ansehen.</p>
-          )}
-          {!!bundle?.family?.partnerRegistered && !canSeeJointResults && (
-            <p className="helper" style={{ margin: 0 }}>Partnerergebnis ist vorhanden. Die gemeinsamen Vergleichsergebnisse werden nach Freischaltung im Bereich Ergebnisse sichtbar.</p>
-          )}
-          {canSeeJointResults && (
-            <p className="helper" style={{ margin: 0 }}>Gemeinsame Vergleichsergebnisse sind verfügbar und im Bereich Ergebnisse jederzeit einsehbar.</p>
-          )}
-        </article>
 
         {error && <p className="inline-error">{error}</p>}
         {message && <p className="helper" style={{ margin: 0 }}>{message}</p>}
