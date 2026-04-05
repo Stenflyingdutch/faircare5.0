@@ -442,6 +442,89 @@ export async function upsertOwnershipCard(params: {
   });
 }
 
+export async function createOwnershipCard(params: {
+  familyId: string;
+  actorUserId: string;
+  payload: Pick<OwnershipCardDocument, 'categoryKey' | 'title' | 'note' | 'sortOrder'>;
+}) {
+  return upsertOwnershipCard({
+    familyId: params.familyId,
+    actorUserId: params.actorUserId,
+    payload: {
+      ...params.payload,
+      ownerUserId: null,
+      focusLevel: null,
+      isActive: false,
+    },
+  });
+}
+
+export async function updateOwnershipCardMeta(params: {
+  familyId: string;
+  cardId: string;
+  actorUserId: string;
+  title: string;
+  note: string;
+}) {
+  return upsertOwnershipCard({
+    familyId: params.familyId,
+    cardId: params.cardId,
+    actorUserId: params.actorUserId,
+    payload: {
+      title: params.title,
+      note: params.note,
+    },
+  });
+}
+
+export async function updateOwnershipCardOwner(params: {
+  familyId: string;
+  cardId: string;
+  actorUserId: string;
+  ownerUserId: string | null;
+}) {
+  return upsertOwnershipCard({
+    familyId: params.familyId,
+    cardId: params.cardId,
+    actorUserId: params.actorUserId,
+    payload: {
+      ownerUserId: params.ownerUserId,
+    },
+  });
+}
+
+export async function updateOwnershipCardFocus(params: {
+  familyId: string;
+  cardId: string;
+  actorUserId: string;
+  focusLevel: OwnershipFocusLevel | null;
+}) {
+  return upsertOwnershipCard({
+    familyId: params.familyId,
+    cardId: params.cardId,
+    actorUserId: params.actorUserId,
+    payload: {
+      focusLevel: params.focusLevel,
+    },
+  });
+}
+
+export async function toggleOwnershipCardActive(params: {
+  familyId: string;
+  cardId: string;
+  actorUserId: string;
+  isActive: boolean;
+}) {
+  return upsertOwnershipCard({
+    familyId: params.familyId,
+    cardId: params.cardId,
+    actorUserId: params.actorUserId,
+    payload: {
+      isActive: params.isActive,
+    },
+  });
+}
+
 export async function softDeleteOwnershipCard(familyId: string, cardId: string, actorUserId: string) {
   const cardRef = doc(db, firestoreCollections.families, familyId, 'ownershipCards', cardId);
   const existing = await getDoc(cardRef);

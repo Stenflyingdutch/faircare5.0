@@ -4,13 +4,13 @@ import { MouseEvent, useEffect, useMemo, useState } from 'react';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
-  buildOwnershipActivationPatch,
-  buildOwnershipCreatePayload,
-  buildOwnershipFocusPatch,
-  buildOwnershipMetaPatch,
-  buildOwnershipOwnerPatch,
-} from '@/services/ownershipCardPayloads';
-import { softDeleteOwnershipCard, upsertOwnershipCard } from '@/services/ownership.service';
+  createOwnershipCard,
+  softDeleteOwnershipCard,
+  toggleOwnershipCardActive,
+  updateOwnershipCardFocus,
+  updateOwnershipCardMeta,
+  updateOwnershipCardOwner,
+} from '@/services/ownership.service';
 import type { OwnershipCardDocument, OwnershipFocusLevel } from '@/types/ownership';
 import type { QuizCategory } from '@/types/quiz';
 
@@ -140,14 +140,12 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
   }
 
   async function saveCardMeta(card: OwnershipCardDocument, next: DraftState) {
-    await upsertOwnershipCard({
+    await updateOwnershipCardMeta({
       familyId,
       cardId: card.id,
       actorUserId: currentUserId,
-      payload: buildOwnershipMetaPatch({
-        title: next.title.trim() || card.title,
-        note: next.note.trim(),
-      }),
+      title: next.title.trim() || card.title,
+      note: next.note.trim(),
     });
   }
 
@@ -175,11 +173,11 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     setSaving(true);
     setError(null);
     try {
-      await upsertOwnershipCard({
+      await updateOwnershipCardFocus({
         familyId,
         cardId: card.id,
         actorUserId: currentUserId,
-        payload: buildOwnershipFocusPatch(nextLevel),
+        focusLevel: nextLevel,
       });
     } catch {
       setFocusOverrides((prev) => ({ ...prev, [card.id]: previousLevel }));
@@ -228,11 +226,11 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     setSaving(true);
     setError(null);
     try {
-      await upsertOwnershipCard({
+      await updateOwnershipCardOwner({
         familyId,
         cardId: card.id,
         actorUserId: currentUserId,
-        payload: buildOwnershipOwnerPatch(nextOwner),
+        ownerUserId: nextOwner,
       });
     } catch {
       setError('Die Zuordnung konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
@@ -246,11 +244,11 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     setSaving(true);
     setError(null);
     try {
-      await upsertOwnershipCard({
+      await toggleOwnershipCardActive({
         familyId,
         cardId: card.id,
         actorUserId: currentUserId,
-        payload: buildOwnershipActivationPatch(nextActive),
+        isActive: nextActive,
       });
     } catch {
       setError('Der Aktivierungsstatus konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
@@ -264,15 +262,15 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     setSaving(true);
     setError(null);
     try {
-      await upsertOwnershipCard({
+      await createOwnershipCard({
         familyId,
         actorUserId: currentUserId,
-        payload: buildOwnershipCreatePayload({
+        payload: {
           categoryKey,
           title: draft.title.trim() || 'Verantwortungsbereich planen und umsetzen',
           note: draft.note.trim(),
           sortOrder: Date.now(),
-        }),
+        },
       });
       setActiveCategoryForCreate(null);
       setDraft(null);
