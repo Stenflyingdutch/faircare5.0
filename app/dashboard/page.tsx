@@ -395,7 +395,7 @@ function ResultBreakdown({
                   Es zeigt nur einen kleinen Ausschnitt: die <strong>„Dran-Denken“-Aufgaben</strong> bei der Erziehung.
                 </p>
                 <p style={{ margin: 0 }}>
-                  Mit der Auswertung von <strong>{partnerName}</strong> habt ihr einen guten, transparenten Startpunkt, um gemeinsam zu schauen, was für euch passt.
+                  Zusammen mit der Auswertung von <strong>{partnerName}</strong> könnt ihr gemeinsam überlegen, ob die Verteilung für euch passt oder ob ihr kleine Änderungen vornehmen möchtet.
                 </p>
               </div>
             ) : (
