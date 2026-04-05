@@ -37,6 +37,13 @@ function resolveDisplayName(value?: string | null, fallback = 'Nutzer') {
   return normalizeName(value) || normalizeName(fallback) || 'Nutzer';
 }
 
+function resolveFirstName(value?: string | null) {
+  const normalized = normalizeName(value);
+  if (!normalized) return null;
+  const [first] = normalized.split(/\s+/);
+  return first || null;
+}
+
 function deriveNameFromEmail(email?: string | null) {
   if (!email) return null;
   const local = email.split('@')[0]?.trim();
@@ -221,6 +228,9 @@ export function ReviewResultsContent() {
     : bundle?.partnerDisplayName;
   const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
   const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
+  const firstName = resolveFirstName(bundle?.profile?.firstName)
+    || resolveFirstName(bundle?.profile?.displayName)
+    || 'Du';
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
     return {
@@ -263,15 +273,13 @@ export function ReviewResultsContent() {
     });
   }, [bundle?.ownResult, bundle?.partnerResult]);
 
-  async function startOwnership(mode: 'recommended' | 'all') {
+  async function startOwnership() {
     if (!bundle?.profile?.familyId || !bundle?.ownResult || !bundle?.ageGroupForOwnership || !currentUserId) return;
     setOwnershipInitState('loading');
     setOwnershipInitMessage('');
 
     try {
-      const selectedCategories = mode === 'all'
-        ? (Object.keys(bundle.ownResult.categoryScores) as QuizCategory[])
-        : ownershipRecommendations.map((entry) => entry.categoryKey);
+      const selectedCategories = ownershipRecommendations.map((entry) => entry.categoryKey);
 
       if (!selectedCategories.length) {
         setOwnershipInitState('error');
@@ -288,7 +296,11 @@ export function ReviewResultsContent() {
         allSignals: ownershipSignals,
         locale: getCurrentLocale(),
       });
-      router.push('/app/ownership-dashboard');
+      const params = new URLSearchParams({
+        from: 'recommendation',
+        categories: selectedCategories.join(','),
+      });
+      router.push(`/app/ownership-dashboard?${params.toString()}`);
     } catch (error) {
       setOwnershipInitState('error');
       console.error('ownership-init-failed', error);
@@ -305,10 +317,9 @@ export function ReviewResultsContent() {
       <div className="container stack">
         <article className="card stack">
           <h2 className="card-title">
-            {discussedDate
-              ? `Hier sind eure Testergebnisse, durchgesprochen am ${discussedDate}`
-              : 'Hier sind eure Testergebnisse'}
+            {`${firstName}, das hier ist deine persönliche Zusammenfassung:`}
           </h2>
+          {discussedDate && <p className="helper" style={{ margin: 0 }}>Zuletzt gemeinsam besprochen am {discussedDate}.</p>}
         </article>
 
         <article className="card stack">
@@ -446,18 +457,10 @@ export function ReviewResultsContent() {
               <button
                 type="button"
                 className="button primary"
-                onClick={() => startOwnership('recommended')}
+                onClick={() => startOwnership()}
                 disabled={ownershipInitState === 'loading'}
               >
                 {ownershipInitState === 'loading' ? 'Ownership wird vorbereitet …' : 'Ausgewählte Arbeitspakete anschauen und zuordnen'}
-              </button>
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => startOwnership('all')}
-                disabled={ownershipInitState === 'loading'}
-              >
-                Mit allen Kategorien starten
               </button>
               {ownershipInitState === 'error' && <p className="inline-error">{ownershipInitMessage}</p>}
             </div>

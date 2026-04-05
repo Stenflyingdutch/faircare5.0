@@ -21,6 +21,8 @@ interface OwnershipBoardProps {
   mode: 'dashboard' | 'home';
   ownerOptions: Array<{ userId: string; label: string }>;
   categoryKeys?: QuizCategory[];
+  preselectedCategoryKeys?: QuizCategory[];
+  isFocusedEntry?: boolean;
 }
 
 const focusLevelLabel: Record<OwnershipFocusLevel, string> = {
@@ -34,8 +36,6 @@ interface DraftState {
   note: string;
 }
 
-type StatusFilter = 'all' | 'active' | 'open';
-
 function focusTone(level?: OwnershipFocusLevel | null) {
   if (level === 'now') return '#ece5ff';
   if (level === 'soon') return '#f3eeff';
@@ -48,7 +48,16 @@ function resolveCardIsActive(card: OwnershipCardDocument) {
   return Boolean(card.ownerUserId || card.focusLevel);
 }
 
-export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOptions, categoryKeys = [] }: OwnershipBoardProps) {
+export function OwnershipBoard({
+  familyId,
+  currentUserId,
+  cards,
+  mode,
+  ownerOptions,
+  categoryKeys = [],
+  preselectedCategoryKeys = [],
+  isFocusedEntry = false,
+}: OwnershipBoardProps) {
   const [openedCardId, setOpenedCardId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [saving, setSaving] = useState(false);
@@ -56,7 +65,6 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
   const [activeCategoryForCreate, setActiveCategoryForCreate] = useState<QuizCategory | null>(null);
   const [focusOverrides, setFocusOverrides] = useState<Record<string, OwnershipFocusLevel | null>>({});
   const [homeOrder, setHomeOrder] = useState<Record<string, number> | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | QuizCategory>('all');
 
   const openedCard = useMemo(() => cards.find((item) => item.id === openedCardId) ?? null, [cards, openedCardId]);
@@ -115,20 +123,33 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
     cards: categoryCards,
   })), [grouped]);
 
-  const filteredGroups = useMemo(() => groupedWithStatus
-    .filter((group) => categoryFilter === 'all' || group.category === categoryFilter)
-    .map((group) => {
-      const nextCards = group.cards.filter((card) => {
-        if (statusFilter === 'all') return true;
-        if (statusFilter === 'active') return resolveCardIsActive(card);
-        return !resolveCardIsActive(card);
-      });
+  const resolvedPreselectedCategories = useMemo(
+    () => preselectedCategoryKeys.filter((entry) => groupedWithStatus.some((group) => group.category === entry)),
+    [preselectedCategoryKeys, groupedWithStatus],
+  );
 
-      return {
-        ...group,
-        cards: nextCards,
-      };
-    }), [groupedWithStatus, categoryFilter, statusFilter]);
+  useEffect(() => {
+    if (mode !== 'dashboard') return;
+    if (isFocusedEntry) {
+      setCategoryFilter('all');
+      return;
+    }
+    if (categoryFilter === 'all') return;
+    const hasCategory = groupedWithStatus.some((group) => group.category === categoryFilter);
+    if (!hasCategory) {
+      setCategoryFilter('all');
+    }
+  }, [mode, isFocusedEntry, categoryFilter, groupedWithStatus]);
+
+  const filteredGroups = useMemo(() => groupedWithStatus
+    .filter((group) => {
+      if (mode !== 'dashboard') return true;
+      if (isFocusedEntry) {
+        return resolvedPreselectedCategories.includes(group.category);
+      }
+      return categoryFilter === 'all' || group.category === categoryFilter;
+    }),
+  [groupedWithStatus, categoryFilter, mode, isFocusedEntry, resolvedPreselectedCategories]);
 
   function openDetails(card: OwnershipCardDocument) {
     setOpenedCardId(card.id);
@@ -303,40 +324,33 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOpti
         <article className="card stack">
           <h3 className="card-title" style={{ margin: 0 }}>Filter</h3>
           <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {([
-              { key: 'all', label: 'Alle' },
-              { key: 'active', label: 'Aktiviert' },
-              { key: 'open', label: 'Noch offen' },
-            ] as Array<{ key: StatusFilter; label: string }>).map((entry) => (
-              <button
-                key={entry.key}
-                type="button"
-                className={`option-chip ${statusFilter === entry.key ? 'selected' : ''}`}
-                onClick={() => setStatusFilter(entry.key)}
-              >
-                {entry.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button
-              type="button"
-              className={`option-chip ${categoryFilter === 'all' ? 'selected' : ''}`}
-              onClick={() => setCategoryFilter('all')}
-            >
-              Alle Aufgabengebiete
-            </button>
-            {groupedWithStatus.map((group) => (
-              <button
-                key={group.category}
-                type="button"
-                className={`option-chip ${categoryFilter === group.category ? 'selected' : ''}`}
-                onClick={() => setCategoryFilter(group.category)}
-              >
-                {categoryLabelMap[group.category]}
-              </button>
-            ))}
+            {isFocusedEntry
+              ? resolvedPreselectedCategories.map((category) => (
+                <span key={category} className="option-chip selected">
+                  {categoryLabelMap[category]}
+                </span>
+              ))
+              : (
+                <>
+                  <button
+                    type="button"
+                    className={`option-chip ${categoryFilter === 'all' ? 'selected' : ''}`}
+                    onClick={() => setCategoryFilter('all')}
+                  >
+                    Alle Aufgabengebiete
+                  </button>
+                  {groupedWithStatus.map((group) => (
+                    <button
+                      key={group.category}
+                      type="button"
+                      className={`option-chip ${categoryFilter === group.category ? 'selected' : ''}`}
+                      onClick={() => setCategoryFilter(group.category)}
+                    >
+                      {categoryLabelMap[group.category]}
+                    </button>
+                  ))}
+                </>
+              )}
           </div>
         </article>
       )}

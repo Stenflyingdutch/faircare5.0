@@ -1,18 +1,20 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { OwnershipBoard } from '@/components/ownership/OwnershipBoard';
 import { observeAuthState } from '@/services/auth.service';
 import { ensureOwnershipCardsForCategories, observeOwnershipCards, observeOwnershipCategories } from '@/services/ownership.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
+import { categoryLabelMap } from '@/services/resultCalculator';
 import { getCurrentLocale } from '@/lib/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
 import type { OwnershipCardDocument, OwnershipCategoryDocument } from '@/types/ownership';
 
 export default function OwnershipDashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [userId, setUserId] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
@@ -20,6 +22,11 @@ export default function OwnershipDashboardPage() {
   const [ageGroup, setAgeGroup] = useState<AgeGroup | null>(null);
   const [ownerOptions, setOwnerOptions] = useState<Array<{ userId: string; label: string }>>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const preselectedCategoryKeys = ((searchParams.get('categories') ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry): entry is QuizCategory => Boolean(categoryLabelMap[entry as QuizCategory])));
+  const isRecommendationEntry = searchParams.get('from') === 'recommendation' && preselectedCategoryKeys.length > 0;
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -86,9 +93,11 @@ export default function OwnershipDashboardPage() {
           Jede Karte steht für einen klar zugeordneten Verantwortungsbereich inklusive Planung und Durchführung.
         </p>
         <p className="helper" style={{ margin: 0 }}>
-          {recommendedCount > 0
-            ? `${recommendedCount} Startkategorien wurden als Orientierung markiert.`
-            : 'Alle aktiven Kategorien sind gleichwertig sichtbar.'} Nutze die Filter oben, um aktivierte und noch offene Karten schnell zu finden.
+          {isRecommendationEntry
+            ? 'Du startest direkt mit den ausgewählten Verantwortungsbereichen.'
+            : recommendedCount > 0
+              ? `${recommendedCount} Startkategorien wurden als Orientierung markiert.`
+              : 'Alle aktiven Kategorien sind gleichwertig sichtbar.'}
         </p>
       </article>
       <OwnershipBoard
@@ -98,6 +107,8 @@ export default function OwnershipDashboardPage() {
         mode="dashboard"
         ownerOptions={ownerOptions}
         categoryKeys={categories.map((item) => item.categoryKey)}
+        preselectedCategoryKeys={preselectedCategoryKeys}
+        isFocusedEntry={isRecommendationEntry}
       />
       {loadError && <p className="inline-error">{loadError}</p>}
     </div>

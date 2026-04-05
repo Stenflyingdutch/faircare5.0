@@ -266,7 +266,6 @@ export async function initializeFamilyOwnership(params: {
   }
 
   await batch.commit();
-  await setResultsDiscussedAtIfMissing(params.familyId, params.actorUserId);
 }
 
 export async function setResultsDiscussedAtIfMissing(familyId: string, actorUserId: string) {
