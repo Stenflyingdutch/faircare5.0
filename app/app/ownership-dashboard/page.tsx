@@ -27,6 +27,7 @@ export default function OwnershipDashboardPage() {
     .map((entry) => entry.trim())
     .filter((entry): entry is QuizCategory => Boolean(categoryLabelMap[entry as QuizCategory])));
   const isRecommendationEntry = searchParams.get('from') === 'recommendation' && preselectedCategoryKeys.length > 0;
+  const allCategoryKeys = Object.keys(categoryLabelMap) as QuizCategory[];
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -106,7 +107,7 @@ export default function OwnershipDashboardPage() {
         cards={cards}
         mode="dashboard"
         ownerOptions={ownerOptions}
-        categoryKeys={categories.map((item) => item.categoryKey)}
+        categoryKeys={allCategoryKeys}
         preselectedCategoryKeys={preselectedCategoryKeys}
         isFocusedEntry={isRecommendationEntry}
       />
