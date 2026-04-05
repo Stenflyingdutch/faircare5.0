@@ -7,7 +7,7 @@ export default function NewsletterPage() {
       <PageHero
         badge="Newsletter"
         title="Bleib auf dem Laufenden"
-        subtitle="Erhalte in kurzen Abständen hilfreiche Impulse, neue Inhalte und Updates zu mental carefair."
+        subtitle="Erhalte in kurzen Abständen hilfreiche Impulse, neue Inhalte und Updates zu FairCare."
       />
       <SectionWrapper>
         <form className="form-shell">

@@ -919,6 +919,8 @@ export async function fetchDashboardBundle(userId: string) {
         categoryScores,
         totalScore,
         interpretation: describeTotalScore(totalScore),
+        // Für "Größte empfundene Belastung" wird die direkte Antwort der letzten Stressfrage übernommen.
+        stressCategories: raw.stressCategories ?? [],
         completedAt: nowIso(),
         questionSetSnapshot: snapshot,
       };
