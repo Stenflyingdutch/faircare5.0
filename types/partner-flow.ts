@@ -10,6 +10,8 @@ export interface AppUserProfile {
   id: string;
   email: string;
   displayName?: string;
+  firstName?: string;
+  lastName?: string;
   familyId?: string | null;
   role?: FamilyRole;
   teamCheckEmailReminderEnabled?: boolean;
