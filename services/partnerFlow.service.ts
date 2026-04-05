@@ -26,7 +26,7 @@ import type {
   QuizResultDocument,
   QuizSessionDocument,
 } from '@/types/partner-flow';
-import type { OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
+import type { AgeGroup, OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
 
 function nowIso() {
   return new Date().toISOString();
@@ -866,6 +866,7 @@ export async function fetchDashboardBundle(userId: string) {
   let initiatorDisplayName: string | null = null;
   let partnerDisplayName: string | null = null;
   let invitationPartnerEmail: string | null = null;
+  let ageGroupForOwnership: AgeGroup | null = null;
 
   if (profile.familyId) {
     const familySnap = await getDoc(doc(db, firestoreCollections.families, profile.familyId));
@@ -927,6 +928,17 @@ export async function fetchDashboardBundle(userId: string) {
     }
   }
 
+  if (ownResult?.questionSetSnapshot?.length) {
+    ageGroupForOwnership = ownResult.questionSetSnapshot[0]?.ageGroup ?? null;
+  }
+  if (!ageGroupForOwnership && profile.role !== 'partner') {
+    const raw = await getLatestInitiatorResult(userId);
+    const candidate = raw?.filter?.youngestAgeGroup;
+    if (candidate && ['0_1', '1_3', '3_6', '6_10', '10_plus'].includes(candidate)) {
+      ageGroupForOwnership = candidate as AgeGroup;
+    }
+  }
+
   return {
     profile,
     ownResult,
@@ -937,6 +949,7 @@ export async function fetchDashboardBundle(userId: string) {
     initiatorDisplayName,
     partnerDisplayName,
     invitationPartnerEmail,
+    ageGroupForOwnership,
   };
 }
 

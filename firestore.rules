@@ -8,6 +8,10 @@ service cloud.firestore {
     function isSelf(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
 
     function familyDoc(familyId) {
       return get(/databases/$(database)/documents/families/$(familyId));
@@ -60,6 +64,27 @@ service cloud.firestore {
           request.resource.data.status != 'joint_active'
         )
       );
+
+      match /ownershipCategories/{categoryKey} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if false;
+      }
+
+      match /ownershipCards/{cardId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if false;
+      }
+
+      match /auditEvents/{eventId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId);
+        allow update, delete: if false;
+      }
+    }
+
+    match /taskPackageTemplates/{templateId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
 
     match /invitations/{invitationId} {
