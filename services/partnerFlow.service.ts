@@ -518,6 +518,9 @@ export async function finalizePartnerRegistration(params: {
   const sessionSnapshot = await getDoc(sessionRef);
   if (!sessionSnapshot.exists()) throw new Error('Partner-Session fehlt.');
   const session = sessionSnapshot.data() as QuizSessionDocument;
+  if (session.familyId !== invitation.familyId) {
+    throw new Error('Die Partner-Session passt nicht zur Einladung. Bitte starte den Link erneut.');
+  }
   if (!session.completedAt) throw new Error('Bitte schließe erst den Partner-Test ab.');
 
   const categoryScores = computeCategoryScores(session.questionSetSnapshot, session.answers);
