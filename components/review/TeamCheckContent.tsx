@@ -18,7 +18,7 @@ import {
 import { formatTeamCheckDate } from '@/services/teamCheck.logic';
 import type { FamilyDocument } from '@/types/partner-flow';
 import type { OwnershipCardDocument } from '@/types/ownership';
-import type { TeamCheckActionType, TeamCheckPreparation, TeamCheckRecord } from '@/types/team-check';
+import type { TeamCheckPreparation, TeamCheckRecord } from '@/types/team-check';
 import type { QuizCategory } from '@/types/quiz';
 
 function resolveCardIsActive(card: OwnershipCardDocument) {
@@ -43,12 +43,8 @@ export function TeamCheckContent() {
   const [preparations, setPreparations] = useState<TeamCheckPreparation[]>([]);
 
   const [mode, setMode] = useState<'overview' | 'prepare' | 'conduct'>('overview');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | QuizCategory>('all');
   const [goodMoments, setGoodMoments] = useState('');
   const [changeWishes, setChangeWishes] = useState('');
-  const [selectedActions, setSelectedActions] = useState<Record<string, TeamCheckActionType>>({});
-  const [handoverAreas, setHandoverAreas] = useState<Record<string, boolean>>({});
-  const [swapAreas, setSwapAreas] = useState<Record<string, boolean>>({});
   const [closingNote, setClosingNote] = useState('');
   const [assignmentDraft, setAssignmentDraft] = useState<Record<string, string | null>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -120,22 +116,12 @@ export function TeamCheckContent() {
     return options;
   }, [bundle, currentUserId]);
 
-  const ownCards = useMemo(() => cards
-    .filter((card) => card.ownerUserId === currentUserId && resolveCardIsActive(card)), [cards, currentUserId]);
-
-  const ownCategories = useMemo(() => [...new Set(ownCards.map((card) => card.categoryKey))], [ownCards]);
-
-  const visibleOwnCards = useMemo(() => ownCards.filter((card) => categoryFilter === 'all' || card.categoryKey === categoryFilter), [ownCards, categoryFilter]);
-
   const myPreparation = useMemo(() => preparations.find((entry) => entry.userId === currentUserId) ?? null, [preparations, currentUserId]);
 
   useEffect(() => {
     if (!myPreparation) return;
     setGoodMoments(myPreparation.goodMoments);
     setChangeWishes(myPreparation.changeWishes ?? '');
-    setSelectedActions(Object.fromEntries(myPreparation.selectedTaskActions.map((entry) => [entry.cardId, entry.action])));
-    setHandoverAreas(Object.fromEntries(myPreparation.handoverAreaCategoryKeys.map((entry) => [entry, true])));
-    setSwapAreas(Object.fromEntries(myPreparation.swapAreaCategoryKeys.map((entry) => [entry, true])));
   }, [myPreparation]);
 
   const discussedCardIds = useMemo(() => [
@@ -161,9 +147,9 @@ export function TeamCheckContent() {
         scheduledForKey,
         goodMoments: goodMoments.trim(),
         changeWishes: changeWishes.trim(),
-        handoverAreaCategoryKeys: Object.keys(handoverAreas).filter((key) => handoverAreas[key]) as QuizCategory[],
-        swapAreaCategoryKeys: Object.keys(swapAreas).filter((key) => swapAreas[key]) as QuizCategory[],
-        selectedTaskActions: Object.entries(selectedActions).map(([cardId, action]) => ({ cardId, action })),
+        handoverAreaCategoryKeys: [],
+        swapAreaCategoryKeys: [],
+        selectedTaskActions: [],
       });
       setMessage('Stand gespeichert.');
     } catch {
@@ -279,71 +265,6 @@ export function TeamCheckContent() {
               <span>Was möchte ich ändern</span>
               <textarea className="input" value={changeWishes} onChange={(event) => setChangeWishes(event.target.value)} />
             </label>
-
-            <div className="stack" style={{ gap: 6 }}>
-              <strong>Welche Aufgabengebiete möchte ich abgeben</strong>
-              {ownCategories.map((categoryKey) => (
-                <label key={`handover-${categoryKey}`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(handoverAreas[categoryKey])}
-                    onChange={(event) => setHandoverAreas((prev) => ({ ...prev, [categoryKey]: event.target.checked }))}
-                  />
-                  {categoryLabelMap[categoryKey]}
-                </label>
-              ))}
-            </div>
-
-            <div className="stack" style={{ gap: 6 }}>
-              <strong>Welche Aufgabengebiete möchte ich tauschen</strong>
-              {ownCategories.map((categoryKey) => (
-                <label key={`swap-${categoryKey}`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(swapAreas[categoryKey])}
-                    onChange={(event) => setSwapAreas((prev) => ({ ...prev, [categoryKey]: event.target.checked }))}
-                  />
-                  {categoryLabelMap[categoryKey]}
-                </label>
-              ))}
-            </div>
-
-            <div className="stack" style={{ gap: 8 }}>
-              <strong>Eigene Aufgabenliste</strong>
-              <select className="input" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as 'all' | QuizCategory)}>
-                <option value="all">Alle Kategorien</option>
-                {ownCategories.map((entry) => <option key={entry} value={entry}>{categoryLabelMap[entry]}</option>)}
-              </select>
-              <div className="stack" style={{ maxHeight: 280, overflow: 'auto' }}>
-                {visibleOwnCards.map((card) => (
-                  <div key={card.id} className="report-block stack" style={{ gap: 6 }}>
-                    <strong>{card.title}</strong>
-                    <span className="helper">{categoryLabelMap[card.categoryKey]}</span>
-                    <select
-                      className="input"
-                      value={selectedActions[card.id] ?? ''}
-                      onChange={(event) => {
-                        const value = event.target.value as TeamCheckActionType | '';
-                        setSelectedActions((prev) => {
-                          if (!value) {
-                            const next = { ...prev };
-                            delete next[card.id];
-                            return next;
-                          }
-                          return { ...prev, [card.id]: value };
-                        });
-                      }}
-                    >
-                      <option value="">Keine Aktion</option>
-                      <option value="discuss">Zur Besprechung vormerken</option>
-                      <option value="handover">Abgeben vorschlagen</option>
-                      <option value="swap">Tauschen vorschlagen</option>
-                    </select>
-                  </div>
-                ))}
-                {!visibleOwnCards.length && <p className="helper" style={{ margin: 0 }}>Keine eigenen Aufgaben in diesem Filter.</p>}
-              </div>
-            </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" className="button" onClick={onSavePreparation} disabled={saving}>Stand speichern</button>
