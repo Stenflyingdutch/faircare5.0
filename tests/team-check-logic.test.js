@@ -24,13 +24,22 @@ test('team check badge is a dot only in personal nav and not a number/text badge
   assert.match(css, /width:\s*8px/);
 });
 
-test('settings contain shared rhythm and individual email preference controls', () => {
+test('settings start page contains exactly the three required entries', () => {
   const src = read('app/app/einstellungen/page.tsx');
-  assert.match(src, /Team-Check Rhythmus/);
-  assert.match(src, /Frequenz/);
+  assert.match(src, /Persönliche Einstellungen/);
+  assert.match(src, /Team-Check Planung/);
+  assert.match(src, /Quizergebnisse einsehen/);
+  assert.doesNotMatch(src, /Team-Check Rhythmus/);
+});
+
+test('team check planning screen contains shared plan and individual reminder controls', () => {
+  const src = read('app/app/einstellungen/team-check-planung/page.tsx');
+  assert.match(src, /Frequenz des Team-Checks/);
+  assert.match(src, /Tag des Team-Checks/);
   assert.match(src, /E-Mail-Erinnerung/);
   assert.match(src, /saveTeamCheckPlan/);
   assert.match(src, /saveTeamCheckEmailPreference/);
+  assert.match(src, /1 Tag vorher/);
 });
 
 test('biweekly scheduling uses a central interval-anchor approach without blind extra jump', () => {
@@ -39,6 +48,11 @@ test('biweekly scheduling uses a central interval-anchor approach without blind 
   assert.match(src, /resolveFixedWeekdayAnchor/);
   assert.match(src, /intervalDays:\s*14/);
   assert.doesNotMatch(src, /fallback\.setDate\(fallback\.getDate\(\) \+ params\.intervalDays\)/);
+});
+
+test('reminder offset is 1 day before next check-in', () => {
+  const src = read('services/teamCheck.logic.ts');
+  assert.match(src, /reminder.setDate\(reminder.getDate\(\) - 1\)/);
 });
 
 test('check-in save flow is transaction-based and idempotent per cycle', () => {

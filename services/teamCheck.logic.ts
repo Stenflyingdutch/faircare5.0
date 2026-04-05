@@ -74,7 +74,7 @@ export function computeNextTeamCheckAt(params: {
 export function computeReminderAt(nextCheckInAtIso: string, time?: string | null) {
   const checkInDate = new Date(nextCheckInAtIso);
   const reminder = new Date(checkInDate);
-  reminder.setDate(reminder.getDate() - 2);
+  reminder.setDate(reminder.getDate() - 1);
   return alignWithTime(reminder, time, DEFAULT_REMINDER_HOUR).toISOString();
 }
 

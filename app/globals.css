@@ -746,6 +746,36 @@ textarea.input {
   box-shadow: 0 0 0 2px rgba(108, 76, 241, 0.2);
 }
 
+.settings-menu-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings-menu-entry {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  min-height: 74px;
+  background: #fff;
+}
+
+.settings-menu-title {
+  font-weight: 700;
+}
+
+.settings-subpage-head {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.settings-back-button {
+  width: fit-content;
+  min-height: 38px;
+  padding: 0.45rem 0.9rem;
+}
+
 @media (min-width: 860px) {
   .personal-area-nav {
     grid-template-columns: repeat(4, minmax(0, 1fr));
