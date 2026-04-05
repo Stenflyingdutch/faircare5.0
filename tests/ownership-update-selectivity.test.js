@@ -21,15 +21,12 @@ test('OwnershipBoard sends explicit activation patch only for activation toggle'
   assert.doesNotMatch(src, /\{\s*\.\.\.card,/);
 });
 
-test('upsertOwnershipCard supports partial updates and does not require isActive for unrelated updates', () => {
+test('ownership update path uses patch updates (no generic full-card upsert path)', () => {
   const src = read('services/ownership.service.ts');
 
-  assert.match(src, /payload:\s*Partial<Pick<OwnershipCardDocument/);
-  assert.match(src, /if \(!existing\.exists\(\)\) \{/);
-  assert.match(src, /nextPayload\.isActive = params\.payload\.isActive \?\? false;/);
-
-  // For update path we should not force-write isActive from stale snapshots.
-  assert.doesNotMatch(src, /isActive:\s*params\.payload\.isActive,\s*\n\s*isDeleted/s);
+  assert.match(src, /async function patchOwnershipCard/);
+  assert.match(src, /await updateDoc\(cardRef, updatePayload\)/);
+  assert.doesNotMatch(src, /export async function upsertOwnershipCard/);
 });
 
 test('service wrappers are field-selective (owner/focus/meta/activation)', () => {

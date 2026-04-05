@@ -10,6 +10,7 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
   where,
 } from 'firebase/firestore';
@@ -397,47 +398,37 @@ export function observeOwnershipCards(
   );
 }
 
-export async function upsertOwnershipCard(params: {
+type OwnershipPatch = Record<string, unknown>;
+
+async function patchOwnershipCard(params: {
   familyId: string;
-  cardId?: string;
+  cardId: string;
   actorUserId: string;
-  payload: Partial<Pick<OwnershipCardDocument, 'categoryKey' | 'title' | 'note' | 'ownerUserId' | 'focusLevel' | 'sortOrder' | 'isActive'>>;
+  patch: OwnershipPatch;
+  action: string;
 }) {
-  const cardId = params.cardId ?? doc(collection(db, firestoreCollections.families, params.familyId, 'ownershipCards')).id;
-  const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
+  const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', params.cardId);
   const existing = await getDoc(cardRef);
-  const before = existing.exists() ? existing.data() : null;
+  if (!existing.exists()) throw new Error('Karte nicht gefunden.');
+  const before = existing.data();
 
-  if (!existing.exists()) {
-    if (!params.payload.categoryKey || !params.payload.title || params.payload.note === undefined || params.payload.sortOrder === undefined) {
-      throw new Error('Für neue Karten sind categoryKey, title, note und sortOrder erforderlich.');
-    }
-  }
-
-  const nextPayload: Record<string, unknown> = {
-    id: cardId,
-    ...params.payload,
-    isDeleted: false,
+  const updatePayload = {
+    ...params.patch,
     updatedBy: params.actorUserId,
     updatedAt: serverTimestamp(),
   };
 
-  if (!existing.exists()) {
-    nextPayload.createdBy = params.actorUserId;
-    nextPayload.createdAt = nowIso();
-    nextPayload.isActive = params.payload.isActive ?? false;
-    nextPayload.ownerUserId = params.payload.ownerUserId ?? null;
-    nextPayload.focusLevel = params.payload.focusLevel ?? null;
-  }
-
-  await setDoc(cardRef, nextPayload, { merge: true });
+  await updateDoc(cardRef, updatePayload);
   await addDoc(collection(db, firestoreCollections.families, params.familyId, 'auditEvents'), {
     entityType: 'ownershipCard',
-    entityId: cardId,
-    action: before ? 'updated' : 'created',
+    entityId: params.cardId,
+    action: params.action,
     actorUserId: params.actorUserId,
     before,
-    after: nextPayload,
+    after: {
+      ...before,
+      ...params.patch,
+    },
     createdAt: nowIso(),
   });
 }
@@ -447,15 +438,30 @@ export async function createOwnershipCard(params: {
   actorUserId: string;
   payload: Pick<OwnershipCardDocument, 'categoryKey' | 'title' | 'note' | 'sortOrder'>;
 }) {
-  return upsertOwnershipCard({
-    familyId: params.familyId,
+  const cardId = doc(collection(db, firestoreCollections.families, params.familyId, 'ownershipCards')).id;
+  const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
+  const nextPayload = {
+    id: cardId,
+    ...params.payload,
+    ownerUserId: null,
+    focusLevel: null,
+    isActive: false,
+    isDeleted: false,
+    createdBy: params.actorUserId,
+    updatedBy: params.actorUserId,
+    createdAt: nowIso(),
+    updatedAt: serverTimestamp(),
+  };
+
+  await setDoc(cardRef, nextPayload, { merge: false });
+  await addDoc(collection(db, firestoreCollections.families, params.familyId, 'auditEvents'), {
+    entityType: 'ownershipCard',
+    entityId: cardId,
+    action: 'created',
     actorUserId: params.actorUserId,
-    payload: {
-      ...params.payload,
-      ownerUserId: null,
-      focusLevel: null,
-      isActive: false,
-    },
+    before: null,
+    after: nextPayload,
+    createdAt: nowIso(),
   });
 }
 
@@ -466,14 +472,15 @@ export async function updateOwnershipCardMeta(params: {
   title: string;
   note: string;
 }) {
-  return upsertOwnershipCard({
+  return patchOwnershipCard({
     familyId: params.familyId,
     cardId: params.cardId,
     actorUserId: params.actorUserId,
-    payload: {
+    patch: {
       title: params.title,
       note: params.note,
     },
+    action: 'meta_updated',
   });
 }
 
@@ -483,13 +490,14 @@ export async function updateOwnershipCardOwner(params: {
   actorUserId: string;
   ownerUserId: string | null;
 }) {
-  return upsertOwnershipCard({
+  return patchOwnershipCard({
     familyId: params.familyId,
     cardId: params.cardId,
     actorUserId: params.actorUserId,
-    payload: {
+    patch: {
       ownerUserId: params.ownerUserId,
     },
+    action: 'owner_updated',
   });
 }
 
@@ -499,13 +507,14 @@ export async function updateOwnershipCardFocus(params: {
   actorUserId: string;
   focusLevel: OwnershipFocusLevel | null;
 }) {
-  return upsertOwnershipCard({
+  return patchOwnershipCard({
     familyId: params.familyId,
     cardId: params.cardId,
     actorUserId: params.actorUserId,
-    payload: {
+    patch: {
       focusLevel: params.focusLevel,
     },
+    action: 'focus_updated',
   });
 }
 
@@ -515,13 +524,14 @@ export async function toggleOwnershipCardActive(params: {
   actorUserId: string;
   isActive: boolean;
 }) {
-  return upsertOwnershipCard({
+  return patchOwnershipCard({
     familyId: params.familyId,
     cardId: params.cardId,
     actorUserId: params.actorUserId,
-    payload: {
+    patch: {
       isActive: params.isActive,
     },
+    action: 'activation_updated',
   });
 }
 
