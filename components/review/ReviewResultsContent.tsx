@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 import { questionTemplates } from '@/data/questionTemplates';
 import { categoryLabelMap } from '@/services/resultCalculator';
@@ -17,10 +18,10 @@ import {
   openSharedResultsView,
   unlockPartnerAndJointResults,
 } from '@/services/partnerFlow.service';
-import { buildOwnershipRecommendations, computeOwnershipSignals, initializeFamilyOwnership } from '@/services/ownership.service';
+import { buildOwnershipRecommendations, computeOwnershipSignals, initializeFamilyOwnership, observeOwnershipCards } from '@/services/ownership.service';
 import { getCurrentLocale } from '@/lib/i18n';
 import type { QuizCategory, StressSelection } from '@/types/quiz';
-import type { OwnershipRecommendation } from '@/types/ownership';
+import type { OwnershipCardDocument, OwnershipRecommendation } from '@/types/ownership';
 
 function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
   return [...categories].sort(([, valueA], [, valueB]) => valueA - valueB);
@@ -71,6 +72,18 @@ function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>) {
   return `Es wurde in mehreren Bereichen eine hohe Belastung gemessen (je ${maxScore} %).`;
 }
 
+function formatDiscussedDate(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(parsed);
+}
+
+function resolveCardIsActive(card: OwnershipCardDocument) {
+  if (typeof card.isActive === 'boolean') return card.isActive;
+  return Boolean(card.ownerUserId || card.focusLevel);
+}
+
 export function ReviewResultsContent() {
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -88,6 +101,7 @@ export function ReviewResultsContent() {
   const [unlockBannerIndex, setUnlockBannerIndex] = useState(0);
   const [ownershipInitState, setOwnershipInitState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [ownershipInitMessage, setOwnershipInitMessage] = useState('');
+  const [ownershipCards, setOwnershipCards] = useState<OwnershipCardDocument[]>([]);
   const unlockBannerPool = useMemo(
     () => questionTemplates.slice(0, 12).map((entry) => entry.questionText?.de ?? entry.id),
     [],
@@ -112,6 +126,11 @@ export function ReviewResultsContent() {
 
     return () => unsubscribe();
   }, [router]);
+
+  useEffect(() => {
+    if (!bundle?.profile?.familyId) return;
+    return observeOwnershipCards(bundle.profile.familyId, setOwnershipCards);
+  }, [bundle?.profile?.familyId]);
 
   async function onInviteSubmit(event: FormEvent) {
     event.preventDefault();
@@ -223,6 +242,8 @@ export function ReviewResultsContent() {
   const canInvitePartner = bundle?.profile?.role !== 'partner'
     && !bundle?.family?.partnerRegistered
     && !hasUnlockedResults;
+  const discussedDate = formatDiscussedDate(bundle?.family?.resultsDiscussedAt ?? null);
+  const hasActiveOwnershipCards = ownershipCards.some(resolveCardIsActive);
 
   const ownershipSignals = useMemo(() => {
     if (!bundle?.ownResult) return [];
@@ -282,25 +303,27 @@ export function ReviewResultsContent() {
   return (
     <section className="section">
       <div className="container stack">
-
-        {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && !!ownershipRecommendations.length && (
-          <article className="card stack">
-            <h2 className="card-title">Hinweis</h2>
-            <p className="card-description">
-              Unten auf dieser Seite kannst du Arbeitspakete für ausgewählte Kategorien anschauen und zuordnen.
-            </p>
-          </article>
-        )}
+        <article className="card stack">
+          <h2 className="card-title">
+            {discussedDate
+              ? `Hier sind eure Testergebnisse, durchgesprochen am ${discussedDate}`
+              : 'Hier sind eure Testergebnisse'}
+          </h2>
+        </article>
 
         <article className="card stack">
+          <h2 className="card-title">Eigenes Ergebnis</h2>
           {!ownResultText
             ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
             : (
-              <ResultBreakdown
-                title={resolveDisplayName(bundle?.profile?.displayName, 'Du')}
-                partnerName={partnerLabel}
-                result={ownResultText}
-              />
+              <>
+                <ResultBreakdown
+                  title={resolveDisplayName(bundle?.profile?.displayName, 'Du')}
+                  partnerName={partnerLabel}
+                  result={ownResultText}
+                />
+                <p className="helper" style={{ margin: 0 }}>Diese Auswertung bleibt als Referenz für spätere Team-Checks erhalten.</p>
+              </>
             )}
         </article>
 
@@ -401,7 +424,11 @@ export function ReviewResultsContent() {
           <JointResultPanel bundle={bundle} />
         )}
 
-        {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && !!ownershipRecommendations.length && (
+        {bundle?.family?.resultsUnlocked
+          && bundle?.family?.sharedResultsOpened
+          && !bundle?.family?.resultsDiscussedAt
+          && !hasActiveOwnershipCards
+          && !!ownershipRecommendations.length && (
           <article className="card stack">
             <h2 className="card-title">Arbeitspakete für ausgewählte Kategorien anschauen und zuordnen</h2>
             <p className="card-description">
@@ -436,6 +463,14 @@ export function ReviewResultsContent() {
             </div>
           </article>
         )}
+
+        {(bundle?.family?.resultsDiscussedAt || hasActiveOwnershipCards) && (
+          <article className="card stack">
+            <Link href="/app/ownership-dashboard" className="button" style={{ width: 'fit-content' }}>
+              Zu Aufgabengebieten
+            </Link>
+          </article>
+        )}
       </div>
     </section>
   );
@@ -459,7 +494,7 @@ function JointResultPanel({ bundle }: {
 
   return (
     <article className="card stack">
-      <h2 className="card-title">Gemeinsames Ergebnis</h2>
+      <h2 className="card-title">Gemeinsames Vergleichsergebnis</h2>
       <div className="stack">
         {comparisons.map((entry) => {
           const initiatorSelf = initiatorScores[entry.category] ?? 0;

@@ -1,5 +1,5 @@
-import { ReviewResultsContent } from '@/components/review/ReviewResultsContent';
+import { TeamCheckContent } from '@/components/review/TeamCheckContent';
 
-export default function ReviewPage() {
-  return <ReviewResultsContent />;
+export default function TeamCheckPage() {
+  return <TeamCheckContent />;
 }

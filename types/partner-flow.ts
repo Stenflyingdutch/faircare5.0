@@ -29,6 +29,8 @@ export interface FamilyDocument {
   unlockedBy?: string | null;
   sharedResultsOpenedAt?: string | null;
   sharedResultsOpenedBy?: string | null;
+  resultsDiscussedAt?: string | null;
+  resultsDiscussedBy?: string | null;
   invitationId?: string | null;
   createdAt: string;
   activatedAt?: string | null;

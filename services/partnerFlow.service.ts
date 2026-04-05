@@ -281,6 +281,8 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
         unlockedBy: null,
         sharedResultsOpenedAt: null,
         sharedResultsOpenedBy: null,
+        resultsDiscussedAt: null,
+        resultsDiscussedBy: null,
         invitationId: null,
         createdAt: nowIso(),
         updatedAt: serverTimestamp(),
@@ -328,6 +330,8 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       unlockedBy: null,
       sharedResultsOpenedAt: null,
       sharedResultsOpenedBy: null,
+      resultsDiscussedAt: null,
+      resultsDiscussedBy: null,
       updatedAt: serverTimestamp(),
     }, { merge: true });
     console.info('[sendPartnerInvite:fallback] Invitation erstellt', { invitationId: invitationRef.id });
@@ -590,6 +594,8 @@ export async function finalizePartnerRegistration(params: {
       unlockedBy: null,
       sharedResultsOpenedAt: null,
       sharedResultsOpenedBy: null,
+      resultsDiscussedAt: null,
+      resultsDiscussedBy: null,
       updatedAt: serverTimestamp(),
     }, { merge: true });
   });
@@ -768,6 +774,8 @@ export async function activateJointResult(jointResultId: string, userId: string)
       unlockedBy: userId,
       sharedResultsOpenedAt: null,
       sharedResultsOpenedBy: null,
+      resultsDiscussedAt: null,
+      resultsDiscussedBy: null,
       activatedAt,
       updatedAt: serverTimestamp(),
     }, { merge: true });

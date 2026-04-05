@@ -7,8 +7,10 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
+  updateDoc,
   writeBatch,
   where,
 } from 'firebase/firestore';
@@ -253,6 +255,7 @@ export async function initializeFamilyOwnership(params: {
         ownerUserId: null,
         focusLevel: null,
         sortOrder: template.sortOrder,
+        isActive: false,
         isDeleted: false,
         createdBy: params.actorUserId,
         updatedBy: params.actorUserId,
@@ -263,6 +266,22 @@ export async function initializeFamilyOwnership(params: {
   }
 
   await batch.commit();
+  await setResultsDiscussedAtIfMissing(params.familyId, params.actorUserId);
+}
+
+export async function setResultsDiscussedAtIfMissing(familyId: string, actorUserId: string) {
+  const familyRef = doc(db, firestoreCollections.families, familyId);
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(familyRef);
+    if (!snapshot.exists()) throw new Error('Familie nicht gefunden.');
+    const family = snapshot.data() as { resultsDiscussedAt?: string | null };
+    if (family.resultsDiscussedAt) return;
+    transaction.set(familyRef, {
+      resultsDiscussedAt: nowIso(),
+      resultsDiscussedBy: actorUserId,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  });
 }
 
 export async function ensureOwnershipCardsForCategories(params: {
@@ -317,6 +336,7 @@ export async function ensureOwnershipCardsForCategories(params: {
         ownerUserId: null,
         focusLevel: null,
         sortOrder: template.sortOrder,
+        isActive: false,
         isDeleted: false,
         createdBy: params.actorUserId,
         updatedBy: params.actorUserId,
@@ -378,36 +398,155 @@ export function observeOwnershipCards(
   );
 }
 
-export async function upsertOwnershipCard(params: {
-  familyId: string;
-  cardId?: string;
-  actorUserId: string;
-  payload: Pick<OwnershipCardDocument, 'categoryKey' | 'title' | 'note' | 'ownerUserId' | 'focusLevel' | 'sortOrder'>;
-}) {
-  const cardId = params.cardId ?? doc(collection(db, firestoreCollections.families, params.familyId, 'ownershipCards')).id;
-  const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
-  const existing = await getDoc(cardRef);
-  const before = existing.exists() ? existing.data() : null;
+type OwnershipPatch = Record<string, unknown>;
 
-  const nextPayload = {
-    id: cardId,
-    ...params.payload,
-    isDeleted: false,
-    createdBy: (before as { createdBy?: string } | null)?.createdBy ?? params.actorUserId,
+export interface OwnershipCardOwnerPatch {
+  ownerUserId: string | null;
+}
+
+export interface OwnershipCardFocusPatch {
+  focusLevel: OwnershipFocusLevel | null;
+}
+
+export interface OwnershipCardContentPatch {
+  title?: string;
+  note?: string;
+}
+
+export interface OwnershipCardActivationPatch {
+  isActive: boolean;
+}
+
+async function patchOwnershipCard(params: {
+  familyId: string;
+  cardId: string;
+  actorUserId: string;
+  patch: OwnershipPatch;
+  action: string;
+}) {
+  const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', params.cardId);
+  const existing = await getDoc(cardRef);
+  if (!existing.exists()) throw new Error('Karte nicht gefunden.');
+  const before = existing.data();
+
+  const updatePayload = {
+    ...params.patch,
     updatedBy: params.actorUserId,
-    createdAt: (before as { createdAt?: string } | null)?.createdAt ?? nowIso(),
     updatedAt: serverTimestamp(),
   };
 
-  await setDoc(cardRef, nextPayload, { merge: true });
+  await updateDoc(cardRef, updatePayload);
+  await addDoc(collection(db, firestoreCollections.families, params.familyId, 'auditEvents'), {
+    entityType: 'ownershipCard',
+    entityId: params.cardId,
+    action: params.action,
+    actorUserId: params.actorUserId,
+    before,
+    after: {
+      ...before,
+      ...params.patch,
+    },
+    createdAt: nowIso(),
+  });
+}
+
+export async function createOwnershipCard(params: {
+  familyId: string;
+  actorUserId: string;
+  payload: Pick<OwnershipCardDocument, 'categoryKey' | 'title' | 'note' | 'sortOrder'>;
+}) {
+  const cardId = doc(collection(db, firestoreCollections.families, params.familyId, 'ownershipCards')).id;
+  const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
+  const nextPayload = {
+    id: cardId,
+    ...params.payload,
+    ownerUserId: null,
+    focusLevel: null,
+    isActive: false,
+    isDeleted: false,
+    createdBy: params.actorUserId,
+    updatedBy: params.actorUserId,
+    createdAt: nowIso(),
+    updatedAt: serverTimestamp(),
+  };
+
+  await setDoc(cardRef, nextPayload, { merge: false });
   await addDoc(collection(db, firestoreCollections.families, params.familyId, 'auditEvents'), {
     entityType: 'ownershipCard',
     entityId: cardId,
-    action: before ? 'updated' : 'created',
+    action: 'created',
     actorUserId: params.actorUserId,
-    before,
+    before: null,
     after: nextPayload,
     createdAt: nowIso(),
+  });
+}
+
+export async function updateOwnershipCardMeta(params: {
+  familyId: string;
+  cardId: string;
+  actorUserId: string;
+  patch: OwnershipCardContentPatch;
+}) {
+  return patchOwnershipCard({
+    familyId: params.familyId,
+    cardId: params.cardId,
+    actorUserId: params.actorUserId,
+    patch: {
+      ...params.patch,
+    },
+    action: 'meta_updated',
+  });
+}
+
+export async function updateOwnershipCardOwner(params: {
+  familyId: string;
+  cardId: string;
+  actorUserId: string;
+  patch: OwnershipCardOwnerPatch;
+}) {
+  return patchOwnershipCard({
+    familyId: params.familyId,
+    cardId: params.cardId,
+    actorUserId: params.actorUserId,
+    patch: {
+      ownerUserId: params.patch.ownerUserId,
+    },
+    action: 'owner_updated',
+  });
+}
+
+export async function updateOwnershipCardFocus(params: {
+  familyId: string;
+  cardId: string;
+  actorUserId: string;
+  patch: OwnershipCardFocusPatch;
+}) {
+  return patchOwnershipCard({
+    familyId: params.familyId,
+    cardId: params.cardId,
+    actorUserId: params.actorUserId,
+    patch: {
+      focusLevel: params.patch.focusLevel,
+    },
+    action: 'focus_updated',
+  });
+}
+
+export async function toggleOwnershipCardActive(params: {
+  familyId: string;
+  cardId: string;
+  actorUserId: string;
+  patch: OwnershipCardActivationPatch;
+}) {
+  return patchOwnershipCard({
+    familyId: params.familyId,
+    cardId: params.cardId,
+    actorUserId: params.actorUserId,
+    patch: {
+      isActive: params.patch.isActive,
+    },
+    action: 'activation_updated',
   });
 }
 
@@ -418,6 +557,7 @@ export async function softDeleteOwnershipCard(familyId: string, cardId: string, 
   const before = existing.data();
 
   await setDoc(cardRef, {
+    isActive: false,
     isDeleted: true,
     updatedBy: actorUserId,
     updatedAt: serverTimestamp(),
@@ -431,6 +571,7 @@ export async function softDeleteOwnershipCard(familyId: string, cardId: string, 
     before,
     after: {
       ...before,
+      isActive: false,
       isDeleted: true,
     },
     createdAt: nowIso(),

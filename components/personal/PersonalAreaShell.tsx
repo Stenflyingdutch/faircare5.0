@@ -2,23 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 
 import { observeAuthState, signOutUser } from '@/services/auth.service';
 
 const personalNavItems = [
-  { label: 'Home', href: '/app/home' },
-  { label: 'Aufgabengebiete', href: '/app/ownership-dashboard' },
-  { label: 'Review', href: '/app/review' },
-  { label: 'Einstellungen', href: '/app/einstellungen' },
+  { label: 'Home', href: '/app/home', tone: 'violet' },
+  { label: 'Aufgabengebiete', href: '/app/ownership-dashboard', tone: 'petrol' },
+  { label: 'Team-Check', href: '/app/review', tone: 'violet' },
+  { label: 'Einstellungen', href: '/app/einstellungen', tone: 'violet' },
 ] as const;
-
-function pageTitle(pathname: string) {
-  if (pathname.startsWith('/app/home')) return 'Home';
-  if (pathname.startsWith('/app/ownership-dashboard')) return 'Aufgabengebiete';
-  if (pathname.startsWith('/app/einstellungen')) return 'Einstellungen';
-  return 'Review';
-}
 
 export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -36,8 +29,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
 
     return () => unsubscribe();
   }, [router]);
-
-  const currentTitle = useMemo(() => pageTitle(pathname), [pathname]);
 
   async function onLogout() {
     await signOutUser();
@@ -57,18 +48,18 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
       <div className="container personal-area-shell stack">
         <header className="personal-area-header stack">
           <div className="personal-area-headline-row">
-            <div>
-              <p className="personal-area-kicker">Persönlicher Bereich</p>
-              <h1 className="personal-area-title">{currentTitle}</h1>
-              <p className="helper" style={{ margin: 0 }}>Willkommen in deinem persönlichen Bereich.</p>
-            </div>
-            <button type="button" className="button" onClick={onLogout}>Logout</button>
+            <button type="button" className="button personal-area-logout" onClick={onLogout}>Logout</button>
           </div>
           <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
             {personalNavItems.map((item) => {
-              const isActive = pathname === item.href;
+              const isTeamCheckContext = item.href === '/app/review' && pathname.startsWith('/app/ergebnisse');
+              const isActive = pathname.startsWith(item.href) || isTeamCheckContext;
               return (
-                <Link key={item.href} href={item.href} className={`personal-area-nav-link ${isActive ? 'active' : ''}`}>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`personal-area-nav-link ${isActive ? `active tone-${item.tone}` : ''}`}
+                >
                   {item.label}
                 </Link>
               );
