@@ -43,7 +43,7 @@ export default function QuizResultPage() {
       <div className="container test-shell stack">
         <h1 className="test-title">Vielen Dank für Deine Teilnahme!</h1>
         <p className="helper" style={{ marginTop: -8 }}>Untenstehend findest Du deine persönlichen Ergebnisse.</p>
-        <div className="result-card personal-result-summary detailed individual-result-panel stack">
+        <div className="result-card personal-result-summary detailed individual-result-panel single-result-dark stack">
           <div>
             <p className="helper">Gesamtverteilung</p>
             <div className="result-bar"><div className="result-bar-me" style={{ width: `${summary.selfPercent}%` }} /></div>

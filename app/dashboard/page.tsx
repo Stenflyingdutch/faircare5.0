@@ -51,6 +51,21 @@ function resolvePerceivedStressLabel(stressCategories?: StressSelection[]) {
   return categoryLabelMap[topStress];
 }
 
+function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>) {
+  const maxScore = Math.max(...categories.map(([, value]) => value));
+  const highestCategories = categories
+    .filter(([, value]) => value === maxScore)
+    .map(([category]) => categoryLabelMap[category]);
+
+  if (highestCategories.length === 1) {
+    return `${highestCategories[0]} (${maxScore} %).`;
+  }
+  if (highestCategories.length === 2) {
+    return `${highestCategories[0]} und ${highestCategories[1]} (je ${maxScore} %).`;
+  }
+  return `Es wurde in mehreren Bereichen eine hohe Belastung gemessen (je ${maxScore} %).`;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -369,8 +384,9 @@ function ResultBreakdown({
 }) {
   const displayName = resolveDisplayName(title, 'Nicole');
   const sortedCategories = [...result.categories].sort((a, b) => b[1] - a[1]);
-  const highestLoad = sortedCategories[0];
-  const hasNoCategoryAboveHalf = highestLoad[1] < 50;
+  const highestLoad = Math.max(...result.categories.map(([, value]) => value));
+  const highestLoadSummary = buildHighestLoadSummary(result.categories);
+  const hasNoCategoryAboveHalf = highestLoad < 50;
 
   return (
     <>
@@ -406,7 +422,7 @@ function ResultBreakdown({
             ) : (
               <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
                 <p style={{ margin: '0 0 8px' }}>
-                  <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong> {categoryLabelMap[highestLoad[0]]} ({highestLoad[1]} %).
+                  <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong> {highestLoadSummary}
                 </p>
                 <p style={{ margin: '0 0 8px' }}>
                   <strong>Größte empfundene Belastung:</strong> {result.perceivedStressLabel}.
