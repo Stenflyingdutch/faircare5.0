@@ -311,13 +311,6 @@ export function OwnershipBoard({
         <article className="card stack">
           <h3 className="card-title" style={{ margin: 0 }}>Filter</h3>
           <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button
-              type="button"
-              className={`option-chip ${selectedCategories.length === 0 ? 'selected' : ''}`}
-              onClick={() => setSelectedCategories([])}
-            >
-              Alle Aufgabengebiete
-            </button>
             {groupedWithStatus.map((group) => (
               <button
                 key={group.category}
