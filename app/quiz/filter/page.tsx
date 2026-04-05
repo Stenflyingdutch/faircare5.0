@@ -54,7 +54,7 @@ export default function QuizFilterPage() {
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
-      if (!user) return;
+      if (!user || user.isAnonymous || !user.email) return;
       const profile = await fetchAppUserProfile(user.uid);
       if (profile?.role === 'partner') {
         router.replace('/dashboard');
