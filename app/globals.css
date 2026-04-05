@@ -659,9 +659,6 @@ textarea.input {
   border-radius: 16px;
   padding: 1rem;
   background: #fff;
-  position: sticky;
-  top: 12px;
-  z-index: 20;
 }
 
 .personal-area-headline-row {
