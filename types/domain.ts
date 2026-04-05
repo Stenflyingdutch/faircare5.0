@@ -96,6 +96,7 @@ export const firestoreCollections = {
   weeklyCheckins: 'weeklyCheckins',
   taskPackageTemplates: 'taskPackageTemplates',
   newsletterSubscribers: 'newsletterSubscribers',
+  adminAuditLogs: 'adminAuditLogs',
 } as const;
 
 export type FirestoreCollectionName =

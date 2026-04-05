@@ -39,6 +39,13 @@ export default function AdminPage() {
             <p className="card-description">Transparente Dokumentation zu Berechnung, Vergleich, Schwellenwerten und Empfehlungen.</p>
             <Link href="/admin/logic" className="button primary">Zur Logik-Seite</Link>
           </article>
+
+          <article className="card">
+            <h3 className="card-title">User Management</h3>
+            <p className="card-description">Admins verwalten hier Nutzerkonten inklusive Suche, Sperrung und vollständiger Löschung.</p>
+            <Link href="/admin/users" className="button primary">User verwalten</Link>
+          </article>
+
           <article className="card">
             <h3 className="card-title">Ownership-Aufgabenpakete</h3>
             <p className="card-description">Globale Vorlagen pro Altersgruppe, Kategorie und Sprache für den Ownership-Start.</p>
