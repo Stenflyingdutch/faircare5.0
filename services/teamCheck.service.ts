@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -8,6 +7,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   where,
@@ -22,6 +22,7 @@ import {
 import { firestoreCollections } from '@/types/domain';
 import type { AppUserProfile, FamilyDocument } from '@/types/partner-flow';
 import type { TeamCheckActionType, TeamCheckPlan, TeamCheckPreparation, TeamCheckRecord } from '@/types/team-check';
+import type { OwnershipCardDocument } from '@/types/ownership';
 
 function nowIso() {
   return new Date().toISOString();
@@ -180,54 +181,111 @@ export function observeLatestTeamCheckRecord(params: {
 }
 
 export async function saveTeamCheckRecord(params: {
-  family: FamilyDocument;
+  familyId: string;
   actorUserId: string;
   preparations: TeamCheckPreparation[];
   discussedCardIds: string[];
   discussedCategoryKeys: TeamCheckRecord['discussedCategoryKeys'];
-  assignmentChanges: TeamCheckRecord['assignmentChanges'];
+  ownerDecisions: Array<{ cardId: string; toOwnerUserId: string | null }>;
   note?: string;
 }) {
-  const plan = params.family.teamCheckPlan;
-  if (!plan?.nextCheckInAt) throw new Error('Team-Check Planung fehlt.');
+  const familyRef = doc(db, firestoreCollections.families, params.familyId);
 
-  const checkInAt = nowIso();
-  const scheduledForKey = toScheduledKey(plan.nextCheckInAt);
+  return runTransaction(db, async (transaction) => {
+    const familySnap = await transaction.get(familyRef);
+    if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
+    const family = familySnap.data() as FamilyDocument;
+    const plan = family.teamCheckPlan;
+    if (!plan?.nextCheckInAt) throw new Error('Team-Check Planung fehlt.');
 
-  const recordPayload: Omit<TeamCheckRecord, 'id'> = {
-    familyId: params.family.id,
-    scheduledForKey,
-    checkInAt,
-    preparationSnapshot: params.preparations,
-    discussedCardIds: [...new Set(params.discussedCardIds)],
-    discussedCategoryKeys: [...new Set(params.discussedCategoryKeys)],
-    assignmentChanges: params.assignmentChanges,
-    note: params.note?.trim() || '',
-    createdBy: params.actorUserId,
-    createdAt: nowIso(),
-  };
+    const checkInAt = nowIso();
+    const scheduledForKey = toScheduledKey(plan.nextCheckInAt);
+    const recordId = `cycle_${scheduledForKey}`;
+    const recordRef = doc(db, firestoreCollections.families, params.familyId, 'teamCheckRecords', recordId);
+    const existingRecord = await transaction.get(recordRef);
+    if (existingRecord.exists()) {
+      return { alreadySaved: true, recordId };
+    }
 
-  await addDoc(collection(db, firestoreCollections.families, params.family.id, 'teamCheckRecords'), recordPayload);
+    const normalizedDecisions = params.ownerDecisions.reduce<Array<{ cardId: string; toOwnerUserId: string | null }>>((acc, decision) => {
+      if (!decision.cardId) return acc;
+      if (acc.some((entry) => entry.cardId === decision.cardId)) return acc;
+      acc.push(decision);
+      return acc;
+    }, []);
 
-  const nextDate = computeNextTeamCheckAt({
-    from: new Date(checkInAt),
-    frequency: plan.frequency,
-    dayOfWeek: plan.dayOfWeek,
-    time: plan.time,
+    const snapshotBeforeCards: TeamCheckRecord['snapshotBeforeCards'] = [];
+    const assignmentChanges: TeamCheckRecord['assignmentChanges'] = [];
+
+    for (const decision of normalizedDecisions) {
+      const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', decision.cardId);
+      const cardSnap = await transaction.get(cardRef);
+      if (!cardSnap.exists()) continue;
+      const card = { id: cardSnap.id, ...cardSnap.data() } as OwnershipCardDocument;
+      const fromOwnerUserId = card.ownerUserId ?? null;
+      const toOwnerUserId = decision.toOwnerUserId ?? null;
+
+      snapshotBeforeCards.push({
+        cardId: card.id,
+        title: card.title,
+        categoryKey: card.categoryKey,
+        ownerUserId: fromOwnerUserId,
+        focusLevel: card.focusLevel ?? null,
+        isActive: card.isActive,
+      });
+
+      if (fromOwnerUserId === toOwnerUserId) continue;
+
+      assignmentChanges.push({
+        cardId: card.id,
+        fromOwnerUserId,
+        toOwnerUserId,
+      });
+
+      transaction.set(cardRef, {
+        ownerUserId: toOwnerUserId,
+        updatedBy: params.actorUserId,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+
+    const recordPayload: Omit<TeamCheckRecord, 'id'> = {
+      familyId: params.familyId,
+      scheduledForKey,
+      checkInAt,
+      preparationSnapshot: params.preparations,
+      discussedCardIds: [...new Set(params.discussedCardIds)],
+      discussedCategoryKeys: [...new Set(params.discussedCategoryKeys)],
+      assignmentChanges,
+      snapshotBeforeCards,
+      note: params.note?.trim() || '',
+      createdBy: params.actorUserId,
+      createdAt: checkInAt,
+    };
+
+    const nextDate = computeNextTeamCheckAt({
+      from: new Date(checkInAt),
+      frequency: plan.frequency,
+      dayOfWeek: plan.dayOfWeek,
+      time: plan.time,
+    });
+    const nextCheckInAt = nextDate.toISOString();
+
+    transaction.set(recordRef, recordPayload, { merge: false });
+    transaction.set(familyRef, {
+      teamCheckPlan: {
+        ...plan,
+        lastCheckInAt: checkInAt,
+        nextCheckInAt,
+        reminderActiveAt: computeReminderAt(nextCheckInAt, plan.time),
+        updatedBy: params.actorUserId,
+        updatedAt: checkInAt,
+      },
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+
+    return { alreadySaved: false, recordId };
   });
-  const nextCheckInAt = nextDate.toISOString();
-
-  await setDoc(doc(db, firestoreCollections.families, params.family.id), {
-    teamCheckPlan: {
-      ...plan,
-      lastCheckInAt: checkInAt,
-      nextCheckInAt,
-      reminderActiveAt: computeReminderAt(nextCheckInAt, plan.time),
-      updatedBy: params.actorUserId,
-      updatedAt: nowIso(),
-    },
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
 }
 
 export async function fetchDiscussionPreparationPair(params: {

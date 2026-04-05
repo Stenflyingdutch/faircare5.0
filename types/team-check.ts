@@ -50,6 +50,14 @@ export interface TeamCheckRecord {
     fromOwnerUserId: string | null;
     toOwnerUserId: string | null;
   }>;
+  snapshotBeforeCards: Array<{
+    cardId: string;
+    title: string;
+    categoryKey: QuizCategory;
+    ownerUserId: string | null;
+    focusLevel?: string | null;
+    isActive?: boolean;
+  }>;
   note?: string;
   createdBy: string;
   createdAt: string;

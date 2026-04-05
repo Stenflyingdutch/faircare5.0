@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
-import { observeOwnershipCards, updateOwnershipCardOwner } from '@/services/ownership.service';
+import { observeOwnershipCards } from '@/services/ownership.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
   observePreparationPair,
@@ -16,7 +16,6 @@ import {
   saveTeamCheckRecord,
 } from '@/services/teamCheck.service';
 import { formatTeamCheckDate } from '@/services/teamCheck.logic';
-import type { FamilyDocument } from '@/types/partner-flow';
 import type { OwnershipCardDocument } from '@/types/ownership';
 import type { TeamCheckPreparation, TeamCheckRecord } from '@/types/team-check';
 import type { QuizCategory } from '@/types/quiz';
@@ -166,36 +165,20 @@ export function TeamCheckContent() {
     setMessage(null);
 
     try {
-      const assignmentChanges: TeamCheckRecord['assignmentChanges'] = [];
-      for (const [cardId, nextOwnerUserId] of Object.entries(assignmentDraft)) {
-        const card = cards.find((entry) => entry.id === cardId);
-        if (!card) continue;
-        const currentOwner = card.ownerUserId ?? null;
-        if (currentOwner === (nextOwnerUserId ?? null)) continue;
-        await updateOwnershipCardOwner({
-          familyId: bundle.profile.familyId,
-          cardId,
-          actorUserId: currentUserId,
-          patch: { ownerUserId: nextOwnerUserId ?? null },
-        });
-        assignmentChanges.push({
-          cardId,
-          fromOwnerUserId: currentOwner,
-          toOwnerUserId: nextOwnerUserId ?? null,
-        });
-      }
-
       const discussedCategoryKeys = [
         ...new Set(preparations.flatMap((entry) => [...entry.handoverAreaCategoryKeys, ...entry.swapAreaCategoryKeys])),
       ] as QuizCategory[];
 
       await saveTeamCheckRecord({
-        family: bundle.family as FamilyDocument,
+        familyId: bundle.profile.familyId,
         actorUserId: currentUserId,
         preparations,
         discussedCardIds,
         discussedCategoryKeys,
-        assignmentChanges,
+        ownerDecisions: Object.entries(assignmentDraft).map(([cardId, toOwnerUserId]) => ({
+          cardId,
+          toOwnerUserId: toOwnerUserId ?? null,
+        })),
         note: closingNote,
       });
 

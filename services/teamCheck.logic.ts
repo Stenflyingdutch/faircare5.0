@@ -6,8 +6,8 @@ export function toScheduledKey(isoDate: string) {
   return isoDate.slice(0, 10);
 }
 
-function parseHourAndMinute(time?: string | null) {
-  const normalized = (time?.trim() || DEFAULT_REMINDER_HOUR);
+function parseHourAndMinute(time?: string | null, fallback = DEFAULT_REMINDER_HOUR) {
+  const normalized = (time?.trim() || fallback);
   const [hourPart, minutePart] = normalized.split(':');
   const hour = Number(hourPart);
   const minute = Number(minutePart);
@@ -15,34 +15,34 @@ function parseHourAndMinute(time?: string | null) {
   return { hour: Math.min(23, Math.max(0, hour)), minute: Math.min(59, Math.max(0, minute)) };
 }
 
-function alignWithTime(base: Date, time?: string | null) {
-  const { hour, minute } = parseHourAndMinute(time);
+function alignWithTime(base: Date, time?: string | null, fallback?: string) {
+  const { hour, minute } = parseHourAndMinute(time, fallback);
   const copy = new Date(base);
   copy.setHours(hour, minute, 0, 0);
   return copy;
 }
 
-function startOfNextDay(now: Date) {
-  const copy = new Date(now);
-  copy.setDate(copy.getDate() + 1);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
+function resolveFixedWeekdayAnchor(weekday: number, time?: string | null) {
+  const anchor = alignWithTime(new Date(1970, 0, 1), time);
+  const offset = (weekday - anchor.getDay() + 7) % 7;
+  anchor.setDate(anchor.getDate() + offset);
+  return anchor;
 }
 
-function computeWeeklyLikeNextDate(params: { now: Date; dayOfWeek: number; intervalDays: number; time?: string | null }) {
-  const candidate = startOfNextDay(params.now);
-  const offset = (params.dayOfWeek - candidate.getDay() + 7) % 7;
-  candidate.setDate(candidate.getDate() + offset);
-  const withTime = alignWithTime(candidate, params.time);
-  if (params.intervalDays === 7) return withTime;
+function computeNextIntervalDate(params: {
+  now: Date;
+  dayOfWeek: number;
+  intervalDays: number;
+  time?: string | null;
+}) {
+  const anchor = resolveFixedWeekdayAnchor(params.dayOfWeek, params.time);
+  const candidate = new Date(anchor);
 
-  const diffDays = Math.floor((withTime.getTime() - params.now.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays >= params.intervalDays) {
-    return withTime;
+  while (candidate.getTime() < params.now.getTime()) {
+    candidate.setDate(candidate.getDate() + params.intervalDays);
   }
-  const fallback = new Date(withTime);
-  fallback.setDate(fallback.getDate() + params.intervalDays);
-  return fallback;
+
+  return candidate;
 }
 
 function firstWeekdayOfMonth(year: number, monthIndex: number, weekday: number, time?: string | null) {
@@ -60,14 +60,14 @@ export function computeNextTeamCheckAt(params: {
 }) {
   const now = params.from ?? new Date();
   if (params.frequency === 'weekly') {
-    return computeWeeklyLikeNextDate({ now, dayOfWeek: params.dayOfWeek, intervalDays: 7, time: params.time });
+    return computeNextIntervalDate({ now, dayOfWeek: params.dayOfWeek, intervalDays: 7, time: params.time });
   }
   if (params.frequency === 'biweekly') {
-    return computeWeeklyLikeNextDate({ now, dayOfWeek: params.dayOfWeek, intervalDays: 14, time: params.time });
+    return computeNextIntervalDate({ now, dayOfWeek: params.dayOfWeek, intervalDays: 14, time: params.time });
   }
 
   const thisMonth = firstWeekdayOfMonth(now.getFullYear(), now.getMonth(), params.dayOfWeek, params.time);
-  if (thisMonth.getTime() > now.getTime()) return thisMonth;
+  if (thisMonth.getTime() >= now.getTime()) return thisMonth;
   return firstWeekdayOfMonth(now.getFullYear(), now.getMonth() + 1, params.dayOfWeek, params.time);
 }
 
@@ -75,7 +75,7 @@ export function computeReminderAt(nextCheckInAtIso: string, time?: string | null
   const checkInDate = new Date(nextCheckInAtIso);
   const reminder = new Date(checkInDate);
   reminder.setDate(reminder.getDate() - 2);
-  return alignWithTime(reminder, time).toISOString();
+  return alignWithTime(reminder, time, DEFAULT_REMINDER_HOUR).toISOString();
 }
 
 export function isTeamCheckBadgeVisible(params: {

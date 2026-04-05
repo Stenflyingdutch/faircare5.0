@@ -32,3 +32,28 @@ test('settings contain shared rhythm and individual email preference controls', 
   assert.match(src, /saveTeamCheckPlan/);
   assert.match(src, /saveTeamCheckEmailPreference/);
 });
+
+test('biweekly scheduling uses a central interval-anchor approach without blind extra jump', () => {
+  const src = read('services/teamCheck.logic.ts');
+  assert.match(src, /computeNextIntervalDate/);
+  assert.match(src, /resolveFixedWeekdayAnchor/);
+  assert.match(src, /intervalDays:\s*14/);
+  assert.doesNotMatch(src, /fallback\.setDate\(fallback\.getDate\(\) \+ params\.intervalDays\)/);
+});
+
+test('check-in save flow is transaction-based and idempotent per cycle', () => {
+  const src = read('services/teamCheck.service.ts');
+  assert.match(src, /runTransaction\(db,\s*async \(transaction\)/);
+  assert.match(src, /cycle_\$\{scheduledForKey\}/);
+  assert.match(src, /existingRecord\.exists\(\)/);
+  assert.match(src, /snapshotBeforeCards/);
+  assert.match(src, /transaction\.set\(recordRef,/);
+  assert.match(src, /transaction\.set\(familyRef,/);
+});
+
+test('component delegates owner updates to atomic service save instead of direct owner patching', () => {
+  const src = read('components/review/TeamCheckContent.tsx');
+  assert.match(src, /saveTeamCheckRecord\(\{/);
+  assert.match(src, /ownerDecisions:/);
+  assert.doesNotMatch(src, /updateOwnershipCardOwner/);
+});
