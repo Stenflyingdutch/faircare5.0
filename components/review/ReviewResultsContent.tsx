@@ -282,6 +282,15 @@ export function ReviewResultsContent() {
     <section className="section">
       <div className="container stack">
 
+        {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && !!ownershipRecommendations.length && (
+          <article className="card stack">
+            <h2 className="card-title">Hinweis</h2>
+            <p className="card-description">
+              Unten auf dieser Seite kannst du Arbeitspakete für ausgewählte Kategorien anschauen und zuordnen.
+            </p>
+          </article>
+        )}
+
         <article className="card stack">
           {!ownResultText
             ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
@@ -293,15 +302,6 @@ export function ReviewResultsContent() {
               />
             )}
         </article>
-
-        {!!ownershipRecommendations.length && (
-          <article className="card stack">
-            <h2 className="card-title">Hinweis</h2>
-            <p className="card-description">
-              Unten auf dieser Seite findest du als nächsten Schritt empfohlene Startkategorien.
-            </p>
-          </article>
-        )}
 
         {canInvitePartner && (
           <article className="card stack">
@@ -400,9 +400,9 @@ export function ReviewResultsContent() {
           <JointResultPanel bundle={bundle} />
         )}
 
-        {!!ownershipRecommendations.length && (
+        {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && !!ownershipRecommendations.length && (
           <article className="card stack">
-            <h2 className="card-title">Empfohlene Startkategorien</h2>
+            <h2 className="card-title">Arbeitspakete für ausgewählte Kategorien anschauen und zuordnen</h2>
             <p className="card-description">
               Wie entsteht diese Empfehlung? Sie kombiniert Testbelastung, empfundene Belastung und Unterschiede in der Wahrnehmung.
             </p>
@@ -421,7 +421,7 @@ export function ReviewResultsContent() {
                 onClick={() => startOwnership('recommended')}
                 disabled={ownershipInitState === 'loading'}
               >
-                {ownershipInitState === 'loading' ? 'Ownership wird vorbereitet …' : 'Mit empfohlenen Kategorien starten'}
+                {ownershipInitState === 'loading' ? 'Ownership wird vorbereitet …' : 'Ausgewählte Arbeitspakete anschauen und zuordnen'}
               </button>
               <button
                 type="button"
