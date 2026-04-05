@@ -12,6 +12,7 @@ interface OwnershipBoardProps {
   currentUserId: string;
   cards: OwnershipCardDocument[];
   mode: 'dashboard' | 'home';
+  ownerOptions: Array<{ userId: string; label: string }>;
 }
 
 const focusLevelLabel: Record<OwnershipFocusLevel, string> = {
@@ -29,7 +30,7 @@ interface DraftState {
   focusLevel: OwnershipFocusLevel;
 }
 
-export function OwnershipBoard({ familyId, currentUserId, cards, mode }: OwnershipBoardProps) {
+export function OwnershipBoard({ familyId, currentUserId, cards, mode, ownerOptions }: OwnershipBoardProps) {
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [saving, setSaving] = useState(false);
@@ -148,7 +149,7 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode }: Ownersh
                 className="button"
                 onClick={() => {
                   setActiveCategoryForCreate(category);
-                  setDraft({ title: '', note: '', ownerUserId: currentUserId, focusLevel: 'soon' });
+                  setDraft({ title: '', note: '', ownerUserId: ownerOptions[0]?.userId ?? currentUserId, focusLevel: 'soon' });
                 }}
               >
                 Neue Karte
@@ -160,7 +161,11 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode }: Ownersh
             <div className="report-block stack">
               <input className="input" value={draft.title} placeholder="Titel" onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
               <textarea className="input" rows={3} value={draft.note} placeholder="Notiz" onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
-              <input className="input" value={draft.ownerUserId} onChange={(e) => setDraft({ ...draft, ownerUserId: e.target.value })} placeholder="Owner User ID" />
+              <select className="input" value={draft.ownerUserId} onChange={(e) => setDraft({ ...draft, ownerUserId: e.target.value })}>
+                {ownerOptions.map((option) => (
+                  <option key={option.userId} value={option.userId}>{option.label}</option>
+                ))}
+              </select>
               <select className="input" value={draft.focusLevel} onChange={(e) => setDraft({ ...draft, focusLevel: e.target.value as OwnershipFocusLevel })}>
                 {focusOrder.map((level) => <option key={level} value={level}>{focusLevelLabel[level]}</option>)}
               </select>
@@ -178,7 +183,11 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode }: Ownersh
                   <>
                     <input className="input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
                     <textarea className="input" rows={3} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
-                    <input className="input" value={draft.ownerUserId} onChange={(e) => setDraft({ ...draft, ownerUserId: e.target.value })} />
+                    <select className="input" value={draft.ownerUserId} onChange={(e) => setDraft({ ...draft, ownerUserId: e.target.value })}>
+                      {ownerOptions.map((option) => (
+                        <option key={option.userId} value={option.userId}>{option.label}</option>
+                      ))}
+                    </select>
                     <select className="input" value={draft.focusLevel} onChange={(e) => setDraft({ ...draft, focusLevel: e.target.value as OwnershipFocusLevel })}>
                       {focusOrder.map((level) => <option key={level} value={level}>{focusLevelLabel[level]}</option>)}
                     </select>
@@ -193,7 +202,9 @@ export function OwnershipBoard({ familyId, currentUserId, cards, mode }: Ownersh
                     <strong>{card.title}</strong>
                     {card.note ? <p className="helper" style={{ margin: 0 }}>{card.note}</p> : null}
                     <p className="helper" style={{ margin: 0 }}>Fokus: {focusLevelLabel[card.focusLevel]}</p>
-                    <p className="helper" style={{ margin: 0 }}>Owner: {card.ownerUserId === currentUserId ? 'Du' : card.ownerUserId}</p>
+                    <p className="helper" style={{ margin: 0 }}>
+                      Owner: {ownerOptions.find((option) => option.userId === card.ownerUserId)?.label ?? (card.ownerUserId === currentUserId ? 'Du' : 'Partner')}
+                    </p>
                     <button type="button" className="button" onClick={() => beginEdit(card)}>Bearbeiten</button>
                   </>
                 )}

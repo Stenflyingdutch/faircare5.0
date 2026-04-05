@@ -15,6 +15,8 @@ export default function OwnershipDashboardPage() {
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
   const [categories, setCategories] = useState<OwnershipCategoryDocument[]>([]);
+  const [ownerOptions, setOwnerOptions] = useState<Array<{ userId: string; label: string }>>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -25,6 +27,13 @@ export default function OwnershipDashboardPage() {
       setUserId(user.uid);
       const bundle = await fetchDashboardBundle(user.uid);
       setFamilyId(bundle.profile?.familyId ?? null);
+      if (bundle.family) {
+        const options = [
+          { userId: bundle.family.initiatorUserId, label: 'Partner 1' },
+          ...(bundle.family.partnerUserId ? [{ userId: bundle.family.partnerUserId, label: 'Partner 2' }] : []),
+        ];
+        setOwnerOptions(options);
+      }
     });
 
     return () => unsubscribe();
@@ -32,8 +41,8 @@ export default function OwnershipDashboardPage() {
 
   useEffect(() => {
     if (!familyId) return;
-    const stopCards = observeOwnershipCards(familyId, setCards);
-    const stopCategories = observeOwnershipCategories(familyId, setCategories);
+    const stopCards = observeOwnershipCards(familyId, setCards, (error) => setLoadError(error.message));
+    const stopCategories = observeOwnershipCategories(familyId, setCategories, (error) => setLoadError(error.message));
     return () => {
       stopCards();
       stopCategories();
@@ -64,7 +73,8 @@ export default function OwnershipDashboardPage() {
             : 'Alle aktiven Kategorien sind gleichwertig sichtbar.'}
         </p>
       </article>
-      <OwnershipBoard familyId={familyId} currentUserId={userId} cards={cards} mode="dashboard" />
+      <OwnershipBoard familyId={familyId} currentUserId={userId} cards={cards} mode="dashboard" ownerOptions={ownerOptions} />
+      {loadError && <p className="inline-error">{loadError}</p>}
     </div>
   );
 }

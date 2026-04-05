@@ -14,6 +14,8 @@ export default function PersonalHomePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
+  const [ownerOptions, setOwnerOptions] = useState<Array<{ userId: string; label: string }>>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -24,13 +26,19 @@ export default function PersonalHomePage() {
       setUserId(user.uid);
       const bundle = await fetchDashboardBundle(user.uid);
       setFamilyId(bundle.profile?.familyId ?? null);
+      if (bundle.family) {
+        setOwnerOptions([
+          { userId: bundle.family.initiatorUserId, label: 'Partner 1' },
+          ...(bundle.family.partnerUserId ? [{ userId: bundle.family.partnerUserId, label: 'Partner 2' }] : []),
+        ]);
+      }
     });
     return () => unsubscribe();
   }, [router]);
 
   useEffect(() => {
     if (!familyId) return;
-    const stop = observeOwnershipCards(familyId, setCards);
+    const stop = observeOwnershipCards(familyId, setCards, (error) => setLoadError(error.message));
     return () => stop();
   }, [familyId]);
 
@@ -49,7 +57,8 @@ export default function PersonalHomePage() {
         <h2 className="card-title">Home</h2>
         <p className="card-description">Hier siehst du nur Karten, die dir zugeordnet sind. Du kannst sie direkt anpassen.</p>
       </article>
-      <OwnershipBoard familyId={familyId} currentUserId={userId} cards={cards} mode="home" />
+      <OwnershipBoard familyId={familyId} currentUserId={userId} cards={cards} mode="home" ownerOptions={ownerOptions} />
+      {loadError && <p className="inline-error">{loadError}</p>}
     </div>
   );
 }

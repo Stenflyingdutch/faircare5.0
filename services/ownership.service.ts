@@ -184,30 +184,50 @@ export async function initializeFamilyOwnership(params: {
   });
 }
 
-export function observeOwnershipCategories(familyId: string, onData: (items: OwnershipCategoryDocument[]) => void) {
-  return onSnapshot(collection(db, firestoreCollections.families, familyId, 'ownershipCategories'), (snapshot) => {
-    const items = snapshot.docs.map((item) => item.data() as OwnershipCategoryDocument);
-    onData(items.sort((a, b) => (a.recommendationRank ?? 99) - (b.recommendationRank ?? 99)));
-  });
+export function observeOwnershipCategories(
+  familyId: string,
+  onData: (items: OwnershipCategoryDocument[]) => void,
+  onError?: (error: Error) => void,
+) {
+  return onSnapshot(
+    collection(db, firestoreCollections.families, familyId, 'ownershipCategories'),
+    (snapshot) => {
+      const items = snapshot.docs.map((item) => item.data() as OwnershipCategoryDocument);
+      onData(items.sort((a, b) => (a.recommendationRank ?? 99) - (b.recommendationRank ?? 99)));
+    },
+    (error) => {
+      onError?.(error);
+    },
+  );
 }
 
-export function observeOwnershipCards(familyId: string, onData: (items: OwnershipCardDocument[]) => void) {
+export function observeOwnershipCards(
+  familyId: string,
+  onData: (items: OwnershipCardDocument[]) => void,
+  onError?: (error: Error) => void,
+) {
   const cardsQuery = query(
     collection(db, firestoreCollections.families, familyId, 'ownershipCards'),
     where('isDeleted', '==', false),
   );
 
-  return onSnapshot(cardsQuery, (snapshot) => {
-    const items = snapshot.docs
-      .map((item) => ({ id: item.id, ...item.data() }) as OwnershipCardDocument)
-      .sort((a, b) => {
-        if (a.categoryKey !== b.categoryKey) return a.categoryKey.localeCompare(b.categoryKey);
-        if (focusOrder[a.focusLevel] !== focusOrder[b.focusLevel]) return focusOrder[a.focusLevel] - focusOrder[b.focusLevel];
-        return a.sortOrder - b.sortOrder;
-      });
+  return onSnapshot(
+    cardsQuery,
+    (snapshot) => {
+      const items = snapshot.docs
+        .map((item) => ({ id: item.id, ...item.data() }) as OwnershipCardDocument)
+        .sort((a, b) => {
+          if (a.categoryKey !== b.categoryKey) return a.categoryKey.localeCompare(b.categoryKey);
+          if (focusOrder[a.focusLevel] !== focusOrder[b.focusLevel]) return focusOrder[a.focusLevel] - focusOrder[b.focusLevel];
+          return a.sortOrder - b.sortOrder;
+        });
 
-    onData(items);
-  });
+      onData(items);
+    },
+    (error) => {
+      onError?.(error);
+    },
+  );
 }
 
 export async function upsertOwnershipCard(params: {
