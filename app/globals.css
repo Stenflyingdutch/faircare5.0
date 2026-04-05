@@ -659,6 +659,10 @@ textarea.input {
   border-radius: 16px;
   padding: 1rem;
   background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  box-shadow: 0 6px 18px rgba(21, 21, 38, 0.06);
 }
 
 .personal-area-headline-row {
