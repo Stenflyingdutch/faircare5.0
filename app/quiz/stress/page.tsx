@@ -6,14 +6,15 @@ import { useEffect, useState } from 'react';
 import { stressOptions } from '@/components/test/test-config';
 import { persistQuizSession } from '@/services/firestoreQuiz';
 import { loadSessionFromStorage, saveSessionToStorage } from '@/services/sessionStorage';
-import type { StressCategory, TempQuizSession } from '@/types/quiz';
+import type { StressSelection, TempQuizSession } from '@/types/quiz';
 
-const stressCategoryDescriptions: Record<StressCategory, string> = {
+const stressCategoryDescriptions: Record<StressSelection, string> = {
   betreuung_entwicklung: 'Schlaf, Entwicklung und Begleitung im Alltag des Babys.',
   gesundheit: 'Vorsorge, Symptome, Medikamente und gesundheitliche Entscheidungen.',
   babyalltag_pflege: 'Essen, Wickeln, Baden, Kleidung und tägliche Pflege.',
   haushalt_einkaeufe_vorraete: 'Einkäufe, Vorräte, Wäsche und laufende Besorgungen.',
   termine_planung_absprachen: 'Kalender, Organisation, Absprachen und Zuständigkeiten.',
+  keiner_genannten_bereiche: 'Aktuell empfinde ich in keinem der genannten Bereiche die größte Belastung.',
 };
 
 export default function QuizStressPage() {
@@ -30,14 +31,14 @@ export default function QuizStressPage() {
     setSession(existing);
   }, [router]);
 
-  async function selectCategory(category: StressCategory) {
+  async function selectCategory(category: StressSelection) {
     if (!session || isSaving) return;
 
     setIsSaving(true);
 
     const updated = {
       ...session,
-      stressCategories: [category],
+      stressCategories: category === 'keiner_genannten_bereiche' ? [] : [category],
       completedAt: new Date().toISOString(),
     };
 

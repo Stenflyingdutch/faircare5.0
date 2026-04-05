@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { questionTemplates } from '@/data/questionTemplates';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
   buildCategoryComparisons,
@@ -59,8 +60,14 @@ export default function DashboardPage() {
 
   const [unlockState, setUnlockState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [unlockMessage, setUnlockMessage] = useState('');
+  const [unlockProgress, setUnlockProgress] = useState(0);
+  const [unlockBannerIndex, setUnlockBannerIndex] = useState(0);
   const [openSharedState, setOpenSharedState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [openSharedMessage, setOpenSharedMessage] = useState('');
+  const unlockBannerPool = useMemo(
+    () => questionTemplates.slice(0, 12).map((entry) => entry.questionText?.de ?? entry.id),
+    [],
+  );
 
   async function refreshDashboard(userId: string) {
     const fresh = await fetchDashboardBundle(userId);
@@ -129,8 +136,29 @@ export default function DashboardPage() {
     if (!userId) return;
     setUnlockState('loading');
     setUnlockMessage('');
+    setUnlockProgress(0);
+    setUnlockBannerIndex(0);
+
+    const TOTAL_DURATION_MS = 5000;
+    const TICK_MS = 100;
+    const startedAt = Date.now();
+    const progressTimer = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const nextProgress = Math.min(100, Math.round((elapsed / TOTAL_DURATION_MS) * 100));
+      setUnlockProgress(nextProgress);
+      if (nextProgress >= 100) {
+        window.clearInterval(progressTimer);
+      }
+    }, TICK_MS);
+
+    const bannerTimer = window.setInterval(() => {
+      setUnlockBannerIndex((current) => current + 1);
+    }, 450);
+
     try {
       const result = await unlockPartnerAndJointResults(userId);
+      await new Promise((resolve) => window.setTimeout(resolve, Math.max(0, TOTAL_DURATION_MS - (Date.now() - startedAt))));
+      setUnlockProgress(100);
       setUnlockState('success');
       setUnlockMessage(
         result.alreadyActive
@@ -141,6 +169,9 @@ export default function DashboardPage() {
     } catch (error) {
       setUnlockState('error');
       setUnlockMessage(error instanceof Error ? error.message : 'Freischaltung fehlgeschlagen.');
+    } finally {
+      window.clearInterval(progressTimer);
+      window.clearInterval(bannerTimer);
     }
   }
 
@@ -263,13 +294,27 @@ export default function DashboardPage() {
               <h2 className="card-title">Status</h2>
               <p className="card-description">
                 {bundle?.family?.partnerRegistered
-                  ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die Ergebnisse jetzt freigeben.'
+                  ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die gemeinsamen Ergebnisse jetzt generieren.'
                   : 'Warte auf die Bewertung deines Partners.'}
               </p>
               {bundle?.family?.partnerRegistered && (
                 <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
-                  {unlockState === 'loading' ? 'Freischaltung läuft …' : 'Partner- und Gesamtergebnis freischalten'}
+                  {unlockState === 'loading' ? 'Gemeinsame Ergebnisse werden berechnet …' : 'Gemeinsame Ergebnisse generieren'}
                 </button>
+              )}
+              {unlockState === 'loading' && (
+                <>
+                  <div className="quiz-progress" aria-label="Berechnungsfortschritt">
+                    <div className="quiz-progress-bar" style={{ width: `${unlockProgress}%`, transition: 'width 100ms linear' }} />
+                  </div>
+                  <p className="helper">{unlockProgress}%</p>
+                  <div className="card" style={{ overflow: 'hidden' }}>
+                    <p className="helper" style={{ marginBottom: 8 }}>Kurzer Gedanken-Check</p>
+                    <p style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {Array.from({ length: 4 }).map((_, offset) => unlockBannerPool[(unlockBannerIndex + offset) % unlockBannerPool.length]).join(' - ')}
+                    </p>
+                  </div>
+                </>
               )}
               {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
               {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
@@ -300,6 +345,9 @@ function JointResultPanel({ bundle }: {
   const partnerScores = bundle.partnerResult.categoryScores;
 
   const comparisons = buildCategoryComparisons(initiatorScores, partnerScores);
+  const highestInitiator = comparisons.reduce((current, entry) => ((initiatorScores[entry.category] ?? 0) > (initiatorScores[current.category] ?? 0) ? entry : current), comparisons[0]);
+  const highestPartner = comparisons.reduce((current, entry) => ((partnerScores[entry.category] ?? 0) > (partnerScores[current.category] ?? 0) ? entry : current), comparisons[0]);
+  const sharedHighestCategory = highestInitiator.category === highestPartner.category;
 
   return (
     <article className="card stack">
@@ -319,8 +367,15 @@ function JointResultPanel({ bundle }: {
             <div className="report-block" key={`cmp-${entry.category}`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                 <strong>{categoryLabelMap[entry.category]}</strong>
-                {hasGap && <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>Lücke erkannt</span>}
+                <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>
+                  {hasGap ? 'Abweichung sichtbar' : 'Stimmig'}
+                </span>
               </div>
+              <p className="helper" style={{ marginTop: 4 }}>
+                {hasGap
+                  ? 'Hier gibt es eine größere Abweichung zwischen Selbst- und Fremdwahrnehmung.'
+                  : 'Hier stimmen Fremd- und Selbstbild weitgehend überein.'}
+              </p>
               <p className="helper" style={{ marginBottom: 4 }}>{initiatorName} selbst</p>
               <div className="result-bar"><div className="result-bar-me" style={{ width: `${initiatorSelf}%` }} /></div>
               <p className="helper" style={{ marginTop: 2 }}>{initiatorSelf}%</p>
@@ -340,6 +395,14 @@ function JointResultPanel({ bundle }: {
             </div>
           );
         })}
+        <div className="report-block">
+          <strong>Größte wahrgenommene Belastung</strong>
+          <p className="helper" style={{ margin: '8px 0 0' }}>
+            {sharedHighestCategory
+              ? `${initiatorName} und ${partnerName} spüren die größte Belastung bei ${categoryLabelMap[highestInitiator.category]}.`
+              : `${initiatorName} spürt die größte Belastung bei ${categoryLabelMap[highestInitiator.category]}, ${partnerName} bei ${categoryLabelMap[highestPartner.category]}.`}
+          </p>
+        </div>
       </div>
     </article>
   );
