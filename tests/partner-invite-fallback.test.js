@@ -16,3 +16,9 @@ test('partner invite fallback treats browser transport failures as fallback-elig
 test('partner invite callable path delegates fallback decision to helper', () => {
   assert.match(src, /const fallbackEligible = shouldUseCallableInviteFallback\(callableError\)/);
 });
+
+test('partner invite environment detection treats vercel previews as non-production', () => {
+  assert.match(src, /function resolveInviteRuntimeEnvironment/);
+  assert.match(src, /hostname\.endsWith\('\.vercel\.app'\)/);
+  assert.match(src, /const appEnv = resolveInviteRuntimeEnvironment\(\)/);
+});

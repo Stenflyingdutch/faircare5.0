@@ -64,6 +64,21 @@ function shouldUseCallableInviteFallback(error: { code?: string; message?: strin
   ].some((fragment) => normalizedMessage.includes(fragment));
 }
 
+function resolveInviteRuntimeEnvironment() {
+  const configuredEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
+
+  if (typeof window === 'undefined') {
+    return configuredEnv;
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return 'development';
+  if (hostname.endsWith('.vercel.app')) return 'preview';
+
+  return configuredEnv;
+}
+
 async function sha256(value: string) {
   const enc = new TextEncoder();
   const digest = await crypto.subtle.digest('SHA-256', enc.encode(value));
@@ -212,7 +227,7 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
     } satisfies SendPartnerInviteResult;
   } catch (error) {
     const callableError = error as { code?: string; message?: string; details?: unknown };
-    const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
+    const appEnv = resolveInviteRuntimeEnvironment();
     const allowLocalFallback = appEnv !== 'production';
     const fallbackEligible = shouldUseCallableInviteFallback(callableError);
 
