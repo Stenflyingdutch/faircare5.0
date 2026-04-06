@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Responsibility, ResponsibilityPriority, ResponsibilityOwner } from '@/services/responsibilities.service';
+import type { Responsibility, ResponsibilityPriority } from '@/services/responsibilities.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 
 interface ResponsibilityCardDetailsProps {
@@ -11,7 +11,6 @@ interface ResponsibilityCardDetailsProps {
   onClose: () => void;
   onSave?: (title: string, note: string) => Promise<void>;
   onDelete?: () => void;
-  statusColor?: string;
 }
 
 const priorityLabels: Record<ResponsibilityPriority, string> = {
@@ -31,7 +30,6 @@ export function ResponsibilityCardDetails({
   onClose,
   onSave,
   onDelete,
-  statusColor,
 }: ResponsibilityCardDetailsProps) {
   const [editTitle, setEditTitle] = useState(responsibility.title);
   const [editNote, setEditNote] = useState(responsibility.note || '');
