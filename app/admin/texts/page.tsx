@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchContentBlocks, persistContentBlocks } from '@/services/contentBlocks.service';
 import type { ContentTextBlock } from '@/types/domain';
 
-const groups = ['navigation', 'auth', 'dashboard', 'quiz', 'results', 'tasks', 'review', 'settings', 'admin', 'onboarding', 'emails', 'system'] as const;
+const groups = ['navigation', 'auth', 'dashboard', 'quiz', 'results', 'tasks', 'review', 'settings', 'admin', 'onboarding', 'emails', 'system', 'landing'] as const;
 
 type GroupName = (typeof groups)[number];
 

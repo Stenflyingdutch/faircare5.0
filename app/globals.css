@@ -278,10 +278,81 @@ textarea.input {
   margin-top: 2rem;
 }
 
-.footer-inner {
-  padding: 1.5rem 0;
+.section-title {
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  margin: 0 0 1rem;
+  line-height: 1.2;
+}
+
+.section-description {
   color: var(--color-text-secondary);
-  font-size: 0.9rem;
+  line-height: 1.7;
+  margin: 0 0 1rem;
+}
+
+.bullet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.bullet-list li {
+  padding-left: 1.5rem;
+  position: relative;
+  margin-bottom: 0.5rem;
+}
+
+.bullet-list li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--color-primary);
+  font-weight: bold;
+}
+
+.process-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.process-step {
+  text-align: center;
+}
+
+.process-step-title {
+  font-size: 1.2rem;
+  margin: 0 0 0.5rem;
+}
+
+.process-step-text {
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.final-cta {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.final-cta-text {
+  font-size: 1.25rem;
+  margin: 0 0 1.5rem;
+  line-height: 1.4;
+}
+
+@media (min-width: 768px) {
+  .process-timeline {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .process-step {
+    flex: 1;
+    max-width: 200px;
+  }
 }
 
 @media (min-width: 768px) {
