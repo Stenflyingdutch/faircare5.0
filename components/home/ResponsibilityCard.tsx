@@ -1,123 +1,172 @@
 import { useState } from 'react';
-import type { MouseEvent } from 'react';
-import type { Responsibility, ResponsibilityPriority } from '@/services/responsibilities.service';
+import type { Responsibility, ResponsibilityPriority, ResponsibilityOwner } from '@/services/responsibilities.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 
 interface ResponsibilityCardProps {
   responsibility: Responsibility;
-  onTap?: () => void;
-  onPriorityTap?: (newPriority: ResponsibilityPriority) => void;
+  mode: 'start' | 'assign';
+  onExpandDetails?: () => void;
+  onPriorityChange?: (priority: ResponsibilityPriority) => void;
+  onAssignmentChange?: (assignedTo: ResponsibilityOwner) => void;
 }
 
-const priorityConfig: Record<ResponsibilityPriority, { label: string; bg: string; border: string; text: string; detailBg: string }> = {
+type PriorityType = 'act' | 'plan' | 'observe';
+
+// Extended color config for both modes
+const priorityConfig: Record<PriorityType, { label: string; lightBg: string; text: string }> = {
   observe: {
     label: 'Im Blick',
-    bg: '#E8F3F2',
-    border: '#C1D7D2',
-    text: '#1F4A47',
-    detailBg: 'rgba(255, 255, 255, 0.72)',
+    lightBg: 'var(--color-user-soft)',
+    text: 'var(--color-text-primary)',
   },
   plan: {
     label: 'Planen',
-    bg: '#7DB0A8',
-    border: '#5A8E84',
-    text: '#082F2C',
-    detailBg: 'rgba(255, 255, 255, 0.14)',
+    lightBg: '#A9D1CE',
+    text: 'var(--color-text-primary)',
   },
   act: {
     label: 'Angehen',
-    bg: '#1D4B4A',
-    border: '#193D3C',
+    lightBg: 'var(--color-user-primary)',
     text: '#FFFFFF',
-    detailBg: 'rgba(255, 255, 255, 0.1)',
   },
 };
 
-const nextPriority: Record<ResponsibilityPriority, ResponsibilityPriority> = {
-  observe: 'plan',
-  plan: 'act',
-  act: 'observe',
-};
+const priorityCycle: PriorityType[] = ['observe', 'plan', 'act'];
 
-export function ResponsibilityCard({ responsibility, onTap, onPriorityTap }: ResponsibilityCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const config = priorityConfig[responsibility.priority];
+/**
+ * Unified ResponsibilityCard for Start and Assign modes
+ * Compact, clean design with interactive status/assignment click
+ * Assign mode: assignment visibility controlled via color only, no text labels
+ */
+export function ResponsibilityCard({
+  responsibility,
+  mode,
+  onExpandDetails,
+  onPriorityChange,
+  onAssignmentChange,
+}: ResponsibilityCardProps) {
   const categoryLabel = categoryLabelMap[responsibility.categoryKey] || responsibility.categoryKey;
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleHeaderClick = () => {
-    setExpanded((current) => !current);
-    onTap?.();
+  const handleStatusClick = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+      if (mode === 'start' && onPriorityChange) {
+        const currentIndex = priorityCycle.indexOf(responsibility.priority);
+        const nextPriority = priorityCycle[(currentIndex + 1) % priorityCycle.length];
+        onPriorityChange(nextPriority);
+      } else if (mode === 'assign' && onAssignmentChange) {
+        const currentAssignee = responsibility.assignedTo;
+        let nextAssignee: ResponsibilityOwner;
+
+        if (currentAssignee === 'user') {
+          nextAssignee = 'partner';
+        } else if (currentAssignee === 'partner') {
+          nextAssignee = 'user';
+        } else {
+          nextAssignee = 'user';
+        }
+        onAssignmentChange(nextAssignee);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
-  const handleFooterClick = (event: MouseEvent<HTMLDivElement>) => {
-    event.stopPropagation();
-    onPriorityTap?.(nextPriority[responsibility.priority]);
+
+  const getCardBackgroundColor = (): string => {
+    if (mode === 'start') {
+      return priorityConfig[responsibility.priority].lightBg;
+    } else {
+      // assign mode: vary by assignee
+      if (responsibility.assignedTo === 'user') {
+        return priorityConfig.act.lightBg;
+      } else if (responsibility.assignedTo === 'partner') {
+        return 'var(--color-partner-primary)';
+      }
+      return 'var(--color-surface)'; // unassigned: neutral
+    }
   };
+
+  // Only calculate priority label for Start mode - never calculate assignment labels
+  const priorityLabel = mode === 'start' ? priorityConfig[responsibility.priority].label : undefined;
+
+  const bgColor = getCardBackgroundColor();
+  const textColor = mode === 'start' ? priorityConfig[responsibility.priority].text : '#FFFFFF';
 
   return (
     <div
       style={{
-        background: config.bg,
-        border: `1px solid ${config.border}`,
-        borderRadius: '20px',
-        overflow: 'hidden',
-        boxShadow: responsibility.priority === 'act' ? '0 8px 24px rgba(16, 50, 49, 0.22)' : '0 4px 16px rgba(31, 72, 71, 0.14)',
-        transition: 'transform 0.24s ease, box-shadow 0.24s ease',
+        background: bgColor,
+        borderRadius: '24px',
+        padding: '20px',
+        border: '1px solid var(--color-border-soft)',
+        boxShadow: 'var(--shadow-card)',
+        cursor: 'pointer',
+        transition: 'background-color 0.3s ease, box-shadow 0.2s ease',
       }}
     >
+      {/* Header: Category + Title (clickable for details) */}
       <div
-        role="button"
-        tabIndex={0}
-        onClick={handleHeaderClick}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            handleHeaderClick();
+        onClick={onExpandDetails}
+        style={{ cursor: onExpandDetails ? 'pointer' : 'default' }}
+        role={onExpandDetails ? 'button' : undefined}
+        tabIndex={onExpandDetails ? 0 : undefined}
+        onKeyDown={(e) => {
+          if (onExpandDetails && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            onExpandDetails();
           }
         }}
-        style={{
-          padding: '20px 20px 16px',
-          cursor: 'pointer',
-        }}
       >
-        <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: config.text, opacity: 0.8 }}>
+        <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: textColor, opacity: 0.9 }}>
           {categoryLabel}
         </p>
-        <h3 style={{ margin: '10px 0 0 0', fontSize: '18px', lineHeight: 1.24, color: config.text }}>
+        <h3 style={{ margin: '12px 0 0 0', fontSize: '20px', lineHeight: 1.2, fontWeight: 600, color: textColor }}>
           {responsibility.title}
         </h3>
-        {expanded && responsibility.note ? (
-          <div
-            style={{
-              marginTop: '14px',
-              padding: '14px',
-              background: config.detailBg,
-              borderRadius: '16px',
-              color: config.text,
-            }}
-          >
-            <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.6, opacity: 0.95 }}>
-              {responsibility.note}
-            </p>
-          </div>
-        ) : null}
       </div>
 
-      <div
-        onClick={handleFooterClick}
-        style={{
-          borderTop: `1px solid ${config.border}`,
-          padding: '18px 20px',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          cursor: 'pointer',
-          background: 'transparent',
-        }}
-      >
-        <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: config.text, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          {config.label}
-        </p>
-      </div>
+      {/* Separator + Status: Only in Start mode for priority label. In Assign mode, completely clean. */}
+      {mode === 'start' && (
+        <>
+          <div style={{ margin: '18px 0 16px', height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.2)', opacity: textColor === '#FFFFFF' ? 1 : 0.3 }} />
+
+          <div
+            onClick={handleStatusClick}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleStatusClick();
+              }
+            }}
+            style={{
+              cursor: 'pointer',
+              display: 'inline-block',
+              padding: '4px 0',
+              fontSize: '13px',
+              fontWeight: 700,
+              color: textColor,
+              opacity: textColor === '#FFFFFF' ? 0.95 : 0.8,
+              textDecoration: 'underline',
+              textDecorationColor: 'currentColor',
+              textDecorationThickness: '1px',
+              textUnderlineOffset: '4px',
+              transition: 'opacity 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.opacity = textColor === '#FFFFFF' ? '1' : '1';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.opacity = textColor === '#FFFFFF' ? '0.95' : '0.8';
+            }}
+          >
+            {priorityLabel}
+          </div>
+        </>
+      )}
     </div>
   );
 }
