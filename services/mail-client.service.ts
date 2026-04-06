@@ -46,7 +46,16 @@ export async function sendAppMail(input: SendMailInput) {
     throw new Error(`${payload?.error ?? 'Mail konnte nicht versendet werden.'}${detail}`);
   }
 
-  await addDoc(collection(db, firestoreCollections.mailLogs), payload.payload);
+  try {
+    await addDoc(collection(db, firestoreCollections.mailLogs), payload.payload);
+  } catch (logError) {
+    console.warn('[mail-client] Konnte Mail-Log nicht in Firestore schreiben (non-blocking).', {
+      message: logError instanceof Error ? logError.message : String(logError),
+      type: input.type,
+      familyId: input.familyId ?? null,
+      invitationId: input.invitationId ?? null,
+    });
+  }
   console.info('[mail-client] Versand über /api/mail erfolgreich', {
     provider: payload?.result?.provider ?? 'unknown',
   });
