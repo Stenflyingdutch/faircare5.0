@@ -18,7 +18,6 @@ interface SendMailInput {
   invitationId?: string;
 }
 
-const DEFAULT_TEST_RECIPIENT = 'pa4sten@gmail.com';
 const DEFAULT_MAIL_FROM = 'FairCare <noreply@mail.mental-faircare.de>';
 const REQUIRED_MAIL_FROM_DOMAIN = '@mail.mental-faircare.de';
 
@@ -47,9 +46,12 @@ function isProduction() {
 }
 
 export function resolveRecipient(email: string) {
-  const overrideRecipient = process.env.TEST_EMAIL_OVERRIDE?.trim() || DEFAULT_TEST_RECIPIENT;
+  const overrideRecipient = process.env.TEST_EMAIL_OVERRIDE?.trim();
   if (isProduction()) {
     return { actualRecipient: email, subjectPrefix: '' };
+  }
+  if (!overrideRecipient) {
+    return { actualRecipient: email, subjectPrefix: '[TEST] ' };
   }
   return { actualRecipient: overrideRecipient, subjectPrefix: '[TEST] ' };
 }
@@ -198,6 +200,7 @@ export async function dispatchMail(input: SendMailInput) {
   console.info('[mail.dispatch] empfänger aufgelöst', {
     originalRecipient: input.originalRecipient,
     actualRecipient: resolved.actualRecipient,
+    isRecipientOverridden: resolved.actualRecipient !== input.originalRecipient,
     providerHint: configuredProvider,
   });
 
