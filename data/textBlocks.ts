@@ -140,7 +140,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Hero Subline',
     description: 'Untertitel im Hero-Bereich.',
-    text: { de: 'FairCare hilft euch, unsichtbare Verantwortung im Alltag greifbar zu machen. Mit Quiz, klaren Aufgabengebieten und Team-Check-ins.', en: 'FairCare helps you make invisible responsibility in everyday life tangible. With quiz, clear task areas and team check-ins.', nl: 'FairCare helpt jullie om onzichtbare verantwoordelijkheid in het dagelijks leven tastbaar te maken. Met quiz, duidelijke taakgebieden en team check-ins.' },
+    text: { de: 'FairCare hilft euch, unsichtbare Verantwortung im Alltag greifbar zu machen. Mit Quiz, klaren Verantwortungsgebieten und Team-Check-ins.', en: 'FairCare helps you make invisible responsibility in everyday life tangible. With quiz, clear task areas and team check-ins.', nl: 'FairCare helpt jullie om onzichtbare verantwoordelijkheid in het dagelijks leven tastbaar te maken. Met quiz, duidelijke taakgebieden en team check-ins.' },
   },
   {
     key: 'landing.hero.cta_primary',

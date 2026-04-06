@@ -9,9 +9,9 @@ import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { isTeamCheckBadgeVisible } from '@/services/teamCheck.logic';
 
 const personalNavItems = [
-  { label: 'Home', href: '/app/home', tone: 'violet' },
-  { label: 'Aufgabengebiete', href: '/app/ownership-dashboard', tone: 'petrol' },
-  { label: 'Team-Check', href: '/app/review', tone: 'violet' },
+  { label: 'Start', href: '/app/home', tone: 'violet' },
+  { label: 'Aufteilen', href: '/app/ownership-dashboard', tone: 'petrol' },
+  { label: 'Check-in', href: '/app/review', tone: 'violet' },
   { label: 'Einstellungen', href: '/app/einstellungen', tone: 'violet' },
 ] as const;
 

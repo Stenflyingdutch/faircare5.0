@@ -469,7 +469,7 @@ export function ReviewResultsContent() {
         {(bundle?.family?.resultsDiscussedAt || hasActiveOwnershipCards) && (
           <article className="card stack">
             <Link href="/app/ownership-dashboard" className="button" style={{ width: 'fit-content' }}>
-              Zu Aufgabengebieten
+              Zu Verantwortungsgebieten
             </Link>
           </article>
         )}
