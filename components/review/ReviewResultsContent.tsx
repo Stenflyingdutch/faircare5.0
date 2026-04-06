@@ -427,6 +427,9 @@ export function ReviewResultsContent() {
                 {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
               </>
             )}
+            <Link href="/app/einstellungen" className="button primary" style={{ width: '100%' }}>
+              Einstellungen
+            </Link>
           </article>
         )}
 

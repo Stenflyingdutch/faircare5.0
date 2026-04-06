@@ -51,8 +51,8 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
     <section className="section personal-area-section">
       <div className="container personal-area-shell stack">
         <header className="personal-area-header stack">
-          {showNavigation && (
-            <div className="personal-area-nav-row">
+          <div className="personal-area-nav-row">
+            {showNavigation && (
               <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
                 {personalNavItems.map((item) => {
                   const isTeamCheckContext = item.href === '/app/review' && pathname.startsWith('/app/ergebnisse');
@@ -69,6 +69,8 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
                   );
                 })}
               </nav>
+            )}
+            {showNavigation && (
               <Link
                 href="/app/einstellungen"
                 className={`personal-area-settings-link ${pathname.startsWith('/app/einstellungen') ? 'active' : ''}`}
@@ -76,8 +78,8 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
               >
                 <span aria-hidden="true">⚙</span>
               </Link>
-            </div>
-          )}
+            )}
+          </div>
         </header>
         <div className="personal-area-content">{children}</div>
       </div>

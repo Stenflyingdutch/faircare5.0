@@ -24,11 +24,22 @@ test('team check badge is a dot only in personal nav and not a number/text badge
   assert.match(css, /width:\s*8px/);
 });
 
-test('settings start page contains exactly the three required entries', () => {
+test('settings gear stays available even on results pages before the full personal nav is shown', () => {
+  const shell = read('components/personal/PersonalAreaShell.tsx');
+  const results = read('components/review/ReviewResultsContent.tsx');
+  assert.match(shell, /const showNavigation = !pathname\.startsWith\('\/app\/ergebnisse'\)/);
+  assert.match(shell, /\{showNavigation && \(/);
+  assert.match(results, /href="\/app\/einstellungen"/);
+  assert.match(results, />\s*Einstellungen\s*</);
+});
+
+test('settings start page contains the base entries and gates admin area by role', () => {
   const src = read('app/app/einstellungen/page.tsx');
   assert.match(src, /Persönliche Einstellungen/);
   assert.match(src, /Check-in Planung/);
   assert.match(src, /Quizergebnisse einsehen/);
+  assert.match(src, /Adminbereich/);
+  assert.match(src, /isAdminProfile/);
   assert.doesNotMatch(src, /Team-Check Rhythmus/);
 });
 

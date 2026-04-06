@@ -4,7 +4,7 @@ import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 
-import { registerUser, resolveRegistrationErrorMessage } from '@/services/auth.service';
+import { registerUser, resolveRegistrationErrorMessage, syncAuthSession } from '@/services/auth.service';
 import { finalizePartnerRegistration } from '@/services/partnerFlow.service';
 import { clearPartnerLocalSession, loadPartnerLocalSession } from '@/services/partnerSessionStorage';
 
@@ -53,6 +53,7 @@ function RegisterAfterTestContent() {
       const credential = await registerUser(email, password);
       const normalizedDisplayName = displayName.trim();
       await updateProfile(credential.user, { displayName: normalizedDisplayName });
+      await syncAuthSession(credential.user);
       await finalizePartnerRegistration({
         invitationToken: token,
         sessionId: session.sessionId,

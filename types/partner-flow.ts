@@ -1,3 +1,4 @@
+import type { UserAccountStatus, UserRole } from '@/types/domain';
 import type { OwnershipAnswer, QuestionTemplate, QuizCategory, StressSelection } from '@/types/quiz';
 import type { TeamCheckPlan } from '@/types/team-check';
 
@@ -14,8 +15,12 @@ export interface AppUserProfile {
   lastName?: string;
   familyId?: string | null;
   role?: FamilyRole;
+  adminRole?: UserRole;
+  accountStatus?: UserAccountStatus;
   teamCheckEmailReminderEnabled?: boolean;
   createdAt?: string;
+  updatedAt?: string;
+  lastLoginAt?: string | null;
 }
 
 export interface FamilyDocument {

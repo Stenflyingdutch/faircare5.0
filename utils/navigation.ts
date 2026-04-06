@@ -6,4 +6,4 @@ export const navigationItems = [
   { label: 'Login', href: '/login' },
 ] as const;
 
-export const appNavigationItems = [{ label: 'Admin', href: '/admin' }] as const;
+export const adminNavigationItem = { label: 'Admin', href: '/admin' } as const;
