@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Responsibility, ResponsibilityPriority, ResponsibilityOwner } from '@/services/responsibilities.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 
@@ -89,17 +89,28 @@ export function ResponsibilityCard({
 }: ResponsibilityCardProps) {
   const categoryLabel = categoryLabelMap[responsibility.categoryKey] || responsibility.categoryKey;
   const [isLoading, setIsLoading] = useState(false);
+  const [optimisticPriority, setOptimisticPriority] = useState<ResponsibilityPriority>(responsibility.priority);
+  const [optimisticAssignedTo, setOptimisticAssignedTo] = useState<ResponsibilityOwner>(responsibility.assignedTo);
+
+  useEffect(() => {
+    setOptimisticPriority(responsibility.priority);
+  }, [responsibility.priority]);
+
+  useEffect(() => {
+    setOptimisticAssignedTo(responsibility.assignedTo);
+  }, [responsibility.assignedTo]);
 
   const handleStatusClick = async () => {
     if (isLoading) return;
     setIsLoading(true);
     try {
       if (mode === 'start' && onPriorityChange) {
-        const currentIndex = priorityCycle.indexOf(responsibility.priority);
+        const currentIndex = priorityCycle.indexOf(optimisticPriority);
         const nextPriority = priorityCycle[(currentIndex + 1) % priorityCycle.length];
+        setOptimisticPriority(nextPriority);
         onPriorityChange(nextPriority);
       } else if (mode === 'assign' && onAssignmentChange) {
-        const currentAssignee = responsibility.assignedTo;
+        const currentAssignee = optimisticAssignedTo;
         let nextAssignee: ResponsibilityOwner;
 
         if (currentAssignee === 'user') {
@@ -109,6 +120,7 @@ export function ResponsibilityCard({
         } else {
           nextAssignee = 'user';
         }
+        setOptimisticAssignedTo(nextAssignee);
         onAssignmentChange(nextAssignee);
       }
     } finally {
@@ -118,23 +130,24 @@ export function ResponsibilityCard({
 
   const getCardBackgroundColor = (): string => {
     if (mode === 'start') {
-      return priorityConfig[responsibility.priority].lightBg;
+      return priorityConfig[optimisticPriority].lightBg;
     }
-    return assignVisual(responsibility.assignedTo).background;
+    return assignVisual(optimisticAssignedTo).background;
   };
 
-  const priorityLabel = mode === 'start' ? priorityConfig[responsibility.priority].label : undefined;
-  const assignmentVisual = assignVisual(responsibility.assignedTo);
+  const priorityLabel = mode === 'start' ? priorityConfig[optimisticPriority].label : undefined;
+  const assignmentVisual = assignVisual(optimisticAssignedTo);
 
   const bgColor = getCardBackgroundColor();
-  const textColor = mode === 'start' ? priorityConfig[responsibility.priority].text : assignmentVisual.text;
+  const textColor = mode === 'start' ? priorityConfig[optimisticPriority].text : assignmentVisual.text;
   const ctaLabel = mode === 'start' ? priorityLabel : assignmentVisual.label;
-  const ctaColor = mode === 'start' ? priorityConfig[responsibility.priority].cta : assignmentVisual.cta;
-  const dividerColor = mode === 'start' ? priorityConfig[responsibility.priority].divider : assignmentVisual.divider;
-  const borderColor = mode === 'start' ? priorityConfig[responsibility.priority].border : assignmentVisual.border;
+  const ctaColor = mode === 'start' ? priorityConfig[optimisticPriority].cta : assignmentVisual.cta;
+  const dividerColor = mode === 'start' ? priorityConfig[optimisticPriority].divider : assignmentVisual.divider;
+  const borderColor = mode === 'start' ? priorityConfig[optimisticPriority].border : assignmentVisual.border;
 
   return (
     <div
+      className="responsibility-card-shell"
       style={{
         background: bgColor,
         borderRadius: '24px',
@@ -146,6 +159,7 @@ export function ResponsibilityCard({
       }}
     >
       <div
+        className="responsibility-card-hit-area"
         onClick={onExpandDetails}
         style={{ cursor: onExpandDetails ? 'pointer' : 'default' }}
         role={onExpandDetails ? 'button' : undefined}
@@ -156,8 +170,11 @@ export function ResponsibilityCard({
             onExpandDetails();
           }
         }}
+        onPointerDown={(event) => {
+          event.preventDefault();
+        }}
       >
-        <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: mode === 'start' && responsibility.priority === 'act' ? 'rgba(255,255,255,0.84)' : 'var(--color-text-secondary)', opacity: 0.95 }}>
+        <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: mode === 'start' && optimisticPriority === 'act' ? 'rgba(255,255,255,0.84)' : 'var(--color-text-secondary)', opacity: 0.95 }}>
           {categoryLabel}
         </p>
         <h3 style={{ margin: '12px 0 0 0', fontSize: '20px', lineHeight: 1.2, fontWeight: 600, color: textColor }}>
@@ -168,6 +185,7 @@ export function ResponsibilityCard({
       <div style={{ margin: '18px 0 14px', height: '1px', backgroundColor: dividerColor }} />
 
       <div
+        className="responsibility-card-hit-area"
         onClick={handleStatusClick}
         role="button"
         tabIndex={0}
@@ -176,6 +194,9 @@ export function ResponsibilityCard({
             e.preventDefault();
             handleStatusClick();
           }
+        }}
+        onPointerDown={(event) => {
+          event.preventDefault();
         }}
         style={{
           cursor: 'pointer',

@@ -87,6 +87,11 @@ function resolveCardIsActive(card: OwnershipCardDocument) {
   return Boolean(card.isActive || card.ownerUserId || card.focusLevel);
 }
 
+function areCategoryListsEqual(left: QuizCategory[], right: QuizCategory[]) {
+  if (left.length !== right.length) return false;
+  return left.every((entry, index) => entry === right[index]);
+}
+
 export function OwnershipBoard({
   familyId,
   currentUserId,
@@ -171,13 +176,15 @@ export function OwnershipBoard({
   useEffect(() => {
     if (mode !== 'dashboard') return;
     if (isFocusedEntry && selectedCategories.length === 0 && resolvedPreselectedCategories.length > 0) {
-      setSelectedCategories(resolvedPreselectedCategories);
+      if (!areCategoryListsEqual(selectedCategories, resolvedPreselectedCategories)) {
+        setSelectedCategories(resolvedPreselectedCategories);
+      }
       return;
     }
     if (!selectedCategories.length) return;
     const validSet = new Set(groupedWithStatus.map((group) => group.category));
     const next = selectedCategories.filter((category) => validSet.has(category));
-    if (next.length !== selectedCategories.length) {
+    if (!areCategoryListsEqual(next, selectedCategories)) {
       setSelectedCategories(next);
     }
   }, [mode, isFocusedEntry, selectedCategories, groupedWithStatus, resolvedPreselectedCategories]);
@@ -392,6 +399,9 @@ export function OwnershipBoard({
                       event.preventDefault();
                       openDetails(card);
                     }
+                  }}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
                   }}
                 >
                   <div className="ownership-card-topline">

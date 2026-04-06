@@ -27,19 +27,20 @@ test('team check badge is a dot only in personal nav and not a number/text badge
 test('settings start page contains exactly the three required entries', () => {
   const src = read('app/app/einstellungen/page.tsx');
   assert.match(src, /Persönliche Einstellungen/);
-  assert.match(src, /Team-Check Planung/);
+  assert.match(src, /Check-in Planung/);
   assert.match(src, /Quizergebnisse einsehen/);
   assert.doesNotMatch(src, /Team-Check Rhythmus/);
 });
 
 test('team check planning screen contains shared plan and individual reminder controls', () => {
   const src = read('app/app/einstellungen/team-check-planung/page.tsx');
-  assert.match(src, /Frequenz des Team-Checks/);
-  assert.match(src, /Tag des Team-Checks/);
+  assert.match(src, /Rhythmus/);
+  assert.match(src, /Tag/);
+  assert.match(src, /Uhrzeit/);
   assert.match(src, /E-Mail-Erinnerung/);
   assert.match(src, /saveTeamCheckPlan/);
   assert.match(src, /saveTeamCheckEmailPreference/);
-  assert.match(src, /1 Tag vorher/);
+  assert.match(src, /Keine Uhrzeit/);
 });
 
 test('biweekly scheduling uses a central interval-anchor approach without blind extra jump', () => {

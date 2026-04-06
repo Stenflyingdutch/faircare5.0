@@ -9,9 +9,9 @@ import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { isTeamCheckBadgeVisible } from '@/services/teamCheck.logic';
 
 const personalNavItems = [
-  { label: 'Start', href: '/app/home', tone: 'violet' },
-  { label: 'Aufteilen', href: '/app/ownership-dashboard', tone: 'petrol' },
-  { label: 'Check-in', href: '/app/review', tone: 'violet' },
+  { label: 'Meins', href: '/app/home', tone: 'violet' },
+  { label: 'Unser', href: '/app/ownership-dashboard', tone: 'petrol' },
+  { label: 'Austausch', href: '/app/review', tone: 'violet' },
 ] as const;
 
 export function PersonalAreaShell({ children }: { children: ReactNode }) {

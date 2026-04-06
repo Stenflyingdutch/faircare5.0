@@ -24,6 +24,11 @@ import { categoryLabelMap } from '@/services/resultCalculator';
 
 type SortMode = 'relevance' | 'area';
 
+function areIdListsEqual(left: string[], right: string[]) {
+  if (left.length !== right.length) return false;
+  return left.every((entry, index) => entry === right[index]);
+}
+
 function sortResponsibilitiesForMode(items: Responsibility[], mode: SortMode) {
   if (mode === 'area') {
     return [...items].sort((a, b) => {
@@ -62,6 +67,18 @@ export default function PersonalHomePage() {
       setUserFirstName(bundle.profile?.displayName?.split(' ')[0] || '');
       setFamilyId(bundle.profile?.familyId ?? null);
 
+      console.info('[home] membership debug', {
+        userId: user.uid,
+        profileFamilyId: bundle.profile?.familyId ?? null,
+        familyExists: Boolean(bundle.family),
+        familyInitiatorUserId: bundle.family?.initiatorUserId ?? null,
+        familyPartnerUserId: bundle.family?.partnerUserId ?? null,
+        isFamilyMember: Boolean(
+          bundle.family
+          && (bundle.family.initiatorUserId === user.uid || bundle.family.partnerUserId === user.uid)
+        ),
+      });
+
       if (bundle.profile?.familyId) {
         listenToResponsibilitiesForUser(
           bundle.profile.familyId,
@@ -92,15 +109,18 @@ export default function PersonalHomePage() {
 
     if (needsSort) {
       const sorted = sortResponsibilitiesForMode(responsibilities, sortMode).map((item) => item.id);
-      setOrderedResponsibilityIds(sorted);
+      if (!areIdListsEqual(sorted, orderedResponsibilityIds)) {
+        setOrderedResponsibilityIds(sorted);
+      }
       previousSortMode.current = sortMode;
       return;
     }
 
     const existingIds = orderedResponsibilityIds.filter((id) => currentIds.includes(id));
     const newIds = currentIds.filter((id) => !existingIds.includes(id));
-    if (newIds.length || existingIds.length !== orderedResponsibilityIds.length) {
-      setOrderedResponsibilityIds([...existingIds, ...newIds]);
+    const nextOrderedIds = [...existingIds, ...newIds];
+    if (!areIdListsEqual(nextOrderedIds, orderedResponsibilityIds)) {
+      setOrderedResponsibilityIds(nextOrderedIds);
     }
   }, [responsibilities, sortMode, isLoading, orderedResponsibilityIds]);
 
@@ -143,7 +163,7 @@ export default function PersonalHomePage() {
           onSelect={(category) => setActiveFilter(category)}
         />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+        <div className="home-toolbar-row">
           <p className="caption" style={{ margin: 0, color: 'var(--color-text-secondary)' }}>
             {filteredResponsibilities.length} {filteredResponsibilities.length === 1 ? 'Verantwortung' : 'Verantwortungen'}
           </p>

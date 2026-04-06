@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 
 import { OwnershipBoard } from '@/components/ownership/OwnershipBoard';
 import { observeAuthState } from '@/services/auth.service';
@@ -36,7 +36,7 @@ function OwnershipDashboardPageContent() {
     .map((entry) => entry.trim())
     .filter((entry): entry is QuizCategory => Boolean(categoryLabelMap[entry as QuizCategory])));
   const isRecommendationEntry = searchParams.get('from') === 'recommendation' && preselectedCategoryKeys.length > 0;
-  const allCategoryKeys = Object.keys(categoryLabelMap) as QuizCategory[];
+  const allCategoryKeys = useMemo(() => Object.keys(categoryLabelMap) as QuizCategory[], []);
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -48,6 +48,19 @@ function OwnershipDashboardPageContent() {
       const bundle = await fetchDashboardBundle(user.uid);
       setFamilyId(bundle.profile?.familyId ?? null);
       setAgeGroup(bundle.ageGroupForOwnership ?? null);
+
+      console.info('[ownership-dashboard] membership debug', {
+        userId: user.uid,
+        profileFamilyId: bundle.profile?.familyId ?? null,
+        familyExists: Boolean(bundle.family),
+        familyInitiatorUserId: bundle.family?.initiatorUserId ?? null,
+        familyPartnerUserId: bundle.family?.partnerUserId ?? null,
+        isFamilyMember: Boolean(
+          bundle.family
+          && (bundle.family.initiatorUserId === user.uid || bundle.family.partnerUserId === user.uid)
+        ),
+      });
+
       if (bundle.family) {
         const options = [
           { userId: bundle.family.initiatorUserId, label: bundle.initiatorDisplayName || 'Partner 1' },

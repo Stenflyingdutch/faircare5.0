@@ -18,6 +18,10 @@ export interface Responsibility extends OwnershipCardDocument {
   assignedTo: ResponsibilityOwner;
 }
 
+function isPermissionDeniedError(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === 'permission-denied';
+}
+
 export function isResponsibility(card: OwnershipCardDocument): card is Responsibility {
   return Boolean(card.priority && card.assignedTo);
 }
@@ -118,6 +122,11 @@ export function listenToResponsibilitiesForUser(
       onUpdate(responsibilities);
     },
     (error) => {
+      if (isPermissionDeniedError(error)) {
+        onUpdate([]);
+        onError?.(error as Error);
+        return;
+      }
       console.error('Fehler beim Laden der Verantwortungen:', error);
       onError?.(error as Error);
     },
@@ -149,6 +158,11 @@ export function listenToAllResponsibilities(
       onUpdate(cards);
     },
     (error) => {
+      if (isPermissionDeniedError(error)) {
+        onUpdate([]);
+        onError?.(error as Error);
+        return;
+      }
       console.error('Fehler beim Laden aller Verantwortungen:', error);
       onError?.(error as Error);
     },

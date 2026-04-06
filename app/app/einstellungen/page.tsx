@@ -12,8 +12,8 @@ const settingsEntries = [
     href: '/app/einstellungen/persoenliche-einstellungen',
   },
   {
-    title: 'Team-Check Planung',
-    description: 'Frequenz, Tag und Erinnerung für euren Team-Check festlegen',
+    title: 'Check-in Planung',
+    description: 'Frequenz, Tag und Erinnerung für euren Check-in festlegen',
     href: '/app/einstellungen/team-check-planung',
   },
   {

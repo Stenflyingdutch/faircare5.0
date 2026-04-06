@@ -23,6 +23,18 @@ const weekDayOptions = [
   { label: 'Sonntag', value: 0 },
 ];
 
+const timeOptions = [
+  '',
+  '08:00',
+  '10:00',
+  '12:00',
+  '14:00',
+  '16:00',
+  '18:00',
+  '20:00',
+  '22:00',
+];
+
 export default function TeamCheckPlanungPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -38,6 +50,7 @@ export default function TeamCheckPlanungPage() {
   const [dayOfWeek, setDayOfWeek] = useState<number>(1);
   const [time, setTime] = useState('');
   const [emailReminderEnabled, setEmailReminderEnabled] = useState(true);
+  const [showCustomTime, setShowCustomTime] = useState(false);
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -54,6 +67,7 @@ export default function TeamCheckPlanungPage() {
         setFrequency(plan.frequency);
         setDayOfWeek(plan.dayOfWeek);
         setTime(plan.time ?? '');
+        setShowCustomTime(Boolean(plan.time) && !timeOptions.includes(plan.time ?? ''));
       }
 
       const pref = await fetchTeamCheckEmailPreference(user.uid);
@@ -77,9 +91,9 @@ export default function TeamCheckPlanungPage() {
         dayOfWeek,
         time,
       });
-      setMessage('Team-Check Planung gespeichert. Die Erinnerung wird 1 Tag vorher aktiv.');
+      router.push('/app/review');
     } catch {
-      setError('Die Team-Check Planung konnte nicht gespeichert werden.');
+      setError('Die Check-in Planung konnte nicht gespeichert werden.');
     } finally {
       setSavingPlan(false);
     }
@@ -93,7 +107,7 @@ export default function TeamCheckPlanungPage() {
     setEmailReminderEnabled(nextValue);
     try {
       await saveTeamCheckEmailPreference({ userId, enabled: nextValue });
-      setMessage('E-Mail-Erinnerung aktualisiert (1 Tag vorher).');
+      setMessage('E-Mail-Erinnerung aktualisiert.');
     } catch {
       setEmailReminderEnabled(!nextValue);
       setError('Die E-Mail-Erinnerung konnte nicht gespeichert werden.');
@@ -103,24 +117,25 @@ export default function TeamCheckPlanungPage() {
   }
 
   if (loading) {
-    return <article className="card stack"><h2 className="card-title">Team-Check Planung</h2><p className="helper">Lade Einstellungen …</p></article>;
+    return <article className="card stack"><h2 className="card-title">Check-in Planung</h2><p className="helper">Lade Einstellungen …</p></article>;
   }
 
   return (
-    <article className="card stack">
+    <article className="card stack team-check-settings-card">
       <div className="settings-subpage-head">
         <Link href="/app/einstellungen" className="button settings-back-button">Zurück zu Einstellungen</Link>
-        <h2 className="card-title">Team-Check Planung</h2>
+        <h2 className="card-title">Check-in Planung</h2>
       </div>
-      <p className="helper" style={{ margin: 0 }}>Die Planung gilt für euer Team. Die E-Mail-Erinnerung steuerst du individuell pro Nutzerprofil.</p>
 
       {!familyId && <p className="helper" style={{ margin: 0 }}>Noch keine Familie verknüpft.</p>}
 
       {!!familyId && (
         <>
-          <div className="stack" style={{ gap: 6 }}>
-            <span>Frequenz des Team-Checks</span>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+          <section className="team-check-settings-section">
+            <div className="team-check-settings-label-group">
+              <span className="team-check-settings-label">Rhythmus</span>
+            </div>
+            <div className="team-check-segment-grid team-check-segment-grid--three">
               {([{
                 label: 'Wöchentlich',
                 value: 'weekly',
@@ -134,7 +149,7 @@ export default function TeamCheckPlanungPage() {
                 <button
                   key={option.value}
                   type="button"
-                  className={`button ${frequency === option.value ? 'primary' : ''}`}
+                  className={`team-check-segment-button ${frequency === option.value ? 'is-active' : ''}`}
                   onClick={() => setFrequency(option.value)}
                   aria-pressed={frequency === option.value}
                 >
@@ -142,16 +157,18 @@ export default function TeamCheckPlanungPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="stack" style={{ gap: 6 }}>
-            <span>Tag des Team-Checks</span>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+          <section className="team-check-settings-section">
+            <div className="team-check-settings-label-group">
+              <span className="team-check-settings-label">Tag</span>
+            </div>
+            <div className="team-check-segment-grid team-check-segment-grid--two">
               {weekDayOptions.map((entry) => (
                 <button
                   key={entry.value}
                   type="button"
-                  className={`button ${dayOfWeek === entry.value ? 'primary' : ''}`}
+                  className={`team-check-segment-button ${dayOfWeek === entry.value ? 'is-active' : ''}`}
                   onClick={() => setDayOfWeek(entry.value)}
                   aria-pressed={dayOfWeek === entry.value}
                 >
@@ -159,43 +176,85 @@ export default function TeamCheckPlanungPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="stack" style={{ gap: 6 }}>
-            <span>Uhrzeit (optional)</span>
-            <select className="input" value={time} onChange={(event) => setTime(event.target.value)}>
-              <option value="">Keine Uhrzeit</option>
-              {Array.from({ length: 33 }, (_, index) => {
-                const hours = 8 + Math.floor(index / 2);
-                const minutes = index % 2 === 0 ? '00' : '30';
-                const value = `${String(hours).padStart(2, '0')}:${minutes}`;
-                return (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+          <section className="team-check-settings-section">
+            <div className="team-check-settings-label-group">
+              <span className="team-check-settings-label">Uhrzeit</span>
+              <span className="helper team-check-settings-note">Optional</span>
+            </div>
+            <div className="team-check-time-grid" role="list" aria-label="Uhrzeit wählen">
+              {timeOptions.map((option) => (
+                <button
+                  key={option || 'none'}
+                  type="button"
+                  className={`team-check-time-chip ${time === option && (!showCustomTime || option === '') ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setShowCustomTime(false);
+                    setTime(option);
+                  }}
+                  aria-pressed={time === option}
+                >
+                  {option || 'Keine Uhrzeit'}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={`team-check-time-chip team-check-time-chip--custom ${showCustomTime ? 'is-active' : ''}`}
+                onClick={() => {
+                  setShowCustomTime(true);
+                  if (!time || timeOptions.includes(time)) {
+                    setTime('09:30');
+                  }
+                }}
+                aria-pressed={showCustomTime}
+              >
+                Eigene Zeit
+              </button>
+            </div>
+            {showCustomTime && (
+              <label className="team-check-custom-time-field">
+                <span className="helper team-check-custom-time-label">Zeit auswählen</span>
+                <input
+                  className="input team-check-custom-time-input"
+                  type="time"
+                  value={time}
+                  onChange={(event) => setTime(event.target.value)}
+                  step={300}
+                />
+              </label>
+            )}
+          </section>
 
-          <button type="button" className="button primary" onClick={onSavePlan} disabled={savingPlan}>
+          <button type="button" className="button team-check-save-button" onClick={onSavePlan} disabled={savingPlan}>
             {savingPlan ? 'Speichert …' : 'Speichern'}
           </button>
         </>
       )}
 
-      <div className="stack" style={{ gap: 8 }}>
-        <h3 className="card-title" style={{ margin: 0 }}>Möchtest Du an Check In Termin per E-Mail erinnert werden?</h3>
-        <p className="helper" style={{ margin: 0 }}>Erinnerung immer genau 1 Tag vor dem Team-Check.</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" className={`button ${emailReminderEnabled ? 'primary' : ''}`} onClick={() => onSaveReminder(true)} disabled={savingReminder}>
+      <section className="team-check-settings-section team-check-settings-section--muted">
+        <div className="team-check-settings-label-group">
+          <h3 className="card-title" style={{ margin: 0 }}>E-Mail-Erinnerung</h3>
+        </div>
+        <div className="team-check-segment-grid team-check-segment-grid--two">
+          <button
+            type="button"
+            className={`team-check-segment-button ${emailReminderEnabled ? 'is-active' : ''}`}
+            onClick={() => onSaveReminder(true)}
+            disabled={savingReminder}
+          >
             Ja
           </button>
-          <button type="button" className={`button ${!emailReminderEnabled ? 'primary' : ''}`} onClick={() => onSaveReminder(false)} disabled={savingReminder}>
+          <button
+            type="button"
+            className={`team-check-segment-button ${!emailReminderEnabled ? 'is-active' : ''}`}
+            onClick={() => onSaveReminder(false)}
+            disabled={savingReminder}
+          >
             Nein
           </button>
         </div>
-      </div>
+      </section>
 
       {error && <p className="inline-error">{error}</p>}
       {message && <p className="helper" style={{ margin: 0 }}>{message}</p>}
