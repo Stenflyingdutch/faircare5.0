@@ -4,6 +4,8 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { loginUser, requestPasswordReset } from '@/services/auth.service';
+import { fetchDashboardBundle } from '@/services/partnerFlow.service';
+import { hasOwnershipCardsForFamily } from '@/services/ownership.service';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,8 +18,15 @@ export default function LoginPage() {
     event.preventDefault();
     setError(null);
     try {
-      await loginUser(email, password);
-      router.push('/app/review');
+      const userCredential = await loginUser(email, password);
+      const userId = userCredential.user.uid;
+      const bundle = await fetchDashboardBundle(userId);
+      const familyId = bundle.profile?.familyId;
+      if (familyId && await hasOwnershipCardsForFamily(familyId)) {
+        router.push('/app/home');
+      } else {
+        router.push('/app/ergebnisse');
+      }
     } catch {
       setError('Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.');
     }
