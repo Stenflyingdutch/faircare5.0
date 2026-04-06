@@ -170,6 +170,9 @@ export function ReviewResultsContent() {
         } else {
           setInviteMessage('Einladung gespeichert. Es wurde keine echte E-Mail verschickt, weil der Mail-Provider auf noop steht.');
         }
+      } else if ('wasRecipientOverridden' in result && result.wasRecipientOverridden && 'actualRecipient' in result && result.actualRecipient) {
+        setInviteState('warning');
+        setInviteMessage(`Einladung technisch versendet. In dieser Umgebung wird die E-Mail an ${result.actualRecipient} umgeleitet (TEST_EMAIL_OVERRIDE).`);
       } else {
         setInviteState('success');
         setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);

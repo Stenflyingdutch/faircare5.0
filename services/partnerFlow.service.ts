@@ -73,6 +73,8 @@ export interface SendPartnerInviteResult {
   delivery: 'email_sent' | 'saved_without_email';
   provider?: string;
   deliveryReason?: 'noop_provider' | 'mail_provider_unavailable';
+  actualRecipient?: string;
+  wasRecipientOverridden?: boolean;
 }
 
 function resolveRuntimeEnvironment() {
@@ -555,6 +557,32 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
         `,
       });
       provider = String(mailOutcome?.result?.provider ?? 'unknown');
+      const actualRecipient = String(mailOutcome?.payload?.actualRecipient ?? partnerEmail);
+      const wasRecipientOverridden = normalizeEmail(actualRecipient) !== normalizeEmail(partnerEmail);
+      if (wasRecipientOverridden) {
+        console.warn('[sendPartnerInvite:fallback] TEST_EMAIL_OVERRIDE aktiv - Empfänger umgeleitet', {
+          originalRecipientDomain: partnerEmail.split('@')[1] ?? 'invalid',
+          actualRecipientDomain: actualRecipient.split('@')[1] ?? 'invalid',
+        });
+      }
+      if (provider === 'noop') {
+        return {
+          partnerEmail,
+          delivery: 'saved_without_email',
+          provider,
+          deliveryReason: 'noop_provider',
+          actualRecipient,
+          wasRecipientOverridden,
+        } satisfies SendPartnerInviteResult;
+      }
+
+      return {
+        partnerEmail,
+        delivery: 'email_sent',
+        provider,
+        actualRecipient,
+        wasRecipientOverridden,
+      } satisfies SendPartnerInviteResult;
     } catch (mailError) {
       const mailErrorMessage = mailError instanceof Error ? mailError.message : String(mailError);
       const allowGracefulNoMail = runtime.appEnv !== 'production' || runtime.isPreviewLike;
@@ -579,21 +607,6 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       testRecipient: 'pa4sten@gmail.com (nicht-production in /api/mail)',
       provider,
     });
-
-    if (provider === 'noop') {
-      return {
-        partnerEmail,
-        delivery: 'saved_without_email',
-        provider,
-        deliveryReason: 'noop_provider',
-      } satisfies SendPartnerInviteResult;
-    }
-
-    return {
-      partnerEmail,
-      delivery: 'email_sent',
-      provider,
-    } satisfies SendPartnerInviteResult;
   } catch (error) {
     console.error('[sendPartnerInvite:fallback] Fehler im lokalen Invite-Flow', error);
     if (error instanceof InviteFlowError) throw error;
