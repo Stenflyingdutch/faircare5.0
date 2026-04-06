@@ -6,8 +6,6 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
-import { observeOwnershipCards } from '@/services/ownership.service';
-import { resolveCategoryLabel } from '@/services/resultCalculator';
 import {
   observePreparationPair,
   observeTeamCheckRecords,
@@ -16,14 +14,8 @@ import {
   saveTeamCheckRecord,
 } from '@/services/teamCheck.service';
 import { formatTeamCheckDate } from '@/services/teamCheck.logic';
-import type { OwnershipCardDocument } from '@/types/ownership';
 import type { TeamCheckPreparation, TeamCheckRecord } from '@/types/team-check';
 import type { QuizCategory } from '@/types/quiz';
-
-function resolveCardIsActive(card: OwnershipCardDocument) {
-  if (typeof card.isActive === 'boolean') return card.isActive;
-  return Boolean(card.ownerUserId || card.focusLevel);
-}
 
 function formatDiscussedDate(value?: string | null) {
   if (!value) return null;
@@ -70,7 +62,6 @@ export function TeamCheckContent() {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
-  const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
   const [records, setRecords] = useState<TeamCheckRecord[]>([]);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [preparations, setPreparations] = useState<TeamCheckPreparation[]>([]);
@@ -98,11 +89,6 @@ export function TeamCheckContent() {
     return () => unsubscribe();
   }, [router]);
 
-  useEffect(() => {
-    if (!bundle?.profile?.familyId) return;
-    return observeOwnershipCards(bundle.profile.familyId, setCards);
-  }, [bundle?.profile?.familyId]);
-
   const scheduledForKey = useMemo(
     () => resolveScheduledForKey(bundle?.family?.teamCheckPlan?.nextCheckInAt),
     [bundle?.family?.teamCheckPlan?.nextCheckInAt],
@@ -125,8 +111,6 @@ export function TeamCheckContent() {
     });
   }, [bundle?.profile?.familyId, scheduledForKey]);
 
-  const activatedCardsCount = useMemo(() => cards.filter(resolveCardIsActive).length, [cards]);
-  const showOwnershipHint = activatedCardsCount === 0;
   const discussedDate = formatDiscussedDate(bundle?.family?.resultsDiscussedAt ?? null);
 
   const hasPlan = Boolean(bundle?.family?.teamCheckPlan?.frequency && bundle?.family?.teamCheckPlan?.dayOfWeek !== undefined);
@@ -158,8 +142,6 @@ export function TeamCheckContent() {
   const discussedCardIds = useMemo(() => [
     ...new Set(preparations.flatMap((entry) => entry.selectedTaskActions.map((item) => item.cardId))),
   ], [preparations]);
-
-  const discussedCards = useMemo(() => cards.filter((card) => discussedCardIds.includes(card.id)), [cards, discussedCardIds]);
   const visiblePreparations = useMemo(
     () => ownerOptions
       .map((owner) => ({ owner, prep: preparations.find((entry) => entry.userId === owner.userId) ?? null }))

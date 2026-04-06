@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type { QuizCategory } from '@/types/quiz';
 import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
@@ -13,7 +13,6 @@ import {
   updateResponsibilityAssignment,
   type Responsibility,
   type ResponsibilityOwner,
-  type OwnershipCardDocument,
 } from '@/services/responsibilities.service';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { CategoryFilterButtons } from '@/components/home/CategoryFilterButtons';
@@ -26,16 +25,9 @@ import { categoryLabelMap } from '@/services/resultCalculator';
 
 type SortMode = 'relevance' | 'area';
 
-// Extend Responsibility to track assignee names
-interface ResponsibilityWithNames extends Responsibility {
-  assigneeFullName?: string;
-}
-
 export default function Aufteilen() {
   const router = useRouter();
   const [userFirstName, setUserFirstName] = useState('');
-  const [userFullName, setUserFullName] = useState('');
-  const [partnerName, setPartnerName] = useState('');
   const [responsibilities, setResponsibilities] = useState<Responsibility[]>([]);
   const [activeFilter, setActiveFilter] = useState<QuizCategory | 'all' | null>('all');
   const [sortMode, setSortMode] = useState<SortMode>('relevance');
@@ -44,7 +36,6 @@ export default function Aufteilen() {
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const [deleteConfirmationCardId, setDeleteConfirmationCardId] = useState<string | null>(null);
-  const [userPartnerData, setUserPartnerData] = useState<{ currentUserId: string; partnerId?: string } | null>(null);
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -55,15 +46,8 @@ export default function Aufteilen() {
       setUserId(user.uid);
 
       const bundle = await fetchDashboardBundle(user.uid);
-      setUserFullName(bundle.profile?.displayName || '');
       setUserFirstName(bundle.profile?.displayName?.split(' ')[0] || '');
-      // TODO: Get partner name from family data or bundle
-      setPartnerName('Partner');
       setFamilyId(bundle.profile?.familyId ?? null);
-      setUserPartnerData({
-        currentUserId: user.uid,
-        partnerId: undefined, // TODO: Get from bundle or family data
-      });
 
       if (bundle.profile?.familyId) {
         // Use listenToAllResponsibilities to get all cards in family
