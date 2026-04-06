@@ -140,6 +140,7 @@ export function ReviewResultsContent() {
 
   async function onInviteSubmit(event: FormEvent) {
     event.preventDefault();
+    console.info('[partner-invite] Button geklickt');
     const email = inviteEmail.trim();
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email) {
@@ -156,6 +157,11 @@ export function ReviewResultsContent() {
     setInviteState('loading');
     setInviteMessage('');
     try {
+      console.info('[partner-invite] Request wird ausgelöst', {
+        target: 'sendPartnerInvitation',
+        hasPersonalMessage: Boolean(invitePersonalMessage?.trim()),
+        emailDomain: email.split('@')[1] ?? 'invalid',
+      });
       const result = await sendPartnerInvitation(email, invitePersonalMessage);
       if (result.delivery === 'saved_without_email') {
         setInviteState('warning');
@@ -164,6 +170,10 @@ export function ReviewResultsContent() {
         setInviteState('success');
         setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
       }
+      console.info('[partner-invite] Request erfolgreich', {
+        delivery: result.delivery,
+        provider: 'provider' in result ? (result.provider ?? 'unknown') : 'unknown',
+      });
       if (currentUserId) {
         const profile = await fetchAppUserProfile(currentUserId);
         if (profile?.id) {
@@ -171,9 +181,13 @@ export function ReviewResultsContent() {
         }
       }
     } catch (error) {
-      const errorObject = error as { message?: string };
+      const errorObject = error as { message?: string; details?: { headline?: string } };
       setInviteState('error');
-      setInviteMessage(errorObject?.message || 'Einladung konnte nicht gesendet werden.');
+      setInviteMessage(errorObject?.details?.headline || errorObject?.message || 'Einladung konnte nicht gesendet werden.');
+      console.error('[partner-invite] Request fehlgeschlagen', {
+        message: errorObject?.message ?? 'unknown error',
+        headline: errorObject?.details?.headline ?? null,
+      });
     }
   }
 

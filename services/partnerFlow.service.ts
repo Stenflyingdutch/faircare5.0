@@ -74,6 +74,139 @@ export interface SendPartnerInviteResult {
   provider?: string;
 }
 
+function resolveRuntimeEnvironment() {
+  const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
+  const vercelEnv = (process.env.NEXT_PUBLIC_VERCEL_ENV ?? '').toLowerCase();
+  const host = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+  const isPreviewHost = host.endsWith('.vercel.app') || host.includes('-git-');
+  return {
+    appEnv,
+    vercelEnv,
+    host: host || null,
+    isPreviewLike: vercelEnv === 'preview' || isPreviewHost,
+  };
+}
+
+function resolveClientBaseUrl() {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_BASE_URL ?? 'http://localhost:3000';
+}
+
+function buildInviteHeadlineFromCode(code?: string) {
+  if (!code) return 'Einladung konnte serverseitig nicht verarbeitet werden.';
+  if (code.includes('invalid-argument')) return 'Ungültige E-Mail-Adresse.';
+  if (code.includes('permission-denied') || code.includes('unauthenticated')) return 'Bitte melde dich erneut an und versuche es nochmal.';
+  if (code.includes('failed-precondition')) return 'Einladungsversand ist aktuell nicht verfügbar.';
+  if (code.includes('unavailable') || code.includes('deadline-exceeded')) return 'Einladungsdienst ist gerade nicht erreichbar.';
+  return 'Einladung konnte serverseitig nicht verarbeitet werden.';
+}
+
+type InviteBlockReasonCode =
+  | 'own_email'
+  | 'initiator_is_partner'
+  | 'family_already_has_partner'
+  | 'pending_invitation_same_email'
+  | 'pending_invitation_other_email'
+  | 'recipient_already_in_family';
+
+function createInviteBlockReason(
+  code: InviteBlockReasonCode,
+  headline: string,
+  userErrors: string[],
+  technicalDetails: string[] = [],
+) {
+  return buildInviteError('failed-precondition', headline, { userErrors }, technicalDetails);
+}
+
+async function validatePartnerInvitationEligibility(params: {
+  userId: string;
+  userEmail: string;
+  partnerEmail: string;
+}) {
+  const normalizedUserEmail = normalizeEmail(params.userEmail);
+  const normalizedPartnerEmail = normalizeEmail(params.partnerEmail);
+
+  if (normalizedPartnerEmail === normalizedUserEmail) {
+    return createInviteBlockReason(
+      'own_email',
+      'Du hast deine eigene E-Mail-Adresse eingegeben.',
+      ['Bitte gib die E-Mail-Adresse deines Partners ein (nicht deine eigene).'],
+      ['rule=own_email'],
+    );
+  }
+
+  const currentProfile = await fetchAppUserProfile(params.userId);
+  if (currentProfile?.role === 'partner') {
+    return createInviteBlockReason(
+      'initiator_is_partner',
+      'Partner-Accounts können keine neue Einladung versenden.',
+      ['Bitte verwende den Initiator-Account, um eine Einladung zu senden.'],
+      ['rule=initiator_is_partner'],
+    );
+  }
+
+  if (currentProfile?.familyId) {
+    const familySnapshot = await getDoc(doc(db, firestoreCollections.families, currentProfile.familyId));
+    if (familySnapshot.exists()) {
+      const family = familySnapshot.data() as FamilyDocument;
+      if (family.partnerUserId || family.partnerRegistered) {
+        return createInviteBlockReason(
+          'family_already_has_partner',
+          'Es ist bereits ein Partner mit eurem Konto verknüpft.',
+          ['Eine neue Einladung ist erst möglich, wenn die bestehende Verknüpfung zurückgesetzt wurde.'],
+          ['rule=family_already_has_partner'],
+        );
+      }
+
+      if (family.invitationId) {
+        const invitationSnapshot = await getDoc(doc(db, firestoreCollections.invitations, family.invitationId));
+        if (invitationSnapshot.exists()) {
+          const invitation = invitationSnapshot.data() as InvitationDocument;
+          const isStillActive = invitation.status === 'sent' && Date.parse(invitation.expiresAt) >= Date.now();
+          if (isStillActive) {
+            const normalizedExistingPartnerEmail = normalizeEmail(invitation.partnerEmail);
+            if (normalizedExistingPartnerEmail === normalizedPartnerEmail) {
+              return createInviteBlockReason(
+                'pending_invitation_same_email',
+                'Für diese E-Mail läuft bereits eine Einladung.',
+                ['Bitte verwende den vorhandenen Einladungslink oder sende später eine neue Einladung.'],
+                ['rule=pending_invitation_same_email'],
+              );
+            }
+            return createInviteBlockReason(
+              'pending_invitation_other_email',
+              'Es gibt bereits eine offene Einladung an eine andere E-Mail-Adresse.',
+              ['Bitte schließe die bestehende Einladung zuerst ab oder lasse sie ablaufen.'],
+              ['rule=pending_invitation_other_email'],
+            );
+          }
+        }
+      }
+    }
+  }
+
+  const recipientUserSnap = await getDocs(query(
+    collection(db, firestoreCollections.users),
+    where('email', '==', normalizedPartnerEmail),
+    limit(1),
+  ));
+  if (!recipientUserSnap.empty) {
+    const recipientProfile = recipientUserSnap.docs[0].data() as AppUserProfile;
+    if (recipientProfile.familyId) {
+      return createInviteBlockReason(
+        'recipient_already_in_family',
+        'Diese E-Mail-Adresse ist bereits mit einem anderen Paar verknüpft.',
+        ['Bitte nutze eine E-Mail-Adresse, die noch keinem bestehenden Paar zugeordnet ist.'],
+        ['rule=recipient_already_in_family'],
+      );
+    }
+  }
+
+  return null;
+}
+
 export class InviteFlowError extends Error {
   code: string;
   details: InviteDebugDetails;
@@ -161,10 +294,20 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
       userErrors: ['Bitte gib eine E-Mail-Adresse ein.'],
     });
   }
-  if (normalizedPartnerEmail === normalizeEmail(user.email)) {
-    throw buildInviteError('invalid-argument', 'Diese E-Mail-Adresse kann nicht eingeladen werden.', {
-      userErrors: ['Bitte gib die E-Mail-Adresse deines Partners ein (nicht deine eigene).'],
+
+  const eligibilityError = await validatePartnerInvitationEligibility({
+    userId: user.uid,
+    userEmail: user.email,
+    partnerEmail: normalizedPartnerEmail,
+  });
+  if (eligibilityError) {
+    console.warn('[sendPartnerInvitation] Einladung blockiert durch Validierungsregel', {
+      rule: eligibilityError.details.technicalDetails?.[0] ?? 'unknown',
+      appEnv: (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase(),
+      partnerEmailDomain: normalizedPartnerEmail.split('@')[1] ?? 'invalid',
+      userId: user.uid,
     });
+    throw eligibilityError;
   }
   if (firebaseProjectId !== 'carefair5') {
     throw buildInviteError(
@@ -182,52 +325,100 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
 
   const functions = getFunctions(app, 'europe-west3');
   const sendPartnerInvite = httpsCallable<{ partnerEmail: string; personalMessage?: string }, { partnerEmail?: string }>(functions, 'sendPartnerInvite');
+  const runtime = resolveRuntimeEnvironment();
+  console.info('[sendPartnerInvitation] gestartet', {
+    hasUser: Boolean(user?.uid),
+    hasUserEmail: Boolean(user?.email),
+    project: firebaseProjectId,
+    appEnv: runtime.appEnv,
+    vercelEnv: runtime.vercelEnv || 'unknown',
+    host: runtime.host,
+    callableRegion: 'europe-west3',
+    callableName: 'sendPartnerInvite',
+  });
+
   try {
+    console.info('[sendPartnerInvitation] callable request vorbereitet', {
+      normalizedPartnerEmailDomain: normalizedPartnerEmail.split('@')[1] ?? 'invalid',
+      hasPersonalMessage: Boolean(personalMessage?.trim()),
+    });
     const response = await sendPartnerInvite({ partnerEmail: normalizedPartnerEmail, personalMessage: personalMessage?.trim() });
+    console.info('[sendPartnerInvitation] callable request erfolgreich', {
+      returnedPartnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
+    });
     return {
       partnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
       delivery: 'email_sent',
     } satisfies SendPartnerInviteResult;
   } catch (error) {
     const callableError = error as { code?: string; message?: string; details?: unknown };
-    const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
-    const allowLocalFallback = appEnv !== 'production';
-    const fallbackEligible = ['functions/internal', 'internal', 'functions/unavailable', 'functions/unimplemented']
-      .includes(callableError?.code ?? '');
+    const errorCode = callableError?.code ?? 'unknown';
+    const errorMessage = callableError?.message ?? '';
+    const fallbackEligibleCodes = [
+      'functions/internal',
+      'internal',
+      'functions/unavailable',
+      'unavailable',
+      'functions/unimplemented',
+      'unimplemented',
+      'functions/deadline-exceeded',
+      'deadline-exceeded',
+      'functions/not-found',
+      'not-found',
+      'functions/unknown',
+      'unknown',
+    ];
+    const fallbackEligibleMessage = /cors|network|fetch|failed to fetch|load failed|unreachable/i.test(errorMessage);
+    const allowLocalFallback = runtime.appEnv !== 'production' || runtime.isPreviewLike;
+    const fallbackEligible = fallbackEligibleCodes.includes(errorCode) || fallbackEligibleMessage;
+    const fallbackDecision = allowLocalFallback && fallbackEligible;
 
-    if (allowLocalFallback && fallbackEligible) {
+    if (fallbackDecision) {
       console.info('[sendPartnerInvitation] Callable sendPartnerInvite unavailable, using fallback.', {
-        appEnv,
-        code: callableError?.code,
+        appEnv: runtime.appEnv,
+        vercelEnv: runtime.vercelEnv || 'unknown',
+        host: runtime.host,
+        code: errorCode,
+        fallbackEligibleMessage,
       });
     } else {
       console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
-        code: callableError?.code,
-        message: callableError?.message,
+        code: errorCode,
+        message: errorMessage,
         details: callableError?.details,
+        fallbackDecision,
+        appEnv: runtime.appEnv,
+        vercelEnv: runtime.vercelEnv || 'unknown',
       });
     }
 
-    if (allowLocalFallback && fallbackEligible) {
+    if (fallbackDecision) {
       console.info('[sendPartnerInvitation] Falling back to local invite flow', {
-        appEnv,
-        code: callableError?.code,
+        appEnv: runtime.appEnv,
+        vercelEnv: runtime.vercelEnv || 'unknown',
+        host: runtime.host,
+        code: errorCode,
       });
       return sendPartnerInvitationFallback(normalizedPartnerEmail, user.uid, personalMessage);
     }
 
     throw buildInviteError(
-      callableError?.code ?? 'internal',
-      'Einladung konnte serverseitig nicht verarbeitet werden.',
+      errorCode,
+      buildInviteHeadlineFromCode(errorCode),
       {
         serverErrors: ['Die Firebase Function sendPartnerInvite hat einen Fehler zurückgegeben.'],
         configErrors: ['Bitte Firebase Functions Logs für sendPartnerInvite (Region europe-west3) prüfen.'],
       },
       [
-        `code=${callableError?.code ?? 'unknown'}`,
-        callableError?.message ?? 'keine message',
+        `code=${errorCode}`,
+        errorMessage || 'keine message',
         'region=europe-west3',
         `project=${firebaseProjectId}`,
+        `appEnv=${runtime.appEnv}`,
+        `vercelEnv=${runtime.vercelEnv || 'unknown'}`,
+        `host=${runtime.host ?? 'unknown'}`,
+        `fallbackEligible=${String(fallbackEligible)}`,
+        `allowLocalFallback=${String(allowLocalFallback)}`,
       ],
     );
   }
@@ -336,8 +527,12 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
     }, { merge: true });
     console.info('[sendPartnerInvite:fallback] Invitation erstellt', { invitationId: invitationRef.id });
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const baseUrl = resolveClientBaseUrl();
     const inviteUrl = `${baseUrl}/invite/${token}`;
+    console.info('[sendPartnerInvite:fallback] Einladungs-URL aufgelöst', {
+      baseUrl,
+      usedWindowOrigin: typeof window !== 'undefined' && window.location?.origin === baseUrl,
+    });
     console.info('[sendPartnerInvite:fallback] Mail-Provider gewählt', {
       provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'none'),
     });
