@@ -32,6 +32,39 @@ function formatDiscussedDate(value?: string | null) {
   return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(parsed);
 }
 
+function formatNextCheckInText(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const dateLabel = new Intl.DateTimeFormat('de-DE', {
+    day: 'numeric',
+    month: 'long',
+  }).format(parsed);
+
+  const hours = String(parsed.getHours()).padStart(2, '0');
+  return `Nächster Austausch am ${dateLabel} um ${hours}h`;
+}
+
+function formatTodayExchangeTitle(now = new Date()) {
+  const dateLabel = new Intl.DateTimeFormat('de-DE', {
+    day: '2-digit',
+    month: 'long',
+  }).format(now);
+
+  return `Unseren Austausch von ${dateLabel}`;
+}
+
+function resolvePreparationAuthorLabel(params: {
+  userId: string;
+  bundle: Awaited<ReturnType<typeof fetchDashboardBundle>> | null;
+}) {
+  if (!params.bundle?.family) return 'Person';
+  if (params.userId === params.bundle.family.initiatorUserId) return params.bundle.initiatorDisplayName ?? 'Person 1';
+  if (params.userId === params.bundle.family.partnerUserId) return params.bundle.partnerDisplayName ?? 'Person 2';
+  return 'Person';
+}
+
 export function TeamCheckContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -43,8 +76,7 @@ export function TeamCheckContent() {
   const [preparations, setPreparations] = useState<TeamCheckPreparation[]>([]);
 
   const [mode, setMode] = useState<'overview' | 'prepare' | 'conduct'>('overview');
-  const [goodMoments, setGoodMoments] = useState('');
-  const [changeWishes, setChangeWishes] = useState('');
+  const [preparationNote, setPreparationNote] = useState('');
   const [closingNote, setClosingNote] = useState('');
   const [assignmentDraft, setAssignmentDraft] = useState<Record<string, string | null>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -98,8 +130,9 @@ export function TeamCheckContent() {
   const discussedDate = formatDiscussedDate(bundle?.family?.resultsDiscussedAt ?? null);
 
   const hasPlan = Boolean(bundle?.family?.teamCheckPlan?.frequency && bundle?.family?.teamCheckPlan?.dayOfWeek !== undefined);
-  const nextCheckInLabel = formatTeamCheckDate(bundle?.family?.teamCheckPlan?.nextCheckInAt ?? null, Boolean(bundle?.family?.teamCheckPlan?.time));
+  const nextCheckInLabel = formatNextCheckInText(bundle?.family?.teamCheckPlan?.nextCheckInAt ?? null);
   const selectedRecord = records.find((entry) => entry.id === selectedRecordId) ?? null;
+  const exchangeTitle = useMemo(() => formatTodayExchangeTitle(), []);
 
   const ownerOptions = useMemo(() => {
     if (!bundle || !currentUserId) return [] as Array<{ userId: string; label: string }>;
@@ -119,8 +152,7 @@ export function TeamCheckContent() {
 
   useEffect(() => {
     if (!myPreparation) return;
-    setGoodMoments(myPreparation.goodMoments);
-    setChangeWishes(myPreparation.changeWishes ?? '');
+    setPreparationNote([myPreparation.goodMoments, myPreparation.changeWishes].filter(Boolean).join('\n\n').trim());
   }, [myPreparation]);
 
   const discussedCardIds = useMemo(() => [
@@ -128,11 +160,17 @@ export function TeamCheckContent() {
   ], [preparations]);
 
   const discussedCards = useMemo(() => cards.filter((card) => discussedCardIds.includes(card.id)), [cards, discussedCardIds]);
+  const visiblePreparations = useMemo(
+    () => ownerOptions
+      .map((owner) => ({ owner, prep: preparations.find((entry) => entry.userId === owner.userId) ?? null }))
+      .filter(({ prep }) => Boolean(prep?.goodMoments?.trim())),
+    [ownerOptions, preparations],
+  );
 
   async function onSavePreparation() {
     if (!bundle?.profile?.familyId || !currentUserId || !scheduledForKey) return;
-    if (!goodMoments.trim()) {
-      setError('Bitte das Pflichtfeld „Was ist gut gelaufen oder worüber habe ich mich gefreut“ ausfüllen.');
+    if (!preparationNote.trim()) {
+      setError('Bitte die Notizen zum Check-in ausfüllen.');
       return;
     }
 
@@ -144,13 +182,14 @@ export function TeamCheckContent() {
         familyId: bundle.profile.familyId,
         userId: currentUserId,
         scheduledForKey,
-        goodMoments: goodMoments.trim(),
-        changeWishes: changeWishes.trim(),
+        goodMoments: preparationNote.trim(),
+        changeWishes: '',
         handoverAreaCategoryKeys: [],
         swapAreaCategoryKeys: [],
         selectedTaskActions: [],
       });
-      setMessage('Stand gespeichert.');
+      setMode('overview');
+      setMessage('Gespeichert.');
     } catch {
       setError('Der Stand konnte nicht gespeichert werden.');
     } finally {
@@ -219,129 +258,132 @@ export function TeamCheckContent() {
             )}
 
             {mode === 'overview' && (
-              <button type="button" className="button primary" onClick={() => setMode('prepare')}>
-                Check-in vorbereiten
-              </button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className="button primary" onClick={() => setMode('prepare')}>
+                  Unseren Austausch vorbereiten
+                </button>
+                <button type="button" className="button" onClick={() => setMode('conduct')}>
+                  Unseren Austausch durchführen
+                </button>
+              </div>
             )}
             <div className="stack" style={{ gap: 4 }}>
-              {nextCheckInLabel && <p style={{ margin: 0 }}>Nächster Check-in am {nextCheckInLabel}</p>}
+              {nextCheckInLabel && <p style={{ margin: 0 }}>{nextCheckInLabel}</p>}
             </div>
           </article>
         )}
 
         {records.length > 0 && (
           <article className="card stack">
-            <h3 className="card-title" style={{ margin: 0 }}>Vergangene Team-Checks</h3>
+            <h3 className="card-title" style={{ margin: 0 }}>Vergangene Austauschmomente</h3>
             <div className="stack" style={{ gap: 8 }}>
               {records.map((record) => {
                 const formatted = formatTeamCheckDate(record.checkInAt);
                 return (
                   <div key={record.id} className="report-block" style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                     <span>Team-Check vom {formatted ?? '—'}</span>
-                    <button type="button" className="button" onClick={() => setSelectedRecordId(record.id)}>
+                    <button type="button" className="button team-check-history-button" onClick={() => setSelectedRecordId(record.id)}>
                       Notiz ansehen
                     </button>
                   </div>
                 );
               })}
             </div>
-            {selectedRecord && (
-              <div className="report-block stack">
-                <strong>Notiz</strong>
-                <p className="helper" style={{ margin: 0 }}>{selectedRecord.note?.trim() || 'Keine Notiz hinterlegt.'}</p>
-              </div>
-            )}
           </article>
         )}
 
         {mode === 'prepare' && hasPlan && (
           <article className="card stack">
-            <h3 className="card-title" style={{ margin: 0 }}>Check-in vorbereiten</h3>
+            <h3 className="card-title" style={{ margin: 0 }}>Unseren Austausch vorbereiten</h3>
 
             <label className="stack" style={{ gap: 6 }}>
-              <span>Was ist gut gelaufen oder worüber habe ich mich gefreut *</span>
-              <textarea className="input" value={goodMoments} onChange={(event) => setGoodMoments(event.target.value)} />
-            </label>
-
-            <label className="stack" style={{ gap: 6 }}>
-              <span>Was möchte ich ändern</span>
-              <textarea className="input" value={changeWishes} onChange={(event) => setChangeWishes(event.target.value)} />
+              <textarea
+                className="input team-check-preparation-textarea"
+                value={preparationNote}
+                onChange={(event) => setPreparationNote(event.target.value)}
+                placeholder="Was ist gut gelaufen, was möchten wir verbessern, Aufgabenpakete umverteilen?"
+                style={{ minHeight: 160 }}
+              />
             </label>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="button" className="button" onClick={onSavePreparation} disabled={saving}>Stand speichern</button>
-              <button type="button" className="button primary" onClick={() => setMode('conduct')}>
-                Check-in durchführen
-              </button>
+              <button type="button" className="button team-check-save-button" onClick={onSavePreparation} disabled={saving}>Speichern</button>
             </div>
           </article>
         )}
 
         {mode === 'conduct' && hasPlan && (
           <article className="card stack">
-            <h3 className="card-title" style={{ margin: 0 }}>Check-in durchführen</h3>
-            {preparations.length < 2 && <p className="helper" style={{ margin: 0 }}>Die Vorbereitung des Partners liegt noch nicht vor.</p>}
+            <h3 className="card-title" style={{ margin: 0 }}>{exchangeTitle}</h3>
 
-            <div className="grid grid-2">
-              {ownerOptions.map((owner) => {
-                const prep = preparations.find((entry) => entry.userId === owner.userId);
-                return (
-                  <div key={owner.userId} className="report-block stack">
-                    <strong>{owner.label}</strong>
-                    <div>
-                      <strong>Was ist gut gelaufen oder worüber habe ich mich gefreut</strong>
-                      <p className="helper" style={{ margin: '4px 0 0' }}>{prep?.goodMoments || 'Noch keine Vorbereitung gespeichert.'}</p>
-                    </div>
-                    <div>
-                      <strong>Was möchte ich ändern</strong>
-                      <p className="helper" style={{ margin: '4px 0 0' }}>{prep?.changeWishes || '—'}</p>
-                    </div>
-                    <div>
-                      <strong>Änderungswunsch bei Aufgaben</strong>
-                      <p className="helper" style={{ margin: '4px 0 0' }}>
-                        {prep?.selectedTaskActions?.length
-                          ? `${prep.selectedTaskActions.length} Aufgaben zur Besprechung vorgemerkt`
-                          : 'Keine Aufgaben vorgemerkt.'}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {!visiblePreparations.length && <p className="helper" style={{ margin: 0 }}>Noch keine Vorbereitung gespeichert.</p>}
 
-            <div className="stack" style={{ gap: 8 }}>
-              <strong>Aufgaben und Gebiete direkt zuordnen</strong>
-              {discussedCards.map((card) => (
-                <div key={card.id} className="report-block" style={{ display: 'grid', gap: 6 }}>
-                  <strong>{card.title}</strong>
-                  <span className="helper">{resolveCategoryLabel(card.categoryKey)}</span>
-                  <select
-                    className="input"
-                    value={assignmentDraft[card.id] ?? card.ownerUserId ?? ''}
-                    onChange={(event) => setAssignmentDraft((prev) => ({ ...prev, [card.id]: event.target.value || null }))}
-                  >
-                    <option value="">Noch nicht zugeordnet</option>
-                    {ownerOptions.map((owner) => <option key={owner.userId} value={owner.userId}>{owner.label}</option>)}
-                  </select>
+            <div className="stack" style={{ gap: 12 }}>
+              {visiblePreparations.map(({ owner, prep }) => (
+                <div key={owner.userId} className="report-block stack">
+                  <strong>{owner.label}</strong>
+                  <p className="helper" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                    {prep?.goodMoments}
+                  </p>
                 </div>
               ))}
-              {!discussedCards.length && <p className="helper" style={{ margin: 0 }}>Noch keine Aufgaben zur Besprechung vorgemerkt.</p>}
             </div>
 
             <label className="stack" style={{ gap: 6 }}>
-              <span>Notiz zum Check-in</span>
-              <textarea className="input" value={closingNote} onChange={(event) => setClosingNote(event.target.value)} />
+              <span>Gemeinsame Notizen</span>
+              <textarea className="input team-check-preparation-textarea" value={closingNote} onChange={(event) => setClosingNote(event.target.value)} />
             </label>
 
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="button" className="button" onClick={() => setMode('prepare')}>Zurück zur Vorbereitung</button>
-              <button type="button" className="button primary" onClick={onSaveCheckIn} disabled={saving}>Check-in speichern</button>
+            <div>
+              <button type="button" className="button team-check-save-button" onClick={onSaveCheckIn} disabled={saving}>Abschliessen</button>
             </div>
           </article>
         )}
 
         {error && <p className="inline-error">{error}</p>}
         {message && <p className="helper" style={{ margin: 0 }}>{message}</p>}
+
+        {selectedRecord && (
+          <div className="ownership-modal-backdrop" onClick={() => setSelectedRecordId(null)}>
+            <article
+              className="card stack ownership-modal team-check-notes-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Notizen aus vergangenem Austausch"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="ownership-modal-header">
+                <div className="stack" style={{ gap: 4 }}>
+                  <h3 className="card-title" style={{ margin: 0 }}>Notizen zum Austausch</h3>
+                  <p className="helper" style={{ margin: 0 }}>
+                    {formatTeamCheckDate(selectedRecord.checkInAt) ?? 'Vergangener Austausch'}
+                  </p>
+                </div>
+                <button type="button" className="ownership-modal-close" onClick={() => setSelectedRecordId(null)}>
+                  Schliessen
+                </button>
+              </div>
+
+              <div className="stack" style={{ gap: 12 }}>
+                {selectedRecord.preparationSnapshot
+                  .filter((entry) => entry.goodMoments?.trim())
+                  .map((entry) => (
+                    <section key={entry.id} className="report-block stack" style={{ gap: 6 }}>
+                      <strong>{resolvePreparationAuthorLabel({ userId: entry.userId, bundle })}</strong>
+                      <p className="helper" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{entry.goodMoments}</p>
+                    </section>
+                  ))}
+
+                <section className="report-block stack" style={{ gap: 6 }}>
+                  <strong>Gemeinsame Notizen</strong>
+                  <p className="helper" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                    {selectedRecord.note?.trim() || 'Keine gemeinsamen Notizen hinterlegt.'}
+                  </p>
+                </section>
+              </div>
+            </article>
+          </div>
+        )}
       </div>
     </section>
   );
