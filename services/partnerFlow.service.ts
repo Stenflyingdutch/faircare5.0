@@ -72,6 +72,7 @@ export interface SendPartnerInviteResult {
   partnerEmail: string;
   delivery: 'email_sent' | 'saved_without_email';
   provider?: string;
+  deliveryReason?: 'noop_provider' | 'mail_provider_unavailable';
 }
 
 function resolveRuntimeEnvironment() {
@@ -538,19 +539,41 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
     });
 
     console.info('[sendPartnerInvite:fallback] Mailversand gestartet', { partnerEmail });
-    const mailOutcome = await sendAppMail({
-      type: 'partner_invitation',
-      to: partnerEmail,
-      subject: 'Mach den FairCare Test mit mir',
-      familyId,
-      invitationId: invitationRef.id,
-      html: `
-        <h2>Mach den FairCare Test mit mir</h2>
-        <p>${personalMessage?.trim() || 'Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.'}</p>
-        <p><a href="${inviteUrl}">${inviteUrl}</a></p>
-      `,
-    });
-    const provider = String(mailOutcome?.result?.provider ?? 'unknown');
+    const runtime = resolveRuntimeEnvironment();
+    let provider = 'unknown';
+    try {
+      const mailOutcome = await sendAppMail({
+        type: 'partner_invitation',
+        to: partnerEmail,
+        subject: 'Mach den FairCare Test mit mir',
+        familyId,
+        invitationId: invitationRef.id,
+        html: `
+          <h2>Mach den FairCare Test mit mir</h2>
+          <p>${personalMessage?.trim() || 'Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.'}</p>
+          <p><a href="${inviteUrl}">${inviteUrl}</a></p>
+        `,
+      });
+      provider = String(mailOutcome?.result?.provider ?? 'unknown');
+    } catch (mailError) {
+      const mailErrorMessage = mailError instanceof Error ? mailError.message : String(mailError);
+      const allowGracefulNoMail = runtime.appEnv !== 'production' || runtime.isPreviewLike;
+      console.error('[sendPartnerInvite:fallback] Mailversand fehlgeschlagen', {
+        appEnv: runtime.appEnv,
+        vercelEnv: runtime.vercelEnv || 'unknown',
+        allowGracefulNoMail,
+        message: mailErrorMessage,
+      });
+      if (allowGracefulNoMail) {
+        return {
+          partnerEmail,
+          delivery: 'saved_without_email',
+          provider: 'mail_error',
+          deliveryReason: 'mail_provider_unavailable',
+        } satisfies SendPartnerInviteResult;
+      }
+      throw mailError;
+    }
     console.info('[sendPartnerInvite:fallback] Mailversand abgeschlossen', {
       originalRecipient: partnerEmail,
       testRecipient: 'pa4sten@gmail.com (nicht-production in /api/mail)',
@@ -562,6 +585,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
         partnerEmail,
         delivery: 'saved_without_email',
         provider,
+        deliveryReason: 'noop_provider',
       } satisfies SendPartnerInviteResult;
     }
 

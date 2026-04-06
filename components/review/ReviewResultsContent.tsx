@@ -165,7 +165,11 @@ export function ReviewResultsContent() {
       const result = await sendPartnerInvitation(email, invitePersonalMessage);
       if (result.delivery === 'saved_without_email') {
         setInviteState('warning');
-        setInviteMessage('Einladung gespeichert. Es wurde keine echte E-Mail verschickt, weil der Mail-Provider auf noop steht.');
+        if (result.deliveryReason === 'mail_provider_unavailable') {
+          setInviteMessage('Einladung gespeichert. Der E-Mail-Versand ist aktuell nicht verfügbar.');
+        } else {
+          setInviteMessage('Einladung gespeichert. Es wurde keine echte E-Mail verschickt, weil der Mail-Provider auf noop steht.');
+        }
       } else {
         setInviteState('success');
         setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
