@@ -1,12 +1,19 @@
 import type { LocalizedText } from '@/types/i18n';
 
 export type UserRole = 'user' | 'admin';
+export type UserAccountStatus = 'active' | 'blocked';
 
 export interface UserProfile {
   id: string;
   email: string;
   displayName?: string;
-  role: UserRole;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+  adminRole?: UserRole;
+  accountStatus?: UserAccountStatus;
+  familyId?: string | null;
+  lastLoginAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

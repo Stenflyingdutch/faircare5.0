@@ -16,6 +16,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app, auth, db, firebaseProjectId } from '@/lib/firebase';
 import { sendAppMail } from '@/services/mail-client.service';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
+import { buildDisplayName, normalizeEmailAddress, normalizePersonName } from '@/services/user-profile.service';
 import { firestoreCollections } from '@/types/domain';
 import type {
   AppUserProfile,
@@ -32,12 +33,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
+const normalizeEmail = normalizeEmailAddress;
 
 function normalizeName(value?: string | null) {
-  const trimmed = value?.trim();
+  const trimmed = normalizePersonName(value);
   if (!trimmed) return null;
   return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
 }
@@ -102,15 +101,21 @@ function buildInviteError(
 
 export async function ensureUserProfile(params: { userId: string; email: string; displayName?: string | null; role?: FamilyRole }) {
   const userRef = doc(db, firestoreCollections.users, params.userId);
+  const existingSnapshot = await getDoc(userRef);
+  const existingProfile = existingSnapshot.exists() ? existingSnapshot.data() as AppUserProfile : null;
+  const normalizedDisplayName = params.displayName?.trim();
+  const firstName = normalizedDisplayName?.split(' ')[0] ?? existingProfile?.firstName ?? '';
+  const lastName = normalizedDisplayName?.split(' ').slice(1).join(' ') ?? existingProfile?.lastName ?? '';
   const payload: Record<string, unknown> = {
     id: params.userId,
     email: normalizeEmail(params.email),
-    createdAt: nowIso(),
+    createdAt: existingProfile?.createdAt ?? nowIso(),
     updatedAt: serverTimestamp(),
   };
-  const normalizedDisplayName = params.displayName?.trim();
   if (typeof params.displayName === 'string' && normalizedDisplayName) {
-    payload.displayName = normalizedDisplayName;
+    payload.displayName = buildDisplayName(firstName, lastName) || normalizedDisplayName;
+    payload.firstName = normalizeName(firstName) ?? null;
+    payload.lastName = normalizeName(lastName) ?? null;
   }
   if (params.role) {
     payload.role = params.role;
@@ -548,12 +553,16 @@ export async function finalizePartnerRegistration(params: {
   const resultId = doc(collection(db, firestoreCollections.quizResults)).id;
   const createdAt = nowIso();
   const normalizedDisplayName = normalizeName(params.displayName?.trim()) || deriveNameFromEmail(normalizedEmail);
+  const firstName = normalizedDisplayName?.split(' ')[0] ?? '';
+  const lastName = normalizedDisplayName?.split(' ').slice(1).join(' ') ?? '';
 
   await runTransaction(db, async (transaction) => {
     transaction.set(doc(db, firestoreCollections.users, params.userId), {
       id: params.userId,
       email: normalizedEmail,
-      displayName: normalizeName(normalizedDisplayName) ?? null,
+      displayName: buildDisplayName(firstName, lastName) || normalizeName(normalizedDisplayName) || null,
+      firstName: normalizeName(firstName) ?? null,
+      lastName: normalizeName(lastName) ?? null,
       familyId: invitation.familyId,
       role: 'partner',
       createdAt,

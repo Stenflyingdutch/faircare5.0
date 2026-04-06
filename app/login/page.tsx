@@ -1,34 +1,50 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-import { loginUser, requestPasswordReset } from '@/services/auth.service';
+import { loginUser, requestPasswordReset, resolveLoginErrorMessage, signOutUser, syncAuthSession } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { hasOwnershipCardsForFamily } from '@/services/ownership.service';
+import { isBlockedProfile } from '@/services/user-profile.service';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
 
+  const redirectTo = searchParams.get('redirectTo');
+  const safeRedirectTo = redirectTo && redirectTo.startsWith('/') ? redirectTo : null;
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    setResetMessage(null);
     try {
       const userCredential = await loginUser(email, password);
+      await syncAuthSession(userCredential.user);
       const userId = userCredential.user.uid;
       const bundle = await fetchDashboardBundle(userId);
+      if (isBlockedProfile(bundle.profile)) {
+        await signOutUser();
+        setError('Dein Konto ist derzeit gesperrt. Bitte kontaktiere den Support.');
+        return;
+      }
+      if (safeRedirectTo) {
+        router.push(safeRedirectTo);
+        return;
+      }
       const familyId = bundle.profile?.familyId;
       if (familyId && await hasOwnershipCardsForFamily(familyId)) {
         router.push('/app/home');
       } else {
         router.push('/app/ergebnisse');
       }
-    } catch {
-      setError('Login fehlgeschlagen. Bitte prüfe E-Mail und Passwort.');
+    } catch (loginError) {
+      setError(resolveLoginErrorMessage(loginError));
     }
   }
 

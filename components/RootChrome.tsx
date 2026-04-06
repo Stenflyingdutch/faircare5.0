@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 import { Footer } from '@/components/Footer';
 import { Header } from '@/components/Header';
+import { AuthSessionSync } from '@/components/AuthSessionSync';
 
 export function RootChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -16,6 +17,7 @@ export function RootChrome({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <AuthSessionSync />
       <Header />
       <main>{children}</main>
       <Footer />
