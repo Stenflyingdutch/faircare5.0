@@ -47,6 +47,23 @@ function deriveNameFromEmail(email?: string | null) {
   return normalizeName(local);
 }
 
+function shouldUseCallableInviteFallback(error: { code?: string; message?: string } | null | undefined) {
+  const normalizedCode = (error?.code ?? '').toLowerCase();
+  const normalizedMessage = (error?.message ?? '').toLowerCase();
+
+  if (['functions/internal', 'internal', 'functions/unavailable', 'functions/unimplemented'].includes(normalizedCode)) {
+    return true;
+  }
+
+  return [
+    'failed to fetch',
+    'load failed',
+    'cors',
+    'networkerror',
+    'network request failed',
+  ].some((fragment) => normalizedMessage.includes(fragment));
+}
+
 async function sha256(value: string) {
   const enc = new TextEncoder();
   const digest = await crypto.subtle.digest('SHA-256', enc.encode(value));
@@ -197,13 +214,13 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
     const callableError = error as { code?: string; message?: string; details?: unknown };
     const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
     const allowLocalFallback = appEnv !== 'production';
-    const fallbackEligible = ['functions/internal', 'internal', 'functions/unavailable', 'functions/unimplemented']
-      .includes(callableError?.code ?? '');
+    const fallbackEligible = shouldUseCallableInviteFallback(callableError);
 
     if (allowLocalFallback && fallbackEligible) {
       console.info('[sendPartnerInvitation] Callable sendPartnerInvite unavailable, using fallback.', {
         appEnv,
         code: callableError?.code,
+        message: callableError?.message,
       });
     } else {
       console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
