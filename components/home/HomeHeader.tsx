@@ -1,20 +1,20 @@
 interface HomeHeaderProps {
   userFirstName: string;
-  quizCompletedByUser?: boolean;
-  quizCompletedByPartner?: boolean;
 }
 
-export function HomeHeader({ userFirstName, quizCompletedByUser, quizCompletedByPartner }: HomeHeaderProps) {
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return `Guten Morgen`;
-    if (hour < 18) return `Guten Mittag`;
-    return `Guten Abend`;
-  };
+function capitalizeFirstLetter(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+export function HomeHeader({ userFirstName }: HomeHeaderProps) {
+  const name = capitalizeFirstLetter(userFirstName);
+  const titleText = name ? `Servus ${name}!` : 'Servus!';
 
   return (
-    <header style={{ padding: 'var(--space-16) var(--space-20) var(--space-16)', backgroundColor: 'var(--color-background)' }}>
-      <h1 className="display" style={{ margin: 0 }}>{getGreeting()} {userFirstName}!</h1>
+    <header style={{ padding: 'var(--space-20) var(--space-20) 0', backgroundColor: 'transparent' }}>
+      <h1 className="display" style={{ margin: 0, fontWeight: 700 }}>{titleText}</h1>
     </header>
   );
 }

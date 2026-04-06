@@ -11,7 +11,7 @@ import type { QuizCategory } from '@/types/quiz';
  * Alle Verantwortungen werden zentral verwaltet und Live-Updates werden propagiert.
  */
 
-export type { ResponsibilityPriority, ResponsibilityOwner };
+export type { ResponsibilityPriority, ResponsibilityOwner, OwnershipCardDocument };
 
 export interface Responsibility extends OwnershipCardDocument {
   priority: ResponsibilityPriority;

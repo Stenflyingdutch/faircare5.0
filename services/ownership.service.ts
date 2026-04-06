@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -395,6 +396,16 @@ export function observeOwnershipCards(
       onError?.(error);
     },
   );
+}
+
+export async function hasOwnershipCardsForFamily(familyId: string) {
+  const cardsQuery = query(
+    collection(db, firestoreCollections.families, familyId, 'ownershipCards'),
+    where('isDeleted', '==', false),
+    limit(1),
+  );
+  const snapshot = await getDocs(cardsQuery);
+  return !snapshot.empty;
 }
 
 type OwnershipPatch = Record<string, unknown>;
