@@ -2,6 +2,8 @@ import type { AgeGroup, QuizCategory, StressSelection } from '@/types/quiz';
 import type { Locale, LocalizedText } from '@/types/i18n';
 
 export type OwnershipFocusLevel = 'now' | 'soon' | 'later';
+export type ResponsibilityPriority = 'act' | 'plan' | 'observe';
+export type ResponsibilityOwner = 'user' | 'partner';
 export type RecommendationReasonCode = 'high_test_load' | 'high_perceived_stress' | 'different_perception';
 
 export interface TaskPackageTemplate {
@@ -35,6 +37,8 @@ export interface OwnershipCardDocument {
   note: string;
   ownerUserId?: string | null;
   focusLevel?: OwnershipFocusLevel | null;
+  priority?: ResponsibilityPriority | null;
+  assignedTo?: ResponsibilityOwner | null;
   isActive?: boolean;
   sortOrder: number;
   isDeleted: boolean;

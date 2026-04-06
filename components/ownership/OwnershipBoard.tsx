@@ -436,7 +436,7 @@ export function OwnershipBoard({
         <p className="helper">
           {mode === 'home'
             ? 'Es sind aktuell keine aktivierten Karten dir zugeordnet.'
-            : 'Noch keine Aufgabengebiete aktiviert.'}
+            : 'Noch keine Verantwortungsgebiete aktiviert.'}
         </p>
       )}
       {error && <p className="inline-error">{error}</p>}

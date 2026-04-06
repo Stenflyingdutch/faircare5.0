@@ -118,30 +118,65 @@ export default function TeamCheckPlanungPage() {
 
       {!!familyId && (
         <>
-          <label className="stack" style={{ gap: 6 }}>
+          <div className="stack" style={{ gap: 6 }}>
             <span>Frequenz des Team-Checks</span>
-            <select className="input" value={frequency} onChange={(event) => setFrequency(event.target.value as TeamCheckFrequency)}>
-              <option value="weekly">Wöchentlich</option>
-              <option value="biweekly">Alle 2 Wochen</option>
-              <option value="monthly">Monatlich</option>
-            </select>
-          </label>
-
-          <label className="stack" style={{ gap: 6 }}>
-            <span>Tag des Team-Checks</span>
-            <select className="input" value={dayOfWeek} onChange={(event) => setDayOfWeek(Number(event.target.value))}>
-              {weekDayOptions.map((entry) => (
-                <option key={entry.value} value={entry.value}>
-                  {frequency === 'monthly' ? `Erster ${entry.label} im Monat` : entry.label}
-                </option>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+              {([{
+                label: 'Wöchentlich',
+                value: 'weekly',
+              }, {
+                label: 'Alle 2 Wochen',
+                value: 'biweekly',
+              }, {
+                label: 'Monatlich',
+                value: 'monthly',
+              }] as const).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`button ${frequency === option.value ? 'primary' : ''}`}
+                  onClick={() => setFrequency(option.value)}
+                  aria-pressed={frequency === option.value}
+                >
+                  {option.label}
+                </button>
               ))}
-            </select>
-          </label>
+            </div>
+          </div>
 
-          <label className="stack" style={{ gap: 6 }}>
+          <div className="stack" style={{ gap: 6 }}>
+            <span>Tag des Team-Checks</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+              {weekDayOptions.map((entry) => (
+                <button
+                  key={entry.value}
+                  type="button"
+                  className={`button ${dayOfWeek === entry.value ? 'primary' : ''}`}
+                  onClick={() => setDayOfWeek(entry.value)}
+                  aria-pressed={dayOfWeek === entry.value}
+                >
+                  {frequency === 'monthly' ? `Erster ${entry.label}` : entry.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="stack" style={{ gap: 6 }}>
             <span>Uhrzeit (optional)</span>
-            <input className="input" type="time" value={time} onChange={(event) => setTime(event.target.value)} />
-          </label>
+            <select className="input" value={time} onChange={(event) => setTime(event.target.value)}>
+              <option value="">Keine Uhrzeit</option>
+              {Array.from({ length: 33 }, (_, index) => {
+                const hours = 8 + Math.floor(index / 2);
+                const minutes = index % 2 === 0 ? '00' : '30';
+                const value = `${String(hours).padStart(2, '0')}:${minutes}`;
+                return (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
 
           <button type="button" className="button primary" onClick={onSavePlan} disabled={savingPlan}>
             {savingPlan ? 'Speichert …' : 'Speichern'}
@@ -150,7 +185,7 @@ export default function TeamCheckPlanungPage() {
       )}
 
       <div className="stack" style={{ gap: 8 }}>
-        <h3 className="card-title" style={{ margin: 0 }}>E-Mail-Erinnerung</h3>
+        <h3 className="card-title" style={{ margin: 0 }}>Möchtest Du an Check In Termin per E-Mail erinnert werden?</h3>
         <p className="helper" style={{ margin: 0 }}>Erinnerung immer genau 1 Tag vor dem Team-Check.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" className={`button ${emailReminderEnabled ? 'primary' : ''}`} onClick={() => onSaveReminder(true)} disabled={savingReminder}>

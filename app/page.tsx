@@ -6,12 +6,15 @@ import { Card } from '@/components/Card';
 import { CTAButton } from '@/components/CTAButton';
 import { PageHero } from '@/components/PageHero';
 import { SectionWrapper } from '@/components/SectionWrapper';
+import { Modal } from '@/components/Modal';
+import { FairCareInfo } from '@/components/FairCareInfo';
 import { fetchContentBlocks, getDefaultContentBlocks, createTextResolver } from '@/services/contentBlocks.service';
 import { getCurrentLocale, uiTexts } from '@/lib/i18n';
 import type { LocalizedText } from '@/types/i18n';
 
 export default function HomePage() {
   const [texts, setTexts] = useState<Record<string, LocalizedText>>(uiTexts);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const locale = getCurrentLocale();
 
   useEffect(() => {
@@ -52,7 +55,22 @@ export default function HomePage() {
         actions={
           <>
             <CTAButton href="/quiz/filter">{t('landing.hero.cta_primary')}</CTAButton>
-            <CTAButton href="#differentiation" variant="secondary">{t('landing.hero.cta_secondary')}</CTAButton>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              style={{
+                backgroundColor: 'var(--color-secondary)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-button)',
+                padding: '0.9rem 1.5rem',
+                fontWeight: 600,
+                fontSize: '1rem',
+                cursor: 'pointer',
+                minHeight: '46px',
+              }}
+            >
+              {t('landing.hero.cta_secondary')}
+            </button>
           </>
         }
       />
@@ -142,6 +160,9 @@ export default function HomePage() {
           <CTAButton href="/quiz/filter">{t('landing.cta_final.button')}</CTAButton>
         </div>
       </SectionWrapper>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <FairCareInfo onClose={() => setIsModalOpen(false)} />
+      </Modal>
     </>
   );
 }

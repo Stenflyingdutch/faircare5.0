@@ -5,7 +5,8 @@ import { Suspense, useEffect, useState } from 'react';
 
 import { OwnershipBoard } from '@/components/ownership/OwnershipBoard';
 import { observeAuthState } from '@/services/auth.service';
-import { ensureOwnershipCardsForCategories, observeOwnershipCards, observeOwnershipCategories } from '@/services/ownership.service';
+import { ensureOwnershipCardsForCategories, observeOwnershipCategories } from '@/services/ownership.service';
+import { listenToAllResponsibilities } from '@/services/responsibilities.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import { getCurrentLocale } from '@/lib/i18n';
@@ -14,7 +15,7 @@ import type { OwnershipCardDocument, OwnershipCategoryDocument } from '@/types/o
 
 export default function OwnershipDashboardPage() {
   return (
-    <Suspense fallback={<article className="card stack"><h2 className="card-title">Aufgabengebiete</h2><p className="card-description">Aufgabengebiete werden vorbereitet …</p></article>}>
+    <Suspense fallback={<article className="card stack"><h2 className="card-title">Verantwortungsgebiete</h2><p className="card-description">Verantwortungsgebiete werden vorbereitet …</p></article>}>
       <OwnershipDashboardPageContent />
     </Suspense>
   );
@@ -61,7 +62,7 @@ function OwnershipDashboardPageContent() {
 
   useEffect(() => {
     if (!familyId) return;
-    const stopCards = observeOwnershipCards(familyId, setCards, () => setLoadError('Die Karten konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
+    const stopCards = listenToAllResponsibilities(familyId, setCards, () => setLoadError('Die Karten konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
     const stopCategories = observeOwnershipCategories(familyId, setCategories, () => setLoadError('Die Kategorien konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
     return () => {
       stopCards();
@@ -86,8 +87,8 @@ function OwnershipDashboardPageContent() {
   if (!userId || !familyId) {
     return (
       <article className="card stack">
-        <h2 className="card-title">Aufgabengebiete</h2>
-        <p className="card-description">Aufgabengebiete werden vorbereitet …</p>
+        <h2 className="card-title">Verantwortungsgebiete</h2>
+        <p className="card-description">Verantwortungsgebiete werden vorbereitet …</p>
       </article>
     );
   }

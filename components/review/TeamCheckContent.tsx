@@ -216,7 +216,7 @@ export function TeamCheckContent() {
           )}
 
           {!hasPlan ? (
-            <button type="button" className="button primary" onClick={() => router.push('/app/einstellungen#team-check-rhythmus')}>
+            <button type="button" className="button primary" onClick={() => router.push('/app/einstellungen/team-check-planung')}>
               Check-in planen
             </button>
           ) : (
@@ -346,10 +346,10 @@ export function TeamCheckContent() {
 
         {showOwnershipHint && (
           <article className="card stack">
-            <h2 className="card-title">Aufgabengebiete vorbereiten</h2>
-            <p className="card-description">Aktiviert mindestens eine Karte in den Aufgabengebieten, damit ihr im Team-Check konkrete Themen habt.</p>
+            <h2 className="card-title">Verantwortungsgebiete vorbereiten</h2>
+            <p className="card-description">Aktiviert mindestens eine Karte in den Verantwortungsgebieten, damit ihr im Team-Check konkrete Themen habt.</p>
             <Link href="/app/ownership-dashboard" className="button primary" style={{ width: 'fit-content' }}>
-              Aufgabengebiete öffnen
+              Verantwortungsgebiete öffnen
             </Link>
           </article>
         )}
