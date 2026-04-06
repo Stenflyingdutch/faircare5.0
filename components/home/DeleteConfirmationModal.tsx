@@ -7,14 +7,13 @@ interface DeleteConfirmationModalProps {
   title?: string;
   onConfirm: () => Promise<void>;
   onCancel: () => void;
-  isDarkText?: boolean;
 }
 
 /**
  * Beautiful, ruhiger Bestätigungsdialog für Löschen-Aktionen
  * Elegantes Modal mit hochwertiger Typografie und sanften Animationen
  */
-export function DeleteConfirmationModal({ isOpen, title = 'Verantwortung', onConfirm, onCancel, isDarkText }: DeleteConfirmationModalProps) {
+export function DeleteConfirmationModal({ isOpen, title = 'Verantwortung', onConfirm, onCancel }: DeleteConfirmationModalProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   if (!isOpen) return null;
@@ -65,7 +64,7 @@ export function DeleteConfirmationModal({ isOpen, title = 'Verantwortung', onCon
             Bist du sicher?
           </h2>
           <p style={{ margin: 0, fontSize: '16px', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
-            Möchtest du die Verantwortung „{title}" wirklich löschen?
+            Möchtest du die Verantwortung „{title}“ wirklich löschen?
           </p>
         </div>
 
