@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-import { auth, firebaseProjectId } from '@/lib/firebase';
+import { firebaseProjectId } from '@/lib/firebase';
 import { observeAuthState } from '@/services/auth.service';
 
 export function AuthSessionSync() {
