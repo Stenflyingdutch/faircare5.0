@@ -1,4 +1,4 @@
-import { categoryLabelMap } from '@/services/resultCalculator';
+import { resolveCategoryLabel } from '@/services/resultCalculator';
 import type { OwnershipAnswer, QuestionTemplate, QuizCategory } from '@/types/quiz';
 import type { JointInsight } from '@/types/partner-flow';
 
@@ -66,7 +66,7 @@ export function buildJointInsights(
       level,
       category,
       difference: diff,
-      text: `${prefix} bei ${categoryLabelMap[category]}.`,
+      text: `${prefix} bei ${resolveCategoryLabel(category)}.`,
     });
   }
 

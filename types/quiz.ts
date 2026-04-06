@@ -12,8 +12,7 @@ export type StressCategory =
   | 'betreuung_entwicklung'
   | 'gesundheit'
   | 'babyalltag_pflege'
-  | 'haushalt_einkaeufe_vorraete'
-  | 'termine_planung_absprachen';
+  | 'haushalt_einkaeufe_vorraete';
 
 export type StressSelection = StressCategory | 'keiner_genannten_bereiche';
 

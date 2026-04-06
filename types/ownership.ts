@@ -1,5 +1,5 @@
 import type { AgeGroup, QuizCategory, StressSelection } from '@/types/quiz';
-import type { Locale, LocalizedText } from '@/types/i18n';
+import type { Locale, LocalizedText, LocalizedTextList } from '@/types/i18n';
 
 export type OwnershipFocusLevel = 'now' | 'soon' | 'later';
 export type ResponsibilityPriority = 'act' | 'plan' | 'observe';
@@ -11,6 +11,7 @@ export interface TaskPackageTemplate {
   ageGroup: AgeGroup;
   categoryKey: QuizCategory;
   title: LocalizedText;
+  details: LocalizedTextList;
   note: LocalizedText;
   sortOrder: number;
   isActive: boolean;
@@ -73,5 +74,6 @@ export interface OwnershipSignalBreakdown {
 export interface OwnershipTemplateTranslation {
   locale: Locale;
   title: string;
+  details: string[];
   note: string;
 }

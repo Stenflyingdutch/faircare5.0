@@ -18,8 +18,8 @@ import {
 
 import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
-import { ownershipTaskPackageSeed } from '@/data/ownershipTaskPackageTemplates';
-import type { Locale } from '@/types/i18n';
+import { ownershipTaskPackageSeedByAgeGroup } from '@/data/ownershipTaskPackageTemplates';
+import type { Locale, LocalizedText, LocalizedTextList } from '@/types/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
 import type {
   OwnershipCardDocument,
@@ -113,14 +113,67 @@ function mapTemplateLocale(value: Record<string, string> | undefined, locale: Lo
   return value?.[locale] || value?.de || fallback;
 }
 
-function buildSeedFallbackTemplates(categoryKey: QuizCategory, locale: Locale) {
-  return (ownershipTaskPackageSeed[categoryKey] ?? []).slice(0, 10).map((entry, index) => ({
+function mapTemplateDetailsLocale(value: LocalizedTextList | undefined, locale: Locale) {
+  return value?.[locale] || value?.de || [];
+}
+
+function composeTemplateNote(details: string[]) {
+  return details.join('\n');
+}
+
+function deriveDetailsFromLegacyNote(note: LocalizedText | undefined): LocalizedTextList {
+  const splitLines = (value?: string) => (
+    value
+      ?.split('\n')
+      .map((entry) => entry.trim())
+      .filter(Boolean) ?? []
+  );
+
+  return {
+    de: splitLines(note?.de),
+    en: splitLines(note?.en),
+    nl: splitLines(note?.nl),
+  };
+}
+
+function normalizeTaskPackageTemplate(template: TaskPackageTemplate): TaskPackageTemplate {
+  const details = template.details && Object.keys(template.details).length
+    ? template.details
+    : deriveDetailsFromLegacyNote(template.note);
+
+  const nextNote: LocalizedText = {
+    de: composeTemplateNote(details.de || deriveDetailsFromLegacyNote(template.note).de || []),
+    en: composeTemplateNote(details.en || []),
+    nl: composeTemplateNote(details.nl || []),
+  };
+
+  return {
+    ...template,
+    details,
+    note: {
+      de: nextNote.de || template.note?.de || '',
+      en: nextNote.en || template.note?.en || '',
+      nl: nextNote.nl || template.note?.nl || '',
+    },
+  };
+}
+
+function getOwnershipTaskPackageSeed(ageGroup: AgeGroup, categoryKey: QuizCategory) {
+  return ownershipTaskPackageSeedByAgeGroup[ageGroup]?.[categoryKey] ?? [];
+}
+
+function buildSeedFallbackTemplates(ageGroup: AgeGroup, categoryKey: QuizCategory, locale: Locale) {
+  return getOwnershipTaskPackageSeed(ageGroup, categoryKey).slice(0, 10).map((entry, index) => {
+    const details = mapTemplateDetailsLocale(entry.details, locale);
+    return {
     id: `seed_${categoryKey}_${index + 1}`,
     categoryKey,
     title: mapTemplateLocale(entry.title, locale, 'Ownership-Bereich'),
-    note: mapTemplateLocale(entry.note, locale, ''),
+    details,
+    note: composeTemplateNote(details),
     sortOrder: index + 1,
-  }));
+  };
+  });
 }
 
 export async function fetchTaskPackageTemplates(ageGroup: AgeGroup) {
@@ -131,7 +184,7 @@ export async function fetchTaskPackageTemplates(ageGroup: AgeGroup) {
   ));
 
   return snapshot.docs
-    .map((item) => ({ id: item.id, ...item.data() }) as TaskPackageTemplate)
+    .map((item) => normalizeTaskPackageTemplate({ id: item.id, ...item.data() } as TaskPackageTemplate))
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
@@ -143,44 +196,44 @@ export async function fetchTaskPackageTemplatesForAdmin(ageGroup: AgeGroup) {
     orderBy('sortOrder'),
   ));
 
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as TaskPackageTemplate);
+  return snapshot.docs.map((item) => normalizeTaskPackageTemplate({ id: item.id, ...item.data() } as TaskPackageTemplate));
 }
 
 export async function saveTaskPackageTemplate(template: TaskPackageTemplate, actorUserId: string) {
+  const normalized = normalizeTaskPackageTemplate(template);
   await setDoc(doc(db, firestoreCollections.taskPackageTemplates, template.id), {
-    ...template,
+    ...normalized,
     updatedBy: actorUserId,
     updatedAt: serverTimestamp(),
-    createdAt: template.createdAt ?? nowIso(),
+    createdAt: normalized.createdAt ?? nowIso(),
   }, { merge: true });
 }
 
 export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: string) {
-  const existing = await fetchTaskPackageTemplatesForAdmin(ageGroup);
-  const existingByCategory = new Map<QuizCategory, number>();
-  existing.forEach((entry) => {
-    existingByCategory.set(entry.categoryKey, (existingByCategory.get(entry.categoryKey) ?? 0) + 1);
-  });
+  const categories = ownershipTaskPackageSeedByAgeGroup[ageGroup];
+  if (!categories) return 0;
 
-  const writes = Object.entries(ownershipTaskPackageSeed).flatMap(([categoryKey, items]) => {
-    const count = existingByCategory.get(categoryKey as QuizCategory) ?? 0;
-    if (count >= 10) return [];
-
-    return items.slice(count, 10).map((entry, index) => {
-      const id = `${ageGroup}_${categoryKey}_${count + index + 1}`;
+  const writes = Object.entries(categories).flatMap(([categoryKey, items]) =>
+    items.map((entry, index) => {
+      const id = `${ageGroup}_${categoryKey}_${index + 1}`;
       const payload: TaskPackageTemplate = {
         id,
         ageGroup,
         categoryKey: categoryKey as QuizCategory,
         title: entry.title,
-        note: entry.note,
-        sortOrder: count + index + 1,
+        details: entry.details,
+        note: {
+          de: composeTemplateNote(entry.details.de || []),
+          en: composeTemplateNote(entry.details.en || []),
+          nl: composeTemplateNote(entry.details.nl || []),
+        },
+        sortOrder: index + 1,
         isActive: true,
         version: 1,
       };
       return saveTaskPackageTemplate(payload, actorUserId);
-    });
-  });
+    }),
+  );
 
   await Promise.all(writes);
   return writes.length;
@@ -231,13 +284,14 @@ export async function initializeFamilyOwnership(params: {
     const categoryTemplates = templates
       .filter((template) => template.categoryKey === categoryKey)
       .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
+    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
         categoryKey: template.categoryKey,
         title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
-        note: mapTemplateLocale(template.note, params.locale, ''),
+        details: mapTemplateDetailsLocale(template.details, params.locale),
+        note: composeTemplateNote(mapTemplateDetailsLocale(template.details, params.locale)),
         sortOrder: template.sortOrder,
       }))
       : fallbackTemplates;
@@ -311,13 +365,14 @@ export async function ensureOwnershipCardsForCategories(params: {
     const categoryTemplates = templates
       .filter((template) => template.categoryKey === categoryKey)
       .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(categoryKey, params.locale);
+    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
         categoryKey: template.categoryKey,
         title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
-        note: mapTemplateLocale(template.note, params.locale, ''),
+        details: mapTemplateDetailsLocale(template.details, params.locale),
+        note: composeTemplateNote(mapTemplateDetailsLocale(template.details, params.locale)),
         sortOrder: template.sortOrder,
       }))
       : fallbackTemplates;

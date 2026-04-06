@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import { questionTemplates } from '@/data/questionTemplates';
-import { categoryLabelMap } from '@/services/resultCalculator';
+import { resolveCategoryLabel } from '@/services/resultCalculator';
 import {
   buildCategoryComparisons,
 } from '@/services/resultInsights';
@@ -61,14 +61,14 @@ function resolvePerceivedStressLabel(stressCategories?: StressSelection[]) {
   if (!stressCategories || stressCategories.length === 0) return 'In keiner der genannten Bereiche';
   const [topStress] = stressCategories;
   if (!topStress || topStress === 'keiner_genannten_bereiche') return 'In keiner der genannten Bereiche';
-  return categoryLabelMap[topStress];
+  return resolveCategoryLabel(topStress);
 }
 
 function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>) {
   const maxScore = Math.max(...categories.map(([, value]) => value));
   const highestCategories = categories
     .filter(([, value]) => value === maxScore)
-    .map(([category]) => categoryLabelMap[category]);
+    .map(([category]) => resolveCategoryLabel(category));
 
   if (highestCategories.length === 1) {
     return `${highestCategories[0]} (${maxScore} %).`;
@@ -381,7 +381,7 @@ export function ReviewResultsContent() {
                   <p className="helper">Partner-Ergebnis wird nach Freischaltung hier ergänzt.</p>
                   {(ownResultText?.categories ?? []).map(([category]) => (
                     <div key={`ghost-${category}`} className="report-block" style={{ opacity: 0.5 }}>
-                      <strong>{categoryLabelMap[category]}</strong>
+                      <strong>{resolveCategoryLabel(category)}</strong>
                       <div className="result-bar" />
                     </div>
                   ))}
@@ -447,7 +447,7 @@ export function ReviewResultsContent() {
             <div className="stack">
               {ownershipRecommendations.slice(0, 2).map((recommendation) => (
                 <div key={recommendation.categoryKey} className="report-block stack">
-                  <strong>{categoryLabelMap[recommendation.categoryKey]}</strong>
+                  <strong>{resolveCategoryLabel(recommendation.categoryKey)}</strong>
                   <p className="helper" style={{ margin: 0 }}>{recommendation.reasonText}</p>
                 </div>
               ))}
@@ -511,7 +511,7 @@ function JointResultPanel({ bundle }: {
           return (
             <div className="report-block" key={`cmp-${entry.category}`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <strong>{categoryLabelMap[entry.category]}</strong>
+                <strong>{resolveCategoryLabel(entry.category)}</strong>
                 <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>
                   {hasGap ? 'Abweichung sichtbar' : 'Stimmig'}
                 </span>
@@ -544,8 +544,8 @@ function JointResultPanel({ bundle }: {
           <strong>Größte wahrgenommene Belastung</strong>
           <p className="helper" style={{ margin: '8px 0 0' }}>
             {sharedHighestCategory
-              ? `${initiatorName} und ${partnerName} spüren die größte Belastung bei ${categoryLabelMap[highestInitiator.category]}.`
-              : `${initiatorName} spürt die größte Belastung bei ${categoryLabelMap[highestInitiator.category]}, ${partnerName} bei ${categoryLabelMap[highestPartner.category]}.`}
+              ? `${initiatorName} und ${partnerName} spüren die größte Belastung bei ${resolveCategoryLabel(highestInitiator.category)}.`
+              : `${initiatorName} spürt die größte Belastung bei ${resolveCategoryLabel(highestInitiator.category)}, ${partnerName} bei ${resolveCategoryLabel(highestPartner.category)}.`}
           </p>
         </div>
       </div>
@@ -621,7 +621,7 @@ function ResultBreakdown({
       <div className="stack category-list individual-result-categories">
         {sortedCategories.map(([category, value]) => (
           <div key={category} className="category-progress-row">
-            <strong>{categoryLabelMap[category]}</strong>
+            <strong>{resolveCategoryLabel(category)}</strong>
             <div className="category-progress-track">
               <div className="category-progress-self" style={{ width: `${value}%` }} />
               <div className="category-progress-partner" style={{ width: `${100 - value}%` }} />

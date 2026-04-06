@@ -35,6 +35,5 @@ export const stressOptions: Array<{ value: StressSelection; label: string }> = [
   { value: 'gesundheit', label: 'Gesundheit' },
   { value: 'babyalltag_pflege', label: 'Babyalltag & Pflege' },
   { value: 'haushalt_einkaeufe_vorraete', label: 'Haushalt, Einkäufe & Vorräte' },
-  { value: 'termine_planung_absprachen', label: 'Termine, Planung & Absprachen' },
   { value: 'keiner_genannten_bereiche', label: 'In keiner der genannten Bereiche' },
 ];

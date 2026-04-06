@@ -1,4 +1,9 @@
+'use client';
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+import { signOutUser } from '@/services/auth.service';
 
 const settingsEntries = [
   {
@@ -19,6 +24,13 @@ const settingsEntries = [
 ] as const;
 
 export default function EinstellungenPage() {
+  const router = useRouter();
+
+  async function onLogout() {
+    await signOutUser();
+    router.push('/login');
+  }
+
   return (
     <article className="card stack">
       <h2 className="card-title">Einstellungen</h2>
@@ -31,6 +43,10 @@ export default function EinstellungenPage() {
             <span className="helper">{entry.description}</span>
           </Link>
         ))}
+      </div>
+
+      <div style={{ paddingTop: '4px' }}>
+        <button type="button" className="button" onClick={onLogout}>Logout</button>
       </div>
     </article>
   );

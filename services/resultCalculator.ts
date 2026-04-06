@@ -15,6 +15,14 @@ export const categoryLabelMap: Record<QuizCategory, string> = quizCatalog.catego
   return acc;
 }, {} as Record<QuizCategory, string>);
 
+export function resolveCategoryLabel(category: string) {
+  return categoryLabelMap[category as QuizCategory] ?? 'Unbekannter Bereich';
+}
+
+export function isKnownQuizCategory(category: string): category is QuizCategory {
+  return category in categoryLabelMap;
+}
+
 export function calculateSummary(
   questions: QuestionTemplate[],
   answers: Partial<Record<string, OwnershipAnswer>>,

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { observeOwnershipCards } from '@/services/ownership.service';
-import { categoryLabelMap } from '@/services/resultCalculator';
+import { resolveCategoryLabel } from '@/services/resultCalculator';
 import {
   observePreparationPair,
   observeTeamCheckRecords,
@@ -202,36 +202,32 @@ export function TeamCheckContent() {
   return (
     <section className="section">
       <div className="container stack">
-        <article className="card stack">
-          <h2 className="card-title">Team-Check</h2>
-
-          {discussedDate && (
-            <div className="report-block stack">
-              <strong>Quiz-Ergebnisse durchgesprochen</strong>
-              <p className="helper" style={{ margin: 0 }}>am {discussedDate}</p>
-              <Link href="/app/ergebnisse" className="button" style={{ width: 'fit-content' }}>
-                Testergebnisse ansehen
-              </Link>
-            </div>
-          )}
-
-          {!hasPlan ? (
-            <button type="button" className="button primary" onClick={() => router.push('/app/einstellungen/team-check-planung')}>
-              Check-in planen
-            </button>
-          ) : (
-            <>
-              {mode === 'overview' && (
-                <button type="button" className="button primary" onClick={() => setMode('prepare')}>
-                  Check-in vorbereiten
-                </button>
-              )}
-              <div className="stack" style={{ gap: 4 }}>
-                {nextCheckInLabel && <p style={{ margin: 0 }}>Nächster Check-in am {nextCheckInLabel}</p>}
+        {!hasPlan ? (
+          <button type="button" className="button team-check-plan-button" onClick={() => router.push('/app/einstellungen/team-check-planung')}>
+            Check-in planen
+          </button>
+        ) : (
+          <article className="card stack">
+            {discussedDate && (
+              <div className="report-block stack">
+                <strong>Quiz-Ergebnisse durchgesprochen</strong>
+                <p className="helper" style={{ margin: 0 }}>am {discussedDate}</p>
+                <Link href="/app/ergebnisse" className="button" style={{ width: 'fit-content' }}>
+                  Testergebnisse ansehen
+                </Link>
               </div>
-            </>
-          )}
-        </article>
+            )}
+
+            {mode === 'overview' && (
+              <button type="button" className="button primary" onClick={() => setMode('prepare')}>
+                Check-in vorbereiten
+              </button>
+            )}
+            <div className="stack" style={{ gap: 4 }}>
+              {nextCheckInLabel && <p style={{ margin: 0 }}>Nächster Check-in am {nextCheckInLabel}</p>}
+            </div>
+          </article>
+        )}
 
         {records.length > 0 && (
           <article className="card stack">
@@ -318,7 +314,7 @@ export function TeamCheckContent() {
               {discussedCards.map((card) => (
                 <div key={card.id} className="report-block" style={{ display: 'grid', gap: 6 }}>
                   <strong>{card.title}</strong>
-                  <span className="helper">{categoryLabelMap[card.categoryKey]}</span>
+                  <span className="helper">{resolveCategoryLabel(card.categoryKey)}</span>
                   <select
                     className="input"
                     value={assignmentDraft[card.id] ?? card.ownerUserId ?? ''}
@@ -341,16 +337,6 @@ export function TeamCheckContent() {
               <button type="button" className="button" onClick={() => setMode('prepare')}>Zurück zur Vorbereitung</button>
               <button type="button" className="button primary" onClick={onSaveCheckIn} disabled={saving}>Check-in speichern</button>
             </div>
-          </article>
-        )}
-
-        {showOwnershipHint && (
-          <article className="card stack">
-            <h2 className="card-title">Verantwortungsgebiete vorbereiten</h2>
-            <p className="card-description">Aktiviert mindestens eine Karte in den Verantwortungsgebieten, damit ihr im Team-Check konkrete Themen habt.</p>
-            <Link href="/app/ownership-dashboard" className="button primary" style={{ width: 'fit-content' }}>
-              Verantwortungsgebiete öffnen
-            </Link>
           </article>
         )}
 

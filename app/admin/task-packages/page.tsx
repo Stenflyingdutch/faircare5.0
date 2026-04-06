@@ -5,10 +5,13 @@ import Link from 'next/link';
 
 import { fetchTaskPackageTemplatesForAdmin, saveTaskPackageTemplate, seedTaskPackageTemplates } from '@/services/ownership.service';
 import { quizCatalog } from '@/data/questionTemplates';
+import { resolveCategoryLabel } from '@/services/resultCalculator';
+import type { Locale } from '@/types/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
 import type { TaskPackageTemplate } from '@/types/ownership';
 
 const ageGroups: AgeGroup[] = ['0_1', '1_3', '3_6', '6_10', '10_plus'];
+const locales: Locale[] = ['de', 'en', 'nl'];
 
 function createTemplate(ageGroup: AgeGroup, categoryKey: QuizCategory): TaskPackageTemplate {
   const id = `${ageGroup}_${categoryKey}_${Date.now()}`;
@@ -17,6 +20,7 @@ function createTemplate(ageGroup: AgeGroup, categoryKey: QuizCategory): TaskPack
     ageGroup,
     categoryKey,
     title: { de: '', en: '', nl: '' },
+    details: { de: ['', '', ''], en: [], nl: [] },
     note: { de: '', en: '', nl: '' },
     sortOrder: Date.now(),
     isActive: true,
@@ -26,6 +30,7 @@ function createTemplate(ageGroup: AgeGroup, categoryKey: QuizCategory): TaskPack
 
 export default function AdminTaskPackagesPage() {
   const [activeAge, setActiveAge] = useState<AgeGroup>('0_1');
+  const [activeLocale, setActiveLocale] = useState<Locale>('de');
   const [draft, setDraft] = useState<TaskPackageTemplate | null>(null);
   const [templates, setTemplates] = useState<TaskPackageTemplate[]>([]);
   const [saving, setSaving] = useState(false);
@@ -44,6 +49,20 @@ export default function AdminTaskPackagesPage() {
   useEffect(() => {
     void loadTemplates();
   }, [loadTemplates]);
+
+  function updateDetail(index: number, value: string) {
+    if (!draft) return;
+    const current = [...(draft.details[activeLocale] || [])];
+    while (current.length <= index) current.push('');
+    current[index] = value;
+    setDraft({
+      ...draft,
+      details: {
+        ...draft.details,
+        [activeLocale]: current,
+      },
+    });
+  }
 
   async function onSave() {
     if (!draft) return;
@@ -86,6 +105,13 @@ export default function AdminTaskPackagesPage() {
               <button type="button" key={group} className={`option-chip ${group === activeAge ? 'selected' : ''}`} onClick={() => setActiveAge(group)}>{group}</button>
             ))}
           </div>
+          <div className="chip-row">
+            {locales.map((locale) => (
+              <button type="button" key={locale} className={`option-chip ${locale === activeLocale ? 'selected' : ''}`} onClick={() => setActiveLocale(locale)}>
+                {locale.toUpperCase()}
+              </button>
+            ))}
+          </div>
           <button type="button" className="button" disabled={saving} onClick={seedDefaults}>Standardpakete (10 pro Kategorie) ergänzen</button>
         </article>
 
@@ -106,13 +132,25 @@ export default function AdminTaskPackagesPage() {
 
           {draft && (
             <div className="stack">
-              <p className="helper" style={{ margin: 0 }}>Kategorie: {draft.categoryKey}</p>
-              <input className="input" placeholder="Titel (de)" value={draft.title.de || ''} onChange={(e) => setDraft({ ...draft, title: { ...draft.title, de: e.target.value } })} />
-              <input className="input" placeholder="Title (en)" value={draft.title.en || ''} onChange={(e) => setDraft({ ...draft, title: { ...draft.title, en: e.target.value } })} />
-              <input className="input" placeholder="Titel (nl)" value={draft.title.nl || ''} onChange={(e) => setDraft({ ...draft, title: { ...draft.title, nl: e.target.value } })} />
-              <textarea className="input" rows={3} placeholder="Notiz (de)" value={draft.note.de || ''} onChange={(e) => setDraft({ ...draft, note: { ...draft.note, de: e.target.value } })} />
-              <textarea className="input" rows={3} placeholder="Note (en)" value={draft.note.en || ''} onChange={(e) => setDraft({ ...draft, note: { ...draft.note, en: e.target.value } })} />
-              <textarea className="input" rows={3} placeholder="Notitie (nl)" value={draft.note.nl || ''} onChange={(e) => setDraft({ ...draft, note: { ...draft.note, nl: e.target.value } })} />
+              <p className="helper" style={{ margin: 0 }}>Kategorie: {resolveCategoryLabel(draft.categoryKey)} · Altersgruppe: {draft.ageGroup} · Sprache: {activeLocale.toUpperCase()}</p>
+              <input
+                className="input"
+                placeholder={`Titel (${activeLocale})`}
+                value={draft.title[activeLocale] || ''}
+                onChange={(e) => setDraft({ ...draft, title: { ...draft.title, [activeLocale]: e.target.value } })}
+              />
+              <div className="stack">
+                <p className="helper" style={{ margin: 0 }}>Details ({activeLocale.toUpperCase()})</p>
+                {Array.from({ length: Math.max(3, draft.details[activeLocale]?.length || 0) }).map((_, index) => (
+                  <input
+                    key={`${activeLocale}-detail-${index}`}
+                    className="input"
+                    placeholder={`Detail ${index + 1}`}
+                    value={draft.details[activeLocale]?.[index] || ''}
+                    onChange={(e) => updateDetail(index, e.target.value)}
+                  />
+                ))}
+              </div>
               <label><input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} /> Aktiv</label>
               <button type="button" className="button primary" disabled={saving} onClick={onSave}>{saving ? 'Speichert …' : 'Vorlage speichern'}</button>
             </div>
@@ -123,8 +161,13 @@ export default function AdminTaskPackagesPage() {
               <h3 className="card-title" style={{ marginBottom: 0 }}>Vorhandene Vorlagen</h3>
               {templates.map((template) => (
                 <div key={template.id} className="report-block stack">
-                  <strong>{template.categoryKey}</strong>
-                  <p className="helper" style={{ margin: 0 }}>{template.title.de || template.title.en || template.title.nl || 'Ohne Titel'}</p>
+                  <strong>{resolveCategoryLabel(template.categoryKey)}</strong>
+                  <p className="helper" style={{ margin: 0 }}>{template.title[activeLocale] || template.title.de || template.title.en || template.title.nl || 'Ohne Titel'}</p>
+                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                    {(template.details[activeLocale] || template.details.de || []).map((detail, index) => (
+                      <li key={`${template.id}-detail-${index}`}>{detail}</li>
+                    ))}
+                  </ul>
                   <p className="helper" style={{ margin: 0 }}>Sortierung: {template.sortOrder} · Version: {template.version} · {template.isActive ? 'Aktiv' : 'Inaktiv'}</p>
                   <button type="button" className="button" onClick={() => setDraft(template)}>Bearbeiten</button>
                 </div>

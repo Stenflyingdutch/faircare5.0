@@ -1,4 +1,4 @@
-import { calculateSummary, categoryLabelMap } from '@/services/resultCalculator';
+import { calculateSummary, resolveCategoryLabel } from '@/services/resultCalculator';
 import type { DetailedReport, OwnershipAnswer, QuestionTemplate, QuizCategory } from '@/types/quiz';
 
 const scoreMap: Record<OwnershipAnswer, number> = {
@@ -10,7 +10,7 @@ const scoreMap: Record<OwnershipAnswer, number> = {
 };
 
 function interpretCategory(category: QuizCategory, selfPercent: number) {
-  const label = categoryLabelMap[category];
+  const label = resolveCategoryLabel(category);
   if (selfPercent >= 60) return `Im Bereich ${label} liegt aus deiner Sicht deutlich mehr Verantwortung bei dir.`;
   if (selfPercent <= 40) return `Im Bereich ${label} scheint dein Partner aktuell mehr Verantwortung zu tragen.`;
   return `Im Bereich ${label} wirkt die Verantwortung aktuell eher ausgeglichen verteilt.`;

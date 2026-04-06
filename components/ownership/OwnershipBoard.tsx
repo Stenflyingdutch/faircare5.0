@@ -1,8 +1,8 @@
 'use client';
 
-import { MouseEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { categoryLabelMap } from '@/services/resultCalculator';
+import { isKnownQuizCategory, resolveCategoryLabel } from '@/services/resultCalculator';
 import {
   createOwnershipCard,
   softDeleteOwnershipCard,
@@ -39,7 +39,48 @@ function focusTone(level?: OwnershipFocusLevel | null) {
   if (level === 'now') return '#ece5ff';
   if (level === 'soon') return '#f3eeff';
   if (level === 'later') return '#faf7ff';
-  return 'white';
+  return '#ffffff';
+}
+
+function cardAccent(level?: OwnershipFocusLevel | null) {
+  if (level === 'now') return '#7c5cfa';
+  if (level === 'soon') return '#2f6f6d';
+  if (level === 'later') return '#d6cbff';
+  return '#d7ddd7';
+}
+
+function ownerVisual(
+  ownerUserId: string | null | undefined,
+  ownerOptions: Array<{ userId: string; label: string }>,
+) {
+  const ownerIndex = ownerOptions.findIndex((option) => option.userId === ownerUserId);
+  if (!ownerUserId || ownerIndex === -1) {
+    return {
+      label: 'Noch nicht zugeordnet',
+      background: 'linear-gradient(135deg, #f1efe9 0%, #e6e0d6 100%)',
+      cardBackground: 'linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(243,239,232,0.98) 100%)',
+      color: '#4f5a66',
+      borderColor: 'rgba(206, 198, 185, 0.95)',
+    };
+  }
+
+  if (ownerIndex === 0) {
+    return {
+      label: ownerOptions[ownerIndex]?.label ?? 'Ich',
+      background: 'linear-gradient(135deg, #2f6f6d 0%, #4f9995 100%)',
+      cardBackground: 'linear-gradient(180deg, rgba(240,250,248,0.98) 0%, rgba(223,239,236,0.98) 100%)',
+      color: '#ffffff',
+      borderColor: 'rgba(47, 111, 109, 0.95)',
+    };
+  }
+
+  return {
+    label: ownerOptions[ownerIndex]?.label ?? 'Partner',
+    background: 'linear-gradient(135deg, #7c5cfa 0%, #9a85ff 100%)',
+    cardBackground: 'linear-gradient(180deg, rgba(246,243,255,0.98) 0%, rgba(232,225,255,0.98) 100%)',
+    color: '#ffffff',
+    borderColor: 'rgba(124, 92, 250, 0.95)',
+  };
 }
 
 function resolveCardIsActive(card: OwnershipCardDocument) {
@@ -68,10 +109,11 @@ export function OwnershipBoard({
   const openedCard = useMemo(() => cards.find((item) => item.id === openedCardId) ?? null, [cards, openedCardId]);
 
   const visibleCards = useMemo(() => {
+    const validCards = cards.filter((card) => isKnownQuizCategory(card.categoryKey));
     if (mode === 'home') {
-      return cards.filter((card) => card.ownerUserId === currentUserId && resolveCardIsActive(card));
+      return validCards.filter((card) => card.ownerUserId === currentUserId && resolveCardIsActive(card));
     }
-    return cards;
+    return validCards;
   }, [cards, currentUserId, mode]);
 
   useEffect(() => {
@@ -111,7 +153,7 @@ export function OwnershipBoard({
       map.set(category, sorted);
     }
 
-    return [...map.entries()].sort((a, b) => categoryLabelMap[a[0]].localeCompare(categoryLabelMap[b[0]]));
+    return [...map.entries()].sort((a, b) => resolveCategoryLabel(a[0]).localeCompare(resolveCategoryLabel(b[0])));
   }, [visibleCards, mode, categoryKeys, homeOrder]);
 
   const groupedWithStatus = useMemo(() => grouped.map(([category, categoryCards]) => ({
@@ -207,37 +249,7 @@ export function OwnershipBoard({
     }
   }
 
-  function ownerVisual(ownerUserId?: string | null) {
-    const ownerIndex = ownerOptions.findIndex((option) => option.userId === ownerUserId);
-    if (!ownerUserId || ownerIndex === -1) {
-      return {
-        label: 'Noch nicht zugeordnet',
-        buttonBackground: '#ececec',
-        buttonColor: '#414141',
-        cardBackground: '#fafafa',
-      };
-    }
-
-    const ownerLabel = ownerOptions.find((option) => option.userId === ownerUserId)?.label ?? 'Noch nicht zugeordnet';
-    if (ownerIndex === 0) {
-      return {
-        label: ownerLabel,
-        buttonBackground: '#6850db',
-        buttonColor: '#ffffff',
-        cardBackground: '#f2edff',
-      };
-    }
-
-    return {
-      label: ownerLabel,
-      buttonBackground: '#1f5f5a',
-      buttonColor: '#ffffff',
-      cardBackground: '#eaf6f4',
-    };
-  }
-
-  async function cycleOwner(card: OwnershipCardDocument, event: MouseEvent<HTMLButtonElement>) {
-    event.stopPropagation();
+  async function cycleOwner(card: OwnershipCardDocument) {
     const otherOwner = ownerOptions.find((option) => option.userId !== currentUserId)?.userId ?? null;
     const cycle: Array<string | null> = [null, currentUserId, otherOwner].filter((value, index, list) => list.indexOf(value) === index);
     const currentIndex = cycle.indexOf(card.ownerUserId ?? null);
@@ -308,7 +320,7 @@ export function OwnershipBoard({
   return (
     <div className="stack">
       {mode === 'dashboard' && (
-        <article className="card stack">
+        <article className="card stack ownership-filter-shell">
           <h3 className="card-title" style={{ margin: 0 }}>Filter</h3>
           <div className="chip-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {groupedWithStatus.map((group) => (
@@ -318,7 +330,7 @@ export function OwnershipBoard({
                 className={`option-chip ${selectedCategories.includes(group.category) ? 'selected' : ''}`}
                 onClick={() => toggleCategory(group.category)}
               >
-                {categoryLabelMap[group.category]}
+                {resolveCategoryLabel(group.category)}
               </button>
             ))}
           </div>
@@ -326,14 +338,16 @@ export function OwnershipBoard({
       )}
 
       {filteredGroups.map((group) => (
-        <article key={group.category} className="card stack">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <h3 className="card-title" style={{ margin: 0 }}>{categoryLabelMap[group.category]}</h3>
-            <span className="helper" style={{ margin: 0 }}>{group.active} zugeordnet von {group.total}</span>
+        <article key={group.category} className="card stack ownership-category-shell">
+          <div className="ownership-group-header">
+            <div className="ownership-group-heading">
+              <h3 className="card-title" style={{ margin: 0 }}>{resolveCategoryLabel(group.category)}</h3>
+              <span className="helper ownership-group-meta">{group.active} zugeordnet von {group.total}</span>
+            </div>
             {mode === 'dashboard' && (
               <button
                 type="button"
-                className="button"
+                className="button ownership-create-button"
                 onClick={() => {
                   setActiveCategoryForCreate(group.category);
                   setDraft({ title: '', note: '' });
@@ -345,7 +359,7 @@ export function OwnershipBoard({
           </div>
 
           {activeCategoryForCreate === group.category && draft && mode === 'dashboard' && (
-            <div className="report-block stack">
+            <div className="report-block stack ownership-create-panel">
               <p className="helper" style={{ margin: 0 }}>Neue lokale Karte in dieser Kategorie.</p>
               <input className="input" value={draft.title} placeholder="Titel" onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
               <textarea className="input" rows={3} value={draft.note} placeholder="Notiz" onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
@@ -359,17 +373,16 @@ export function OwnershipBoard({
           <div className="stack">
             {group.cards.map((card) => {
               const focusLevel = resolveFocus(card);
-              const ownerStyle = ownerVisual(card.ownerUserId);
-              const isAssigned = Boolean(card.ownerUserId);
+              const ownerState = ownerVisual(card.ownerUserId, ownerOptions);
               return (
                 <div
                   key={card.id}
-                  className="report-block stack"
+                  className="ownership-card stack"
                   style={{
-                    textAlign: 'left',
-                    border: '1px solid #ddd',
-                    background: mode === 'dashboard' ? ownerStyle.cardBackground : focusTone(focusLevel),
-                    cursor: 'pointer',
+                    background: mode === 'dashboard'
+                      ? ownerState.cardBackground
+                      : focusTone(focusLevel),
+                    ['--ownership-accent' as string]: cardAccent(focusLevel),
                   }}
                   onClick={() => openDetails(card)}
                   role="button"
@@ -381,24 +394,27 @@ export function OwnershipBoard({
                     }
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <strong>{card.title}</strong>
-                    <span className="helper" style={{ margin: 0, border: '1px solid #d6d6d6', borderRadius: 999, padding: '2px 10px' }}>
-                      {isAssigned ? 'Zugeordnet' : 'Noch nicht zugeordnet'}
-                    </span>
+                  <div className="ownership-card-topline">
+                    <span className="ownership-card-kicker">{resolveCategoryLabel(card.categoryKey)}</span>
+                    {mode !== 'dashboard' && focusLevel ? <span className="ownership-card-focus">{focusLevelLabel[focusLevel]}</span> : null}
                   </div>
-                  {card.note ? <p className="helper" style={{ margin: 0 }}>{card.note}</p> : null}
+                  <strong className="ownership-card-title">{card.title}</strong>
+                  {card.note ? <p className="helper ownership-card-note" style={{ margin: 0 }}>{card.note}</p> : null}
 
                   {mode === 'dashboard' ? (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} onClick={(event) => event.stopPropagation()}>
+                    <div onClick={(event) => event.stopPropagation()}>
                       <button
                         type="button"
-                        className="button"
-                        style={{ background: ownerStyle.buttonBackground, color: ownerStyle.buttonColor, borderColor: 'transparent' }}
-                        onClick={(event) => cycleOwner(card, event)}
+                        className="ownership-owner-button"
+                        onClick={() => cycleOwner(card)}
                         disabled={saving}
+                        style={{
+                          background: ownerState.background,
+                          color: ownerState.color,
+                          borderColor: ownerState.borderColor,
+                        }}
                       >
-                        {ownerStyle.label}
+                        {ownerState.label}
                       </button>
                     </div>
                   ) : (
@@ -442,14 +458,34 @@ export function OwnershipBoard({
       {error && <p className="inline-error">{error}</p>}
 
       {openedCard && draft && (
-        <div className="card stack" style={{ position: 'fixed', left: 12, right: 12, bottom: 12, zIndex: 30, maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.2)' }}>
-          <h3 className="card-title" style={{ margin: 0 }}>{categoryLabelMap[openedCard.categoryKey]}</h3>
-          <input className="input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-          <textarea className="input" rows={4} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className="button primary" disabled={saving} onClick={() => saveDetails(openedCard)}>Speichern</button>
-            {mode === 'dashboard' && <button type="button" className="button" disabled={saving} onClick={() => deleteCard(openedCard.id)}>Löschen</button>}
-            <button type="button" className="button" onClick={() => { setOpenedCardId(null); setDraft(null); }}>Schließen</button>
+        <div
+          className="ownership-modal-backdrop"
+          onClick={() => { setOpenedCardId(null); setDraft(null); }}
+          role="presentation"
+        >
+          <div
+            className="card stack ownership-modal"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Karte bearbeiten"
+          >
+            <div className="ownership-modal-header">
+              <div className="stack" style={{ gap: 6 }}>
+                <span className="ownership-card-kicker">{resolveCategoryLabel(openedCard.categoryKey)}</span>
+                <h3 className="card-title" style={{ margin: 0 }}>Karte bearbeiten</h3>
+              </div>
+              <button type="button" className="ownership-modal-close" onClick={() => { setOpenedCardId(null); setDraft(null); }}>
+                Schließen
+              </button>
+            </div>
+            <input className="input ownership-modal-input" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+            <textarea className="input ownership-modal-input" rows={5} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+            <div className="ownership-modal-actions">
+              <button type="button" className="button primary" disabled={saving} onClick={() => saveDetails(openedCard)}>Speichern</button>
+              {mode === 'dashboard' && <button type="button" className="button" disabled={saving} onClick={() => deleteCard(openedCard.id)}>Löschen</button>}
+              <button type="button" className="button secondary" onClick={() => { setOpenedCardId(null); setDraft(null); }}>Abbrechen</button>
+            </div>
           </div>
         </div>
       )}

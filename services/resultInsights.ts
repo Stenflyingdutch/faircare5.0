@@ -1,4 +1,4 @@
-import { categoryLabelMap } from '@/services/resultCalculator';
+import { resolveCategoryLabel } from '@/services/resultCalculator';
 import type { QuizCategory } from '@/types/quiz';
 
 /**
@@ -123,7 +123,7 @@ export function buildJointRecommendations(comparisons: CategoryComparison[]) {
   if (!top.length) return [];
 
   return top.map((entry) => {
-    const label = categoryLabelMap[entry.category];
+    const label = resolveCategoryLabel(entry.category);
     if (entry.level === 'high') return `Im Bereich ${label} könnte eine kleine Anpassung bereits entlasten.`;
     if (entry.level === 'medium') return `Für ${label} lohnt sich ein kurzes Abstimmungsgespräch.`;
     return `Bei ${label} seid ihr bereits nah beieinander – das ist eine gute Basis.`;

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import { questionTemplates } from '@/data/questionTemplates';
-import { categoryLabelMap, calculateSummary } from '@/services/resultCalculator';
+import { calculateSummary, resolveCategoryLabel } from '@/services/resultCalculator';
 import { saveAnonymousResult } from '@/services/sessionLinking';
 import { loadSessionFromStorage } from '@/services/sessionStorage';
 import type { OwnershipAnswer, QuizCategory, StressSelection, TempQuizSession } from '@/types/quiz';
@@ -19,14 +19,14 @@ const scoreMap: Record<OwnershipAnswer, number> = {
 
 function resolvePerceivedStressLabel(stressCategories: StressSelection[]) {
   if (!stressCategories.length || stressCategories[0] === 'keiner_genannten_bereiche') return 'In keiner der genannten Bereiche.';
-  return `${categoryLabelMap[stressCategories[0]]}.`;
+  return `${resolveCategoryLabel(stressCategories[0])}.`;
 }
 
 function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>) {
   const maxScore = Math.max(...categories.map(([, value]) => value));
   const highestCategories = categories
     .filter(([, value]) => value === maxScore)
-    .map(([category]) => categoryLabelMap[category]);
+    .map(([category]) => resolveCategoryLabel(category));
 
   if (highestCategories.length === 1) return `${highestCategories[0]} (${maxScore} %).`;
   if (highestCategories.length === 2) return `${highestCategories[0]} und ${highestCategories[1]} (je ${maxScore} %).`;

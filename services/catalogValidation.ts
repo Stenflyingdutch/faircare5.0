@@ -20,11 +20,21 @@ export function ensureValidQuizCatalog(payload: unknown, fallback: QuizCatalog):
   const hasInvalidQuestion = source.questions.some((entry) => !isQuestionTemplate(entry));
   if (hasInvalidQuestion) return fallback;
 
-  const categories = source.categories.filter((entry) => Boolean(entry?.key) && Boolean(entry?.ageGroup));
-  if (!categories.length) return fallback;
+  const validCategoryPairs = new Set(fallback.categories.map((entry) => `${entry.ageGroup}:${entry.key}`));
+  const validCategoryKeys = new Set(fallback.categories.map((entry) => entry.key));
+
+  const categories = source.categories.filter((entry) => (
+    Boolean(entry?.key)
+    && Boolean(entry?.ageGroup)
+    && validCategoryPairs.has(`${entry.ageGroup}:${entry.key}`)
+  ));
+
+  const questions = source.questions.filter((entry) => validCategoryKeys.has(entry.categoryKey));
+
+  if (!categories.length || !questions.length) return fallback;
 
   return {
     categories,
-    questions: source.questions,
+    questions,
   } as QuizCatalog;
 }
