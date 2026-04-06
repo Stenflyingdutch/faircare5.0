@@ -79,6 +79,14 @@ function resolveInviteRuntimeEnvironment() {
   return configuredEnv;
 }
 
+function resolveAppBaseUrl() {
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return window.location.origin;
+  }
+
+  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_BASE_URL ?? 'http://localhost:3000';
+}
+
 async function sha256(value: string) {
   const enc = new TextEncoder();
   const digest = await crypto.subtle.digest('SHA-256', enc.encode(value));
@@ -373,7 +381,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
     }, { merge: true });
     console.info('[sendPartnerInvite:fallback] Invitation erstellt', { invitationId: invitationRef.id });
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const baseUrl = resolveAppBaseUrl();
     const inviteUrl = `${baseUrl}/invite/${token}`;
     console.info('[sendPartnerInvite:fallback] Mail-Provider gewählt', {
       provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'none'),
@@ -648,7 +656,7 @@ export async function finalizePartnerRegistration(params: {
   if (familySnapshot.exists()) {
     const family = familySnapshot.data() as FamilyDocument;
     const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const baseUrl = resolveAppBaseUrl();
     const loginUrl = `${baseUrl}/login`;
 
     if (initiatorProfile?.email) {
@@ -760,7 +768,7 @@ export async function triggerJointPreparationByPartner(userId: string) {
   const family = familySnapshot.data() as FamilyDocument;
 
   const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+  const baseUrl = resolveAppBaseUrl();
   const loginUrl = `${baseUrl}/login`;
 
   if (initiatorProfile?.email) {
@@ -826,7 +834,7 @@ export async function activateJointResult(jointResultId: string, userId: string)
 
   const partnerProfile = family.partnerUserId ? await fetchAppUserProfile(family.partnerUserId) : null;
   if (partnerProfile?.email) {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const baseUrl = resolveAppBaseUrl();
     const loginUrl = `${baseUrl}/login`;
     await sendAppMail({
       type: 'results_unlocked_notify_partner',
