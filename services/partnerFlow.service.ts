@@ -74,6 +74,35 @@ export interface SendPartnerInviteResult {
   provider?: string;
 }
 
+function resolveRuntimeEnvironment() {
+  const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
+  const vercelEnv = (process.env.NEXT_PUBLIC_VERCEL_ENV ?? '').toLowerCase();
+  const host = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+  const isPreviewHost = host.endsWith('.vercel.app') || host.includes('-git-');
+  return {
+    appEnv,
+    vercelEnv,
+    host: host || null,
+    isPreviewLike: vercelEnv === 'preview' || isPreviewHost,
+  };
+}
+
+function resolveClientBaseUrl() {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_BASE_URL ?? 'http://localhost:3000';
+}
+
+function buildInviteHeadlineFromCode(code?: string) {
+  if (!code) return 'Einladung konnte serverseitig nicht verarbeitet werden.';
+  if (code.includes('invalid-argument')) return 'Ungültige E-Mail-Adresse.';
+  if (code.includes('permission-denied') || code.includes('unauthenticated')) return 'Bitte melde dich erneut an und versuche es nochmal.';
+  if (code.includes('failed-precondition')) return 'Einladungsversand ist aktuell nicht verfügbar.';
+  if (code.includes('unavailable') || code.includes('deadline-exceeded')) return 'Einladungsdienst ist gerade nicht erreichbar.';
+  return 'Einladung konnte serverseitig nicht verarbeitet werden.';
+}
+
 export class InviteFlowError extends Error {
   code: string;
   details: InviteDebugDetails;
@@ -182,52 +211,100 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
 
   const functions = getFunctions(app, 'europe-west3');
   const sendPartnerInvite = httpsCallable<{ partnerEmail: string; personalMessage?: string }, { partnerEmail?: string }>(functions, 'sendPartnerInvite');
+  const runtime = resolveRuntimeEnvironment();
+  console.info('[sendPartnerInvitation] gestartet', {
+    hasUser: Boolean(user?.uid),
+    hasUserEmail: Boolean(user?.email),
+    project: firebaseProjectId,
+    appEnv: runtime.appEnv,
+    vercelEnv: runtime.vercelEnv || 'unknown',
+    host: runtime.host,
+    callableRegion: 'europe-west3',
+    callableName: 'sendPartnerInvite',
+  });
+
   try {
+    console.info('[sendPartnerInvitation] callable request vorbereitet', {
+      normalizedPartnerEmailDomain: normalizedPartnerEmail.split('@')[1] ?? 'invalid',
+      hasPersonalMessage: Boolean(personalMessage?.trim()),
+    });
     const response = await sendPartnerInvite({ partnerEmail: normalizedPartnerEmail, personalMessage: personalMessage?.trim() });
+    console.info('[sendPartnerInvitation] callable request erfolgreich', {
+      returnedPartnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
+    });
     return {
       partnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
       delivery: 'email_sent',
     } satisfies SendPartnerInviteResult;
   } catch (error) {
     const callableError = error as { code?: string; message?: string; details?: unknown };
-    const appEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? process.env.APP_ENV ?? 'development').toLowerCase();
-    const allowLocalFallback = appEnv !== 'production';
-    const fallbackEligible = ['functions/internal', 'internal', 'functions/unavailable', 'functions/unimplemented']
-      .includes(callableError?.code ?? '');
+    const errorCode = callableError?.code ?? 'unknown';
+    const errorMessage = callableError?.message ?? '';
+    const fallbackEligibleCodes = [
+      'functions/internal',
+      'internal',
+      'functions/unavailable',
+      'unavailable',
+      'functions/unimplemented',
+      'unimplemented',
+      'functions/deadline-exceeded',
+      'deadline-exceeded',
+      'functions/not-found',
+      'not-found',
+      'functions/unknown',
+      'unknown',
+    ];
+    const fallbackEligibleMessage = /cors|network|fetch|failed to fetch|load failed|unreachable/i.test(errorMessage);
+    const allowLocalFallback = runtime.appEnv !== 'production' || runtime.isPreviewLike;
+    const fallbackEligible = fallbackEligibleCodes.includes(errorCode) || fallbackEligibleMessage;
+    const fallbackDecision = allowLocalFallback && fallbackEligible;
 
-    if (allowLocalFallback && fallbackEligible) {
+    if (fallbackDecision) {
       console.info('[sendPartnerInvitation] Callable sendPartnerInvite unavailable, using fallback.', {
-        appEnv,
-        code: callableError?.code,
+        appEnv: runtime.appEnv,
+        vercelEnv: runtime.vercelEnv || 'unknown',
+        host: runtime.host,
+        code: errorCode,
+        fallbackEligibleMessage,
       });
     } else {
       console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
-        code: callableError?.code,
-        message: callableError?.message,
+        code: errorCode,
+        message: errorMessage,
         details: callableError?.details,
+        fallbackDecision,
+        appEnv: runtime.appEnv,
+        vercelEnv: runtime.vercelEnv || 'unknown',
       });
     }
 
-    if (allowLocalFallback && fallbackEligible) {
+    if (fallbackDecision) {
       console.info('[sendPartnerInvitation] Falling back to local invite flow', {
-        appEnv,
-        code: callableError?.code,
+        appEnv: runtime.appEnv,
+        vercelEnv: runtime.vercelEnv || 'unknown',
+        host: runtime.host,
+        code: errorCode,
       });
       return sendPartnerInvitationFallback(normalizedPartnerEmail, user.uid, personalMessage);
     }
 
     throw buildInviteError(
-      callableError?.code ?? 'internal',
-      'Einladung konnte serverseitig nicht verarbeitet werden.',
+      errorCode,
+      buildInviteHeadlineFromCode(errorCode),
       {
         serverErrors: ['Die Firebase Function sendPartnerInvite hat einen Fehler zurückgegeben.'],
         configErrors: ['Bitte Firebase Functions Logs für sendPartnerInvite (Region europe-west3) prüfen.'],
       },
       [
-        `code=${callableError?.code ?? 'unknown'}`,
-        callableError?.message ?? 'keine message',
+        `code=${errorCode}`,
+        errorMessage || 'keine message',
         'region=europe-west3',
         `project=${firebaseProjectId}`,
+        `appEnv=${runtime.appEnv}`,
+        `vercelEnv=${runtime.vercelEnv || 'unknown'}`,
+        `host=${runtime.host ?? 'unknown'}`,
+        `fallbackEligible=${String(fallbackEligible)}`,
+        `allowLocalFallback=${String(allowLocalFallback)}`,
       ],
     );
   }
@@ -336,8 +413,12 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
     }, { merge: true });
     console.info('[sendPartnerInvite:fallback] Invitation erstellt', { invitationId: invitationRef.id });
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const baseUrl = resolveClientBaseUrl();
     const inviteUrl = `${baseUrl}/invite/${token}`;
+    console.info('[sendPartnerInvite:fallback] Einladungs-URL aufgelöst', {
+      baseUrl,
+      usedWindowOrigin: typeof window !== 'undefined' && window.location?.origin === baseUrl,
+    });
     console.info('[sendPartnerInvite:fallback] Mail-Provider gewählt', {
       provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'none'),
     });

@@ -21,6 +21,12 @@ interface SendMailInput {
 }
 
 export async function sendAppMail(input: SendMailInput) {
+  console.info('[mail-client] Versand über /api/mail gestartet', {
+    type: input.type,
+    familyId: input.familyId ?? null,
+    invitationId: input.invitationId ?? null,
+    recipientDomain: input.to.includes('@') ? input.to.split('@')[1] : 'invalid',
+  });
   const response = await fetch('/api/mail', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -33,9 +39,16 @@ export async function sendAppMail(input: SendMailInput) {
   const payload = await response.json();
   if (!response.ok) {
     const detail = payload?.detail ? ` (${payload.detail})` : '';
+    console.error('[mail-client] Versand über /api/mail fehlgeschlagen', {
+      status: response.status,
+      error: payload?.error ?? 'unknown',
+    });
     throw new Error(`${payload?.error ?? 'Mail konnte nicht versendet werden.'}${detail}`);
   }
 
   await addDoc(collection(db, firestoreCollections.mailLogs), payload.payload);
+  console.info('[mail-client] Versand über /api/mail erfolgreich', {
+    provider: payload?.result?.provider ?? 'unknown',
+  });
   return payload;
 }
