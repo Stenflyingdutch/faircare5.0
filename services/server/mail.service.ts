@@ -18,9 +18,19 @@ interface SendMailInput {
   invitationId?: string;
 }
 
-const DEFAULT_TEST_RECIPIENT = 'pa4sten@gmail.com';
 const DEFAULT_MAIL_FROM = 'FairCare <noreply@mail.mental-faircare.de>';
 const REQUIRED_MAIL_FROM_DOMAIN = '@mail.mental-faircare.de';
+
+type MailRuntimeEnvironment = 'production' | 'preview' | 'development' | 'test';
+
+type ResolvedMailRouting = {
+  requestedRecipient: string;
+  actualRecipient: string;
+  subjectPrefix: string;
+  overrideApplied: boolean;
+  overrideRecipient: string | null;
+  environment: MailRuntimeEnvironment;
+};
 
 function extractEmailAddress(fromValue: string) {
   if (fromValue.includes('<') && fromValue.includes('>')) {
@@ -29,15 +39,22 @@ function extractEmailAddress(fromValue: string) {
   return fromValue.trim().toLowerCase();
 }
 
-function resolveAppEnvironment() {
+function normalizeRecipient(value?: string | null) {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function looksLikeEmailAddress(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function resolveAppEnvironment(): MailRuntimeEnvironment {
   const appEnv = (process.env.APP_ENV ?? process.env.NEXT_PUBLIC_APP_ENV ?? '').toLowerCase();
   const vercelEnv = (process.env.VERCEL_ENV ?? '').toLowerCase();
   const nodeEnv = (process.env.NODE_ENV ?? '').toLowerCase();
 
-  // Safety-first: only treat as production when explicitly marked as production.
-  // If APP_ENV is missing/unknown, we intentionally keep mails in test-routing mode.
   if (appEnv === 'production') return 'production';
-  if (appEnv === 'staging' || vercelEnv === 'preview') return 'staging';
+  if (appEnv === 'staging' || appEnv === 'preview' || vercelEnv === 'preview') return 'preview';
+  if (vercelEnv === 'production') return 'production';
   if (appEnv === 'test' || nodeEnv === 'test') return 'test';
   return 'development';
 }
@@ -46,12 +63,53 @@ function isProduction() {
   return resolveAppEnvironment() === 'production';
 }
 
-export function resolveRecipient(email: string) {
-  const overrideRecipient = process.env.TEST_EMAIL_OVERRIDE?.trim() || DEFAULT_TEST_RECIPIENT;
-  if (isProduction()) {
-    return { actualRecipient: email, subjectPrefix: '' };
+export function resolveRecipient(email: string): ResolvedMailRouting {
+  const requestedRecipient = normalizeRecipient(email);
+  const overrideRecipient = normalizeRecipient(process.env.TEST_EMAIL_OVERRIDE);
+  const environment = resolveAppEnvironment();
+
+  if (!requestedRecipient) {
+    throw new Error('Empfängeradresse fehlt.');
   }
-  return { actualRecipient: overrideRecipient, subjectPrefix: '[TEST] ' };
+
+  if (!looksLikeEmailAddress(requestedRecipient)) {
+    throw new Error(`Ungültige Empfängeradresse: ${requestedRecipient}`);
+  }
+
+  if (environment === 'production') {
+    return {
+      requestedRecipient,
+      actualRecipient: requestedRecipient,
+      subjectPrefix: '',
+      overrideApplied: false,
+      overrideRecipient: null,
+      environment,
+    };
+  }
+
+  if (!overrideRecipient) {
+    return {
+      requestedRecipient,
+      actualRecipient: requestedRecipient,
+      subjectPrefix: '',
+      overrideApplied: false,
+      overrideRecipient: null,
+      environment,
+    };
+  }
+
+  if (!looksLikeEmailAddress(overrideRecipient)) {
+    throw new Error('TEST_EMAIL_OVERRIDE ist keine gültige E-Mail-Adresse.');
+  }
+
+  return {
+    requestedRecipient,
+    actualRecipient: overrideRecipient,
+    subjectPrefix: '[TEST] ',
+    overrideApplied: true,
+    overrideRecipient,
+    environment,
+  };
 }
 
 async function sendViaResend(to: string, subject: string, html: string) {
@@ -193,19 +251,24 @@ export async function dispatchMail(input: SendMailInput) {
     configuredProvider,
     hasSendgridKey,
     hasTestOverride: Boolean(process.env.TEST_EMAIL_OVERRIDE),
+    overrideApplied: resolved.overrideApplied,
     ...mailDiagnostics,
   });
   console.info('[mail.dispatch] empfänger aufgelöst', {
-    originalRecipient: input.originalRecipient,
+    originalRecipient: resolved.requestedRecipient,
     actualRecipient: resolved.actualRecipient,
+    overrideRecipient: resolved.overrideRecipient,
+    overrideApplied: resolved.overrideApplied,
+    env: resolved.environment,
     providerHint: configuredProvider,
   });
 
   const footer = `
     <hr />
     <p style="font-size:12px;color:#666">Mail-Type: ${input.type}</p>
-    <p style="font-size:12px;color:#666">Original: ${input.originalRecipient}</p>
+    <p style="font-size:12px;color:#666">Original: ${resolved.requestedRecipient}</p>
     <p style="font-size:12px;color:#666">Tatsächlich: ${resolved.actualRecipient}</p>
+    <p style="font-size:12px;color:#666">Override aktiv: ${resolved.overrideApplied ? 'ja' : 'nein'}</p>
     <p style="font-size:12px;color:#666">familyId: ${input.familyId ?? '-'}, invitationId: ${input.invitationId ?? '-'}</p>
   `;
 
@@ -228,10 +291,12 @@ export async function dispatchMail(input: SendMailInput) {
   return {
     collection: firestoreCollections.mailLogs,
     payload: {
-      environment: resolveAppEnvironment(),
+      environment: resolved.environment,
       type: input.type,
-      originalRecipient: input.originalRecipient,
+      originalRecipient: resolved.requestedRecipient,
       actualRecipient: resolved.actualRecipient,
+      overrideApplied: resolved.overrideApplied,
+      overrideRecipient: resolved.overrideRecipient,
       subject,
       familyId: input.familyId ?? null,
       invitationId: input.invitationId ?? null,
