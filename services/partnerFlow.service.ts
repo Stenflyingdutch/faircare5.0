@@ -358,7 +358,6 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
     const provider = String(mailOutcome?.result?.provider ?? 'unknown');
     console.info('[sendPartnerInvite:fallback] Mailversand abgeschlossen', {
       originalRecipient: partnerEmail,
-      testRecipient: 'pa4sten@gmail.com (nicht-production in /api/mail)',
       provider,
     });
 

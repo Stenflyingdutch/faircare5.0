@@ -92,7 +92,12 @@ export default function PersonalHomePage() {
 
     if (needsSort) {
       const sorted = sortResponsibilitiesForMode(responsibilities, sortMode).map((item) => item.id);
-      setOrderedResponsibilityIds(sorted);
+      const hasChanged = sorted.length !== orderedResponsibilityIds.length
+        || sorted.some((id, index) => orderedResponsibilityIds[index] !== id);
+
+      if (hasChanged) {
+        setOrderedResponsibilityIds(sorted);
+      }
       previousSortMode.current = sortMode;
       return;
     }

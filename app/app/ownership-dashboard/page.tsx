@@ -73,7 +73,7 @@ function OwnershipDashboardPageContent() {
   useEffect(() => {
     if (!familyId || !userId || !ageGroup) return;
     const categoryKeys = categories.map((item) => item.categoryKey as QuizCategory);
-    if (!categoryKeys.length || cards.length > 0) return;
+    if (!categoryKeys.length) return;
 
     ensureOwnershipCardsForCategories({
       familyId,
@@ -82,7 +82,7 @@ function OwnershipDashboardPageContent() {
       locale: getCurrentLocale(),
       categoryKeys,
     }).catch(() => setLoadError('Die Karten konnten gerade nicht geladen oder angelegt werden. Bitte versuche es erneut.'));
-  }, [familyId, userId, ageGroup, categories, cards.length]);
+  }, [familyId, userId, ageGroup, categories]);
 
   if (!userId || !familyId) {
     return (

@@ -7,7 +7,8 @@ import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import {
   listenToAllResponsibilities,
-  extractRelevantCategories,
+  getAllOwnershipCategories,
+  mergeResponsibilitiesWithCatalogFallback,
   sortCategoriesByRelevance,
   sortResponsibilities,
   updateResponsibilityAssignment,
@@ -70,14 +71,18 @@ export default function Aufteilen() {
         const unsub = listenToAllResponsibilities(
           bundle.profile.familyId,
           (cards) => {
-            // Filter and map to Responsibility type
             const responsibilties = cards
-              .filter((card) => !card.isDeleted && card.priority && card.assignedTo)
-              .map((card) => ({
-                ...card,
-                priority: card.priority || 'observe',
-                assignedTo: card.assignedTo || 'user',
-              } as Responsibility));
+              .filter((card) => !card.isDeleted)
+              .map((card) => {
+                const assignedTo = card.assignedTo ?? (card.ownerUserId === user.uid ? 'user' : card.ownerUserId ? 'partner' : 'user');
+                const priority = card.priority ?? (card.focusLevel === 'now' ? 'act' : card.focusLevel === 'soon' ? 'plan' : 'observe');
+                return {
+                  ...card,
+                  priority,
+                  assignedTo,
+                } as Responsibility;
+              });
+
             setResponsibilities(responsibilties);
             setIsLoading(false);
           },
@@ -97,13 +102,18 @@ export default function Aufteilen() {
   }, [responsibilities, activeFilter]);
 
   const relevantCategories = useMemo(
-    () => sortCategoriesByRelevance(extractRelevantCategories(responsibilities), responsibilities),
+    () => sortCategoriesByRelevance(getAllOwnershipCategories(), responsibilities),
     [responsibilities],
   );
 
+  const visibleResponsibilities = useMemo(() => {
+    if (activeFilter === 'all' || !activeFilter) return filteredResponsibilities;
+    return mergeResponsibilitiesWithCatalogFallback(activeFilter, filteredResponsibilities);
+  }, [activeFilter, filteredResponsibilities]);
+
   const sortedResponsibilities = useMemo(() => {
     if (sortMode === 'area') {
-      return [...filteredResponsibilities].sort((a, b) => {
+      return [...visibleResponsibilities].sort((a, b) => {
         const labelA = categoryLabelMap[a.categoryKey] || a.categoryKey;
         const labelB = categoryLabelMap[b.categoryKey] || b.categoryKey;
         if (labelA !== labelB) return labelA.localeCompare(labelB);
@@ -114,8 +124,8 @@ export default function Aufteilen() {
         return new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime();
       });
     }
-    return sortResponsibilities(filteredResponsibilities);
-  }, [filteredResponsibilities, sortMode]);
+    return sortResponsibilities(visibleResponsibilities);
+  }, [visibleResponsibilities, sortMode]);
 
   const handleAssignmentChange = async (responsibility: Responsibility, newAssignee: ResponsibilityOwner) => {
     if (!familyId || !userId) return;
@@ -137,7 +147,8 @@ export default function Aufteilen() {
     console.log('Save responsibility:', { responsibilityId, title, note });
   };
 
-  const expandedResponsibility = expandedCardId ? responsibilities.find((r) => r.id === expandedCardId) : undefined;
+  const expandedResponsibility = expandedCardId ? visibleResponsibilities.find((r) => r.id === expandedCardId) : undefined;
+  const isExpandedResponsibilityCatalog = expandedResponsibility?.assignedTo === 'unassigned';
 
   return (
     <div style={{ backgroundColor: 'var(--color-background)', minHeight: '100vh', padding: '0 var(--space-20)' }}>
@@ -185,11 +196,11 @@ export default function Aufteilen() {
       {expandedResponsibility && (
         <ResponsibilityCardDetails
           responsibility={expandedResponsibility}
-          mode="assign"
+          mode={isExpandedResponsibilityCatalog ? 'start' : 'assign'}
           isExpanded={expandedCardId === expandedResponsibility.id}
           onClose={() => setExpandedCardId(null)}
-          onSave={(title, note) => handleSaveCard(expandedResponsibility.id, title, note)}
-          onDelete={() => setDeleteConfirmationCardId(expandedResponsibility.id)}
+          onSave={isExpandedResponsibilityCatalog ? undefined : (title, note) => handleSaveCard(expandedResponsibility.id, title, note)}
+          onDelete={isExpandedResponsibilityCatalog ? undefined : () => setDeleteConfirmationCardId(expandedResponsibility.id)}
         />
       )}
 

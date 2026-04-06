@@ -45,6 +45,8 @@ export default function AdminTaskPackagesPage() {
     void loadTemplates();
   }, [loadTemplates]);
 
+  const isSeedAvailable = activeAge === '0_1';
+
   async function onSave() {
     if (!draft) return;
     setSaving(true);
@@ -62,6 +64,7 @@ export default function AdminTaskPackagesPage() {
   }
 
   async function seedDefaults() {
+    if (!isSeedAvailable) return;
     setSaving(true);
     setMessage('');
     try {
@@ -86,7 +89,8 @@ export default function AdminTaskPackagesPage() {
               <button type="button" key={group} className={`option-chip ${group === activeAge ? 'selected' : ''}`} onClick={() => setActiveAge(group)}>{group}</button>
             ))}
           </div>
-          <button type="button" className="button" disabled={saving} onClick={seedDefaults}>Standardpakete (10 pro Kategorie) ergänzen</button>
+          <button type="button" className="button" disabled={saving || !isSeedAvailable} onClick={seedDefaults}>Standardpakete (10 pro Kategorie) für 0_1 ergänzen</button>
+          {!isSeedAvailable && <p className="helper">Das voreingestellte 0_1-Set ist nur für die Altersgruppe 0_1 verfügbar.</p>}
         </article>
 
         <article className="card stack">

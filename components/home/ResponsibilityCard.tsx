@@ -77,22 +77,27 @@ export function ResponsibilityCard({
   const getCardBackgroundColor = (): string => {
     if (mode === 'start') {
       return priorityConfig[responsibility.priority].lightBg;
-    } else {
-      // assign mode: vary by assignee
-      if (responsibility.assignedTo === 'user') {
-        return priorityConfig.act.lightBg;
-      } else if (responsibility.assignedTo === 'partner') {
-        return 'var(--color-partner-primary)';
-      }
-      return 'var(--color-surface)'; // unassigned: neutral
     }
+
+    // assign mode: vary by assignee
+    if (responsibility.assignedTo === 'user') {
+      return priorityConfig.act.lightBg;
+    }
+    if (responsibility.assignedTo === 'partner') {
+      return 'var(--color-partner-primary)';
+    }
+    return 'var(--color-surface)'; // unassigned: neutral
   };
 
   // Only calculate priority label for Start mode - never calculate assignment labels
   const priorityLabel = mode === 'start' ? priorityConfig[responsibility.priority].label : undefined;
 
   const bgColor = getCardBackgroundColor();
-  const textColor = mode === 'start' ? priorityConfig[responsibility.priority].text : '#FFFFFF';
+  const textColor = mode === 'start'
+    ? priorityConfig[responsibility.priority].text
+    : responsibility.assignedTo === 'unassigned'
+      ? 'var(--color-text-primary)'
+      : '#FFFFFF';
 
   return (
     <div

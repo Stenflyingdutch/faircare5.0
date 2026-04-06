@@ -13,7 +13,6 @@ const stressCategoryDescriptions: Record<StressSelection, string> = {
   gesundheit: 'Vorsorge, Symptome, Medikamente und gesundheitliche Entscheidungen.',
   babyalltag_pflege: 'Essen, Wickeln, Baden, Kleidung und tägliche Pflege.',
   haushalt_einkaeufe_vorraete: 'Einkäufe, Vorräte, Wäsche und laufende Besorgungen.',
-  termine_planung_absprachen: 'Kalender, Organisation, Absprachen und Zuständigkeiten.',
   keiner_genannten_bereiche: 'Aktuell empfinde ich in keinem der genannten Bereiche die größte Belastung.',
 };
 

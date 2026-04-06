@@ -8,7 +8,6 @@ const categoryBlueprints = [
   { key: 'gesundheit', label: 'Gesundheit', description: 'Vorsorge, Symptome, Medikamente und gesundheitliche Themen im Blick behalten.' },
   { key: 'babyalltag_pflege', label: 'Babyalltag & Pflege', description: 'Essen, Wickeln, Baden, Kleidung und tägliche Pflege des Babys.' },
   { key: 'haushalt_einkaeufe_vorraete', label: 'Haushalt, Einkäufe & Vorräte', description: 'Vorräte, Wäsche, Nachkaufen und alles, was im Alltag verfügbar sein muss.' },
-  { key: 'termine_planung_absprachen', label: 'Termine, Planung & Absprachen', description: 'Kalender, Packen, Betreuung, Fristen und Abstimmung zwischen euch beiden.' },
 ] as const;
 
 
@@ -103,23 +102,6 @@ export const quizCatalog: QuizCatalog = {
       'Wer prüft, ob zu Hause für die nächsten Tage alles da ist?',
       'Wer hält den Überblick über Vorräte, Einkäufe und babybezogene Haushaltsaufgaben?',
     ].map((text, i) => ({ id: `q_0_1_haushalt_${i + 1}`, ageGroup: '0_1' as const, categoryKey: 'haushalt_einkaeufe_vorraete' as const, questionText: { de: text, ...emptyTranslation }, sortOrder: i + 1, isActive: true })),
-    ...[
-      'Wer organisiert Arzttermine, wenn einer vereinbart werden muss?',
-      'Wer behält den Familienkalender rund ums Baby im Blick?',
-      'Wer denkt daran, wann welcher Termin ansteht?',
-      'Wer plant Ausflüge so, dass sie zum Baby passen?',
-      'Wer überlegt vorab, was für unterwegs eingepackt werden muss?',
-      'Wer denkt daran, die Wickeltasche vollständig zu packen?',
-      'Wer organisiert Übergaben zwischen euch beiden?',
-      'Wer spricht ab, wer wann zuständig ist?',
-      'Wer plant Betreuung durch Großeltern oder Babysitter?',
-      'Wer hält Kontakt zu Betreuungspersonen?',
-      'Wer denkt an Unterlagen für Kita oder Betreuung?',
-      'Wer kümmert sich um Anmeldungen oder Wartelisten?',
-      'Wer behält Fristen und Rückmeldungen im Blick?',
-      'Wer plant, wer bei Krankheit oder Ausfall übernimmt?',
-      'Wer hält den Überblick über Termine, Absprachen und Planung rund ums Baby?',
-    ].map((text, i) => ({ id: `q_0_1_termine_${i + 1}`, ageGroup: '0_1' as const, categoryKey: 'termine_planung_absprachen' as const, questionText: { de: text, ...emptyTranslation }, sortOrder: i + 1, isActive: true })),
   ],
 };
 

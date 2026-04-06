@@ -22,3 +22,32 @@ test('Start listener filters responsibilities to current user only', () => {
 
   assert.match(src, /\.filter\(\(resp\): resp is Responsibility => resp !== null\)\s*\.filter\(\(resp\) => resp\.assignedTo === 'user'\);/);
 });
+
+test('Fallback categories are merged into Aufteilen filter results', () => {
+  const src = read('services/responsibilities.service.ts');
+
+  assert.match(src, /export function mergeResponsibilitiesWithCatalogFallback\(/);
+  assert.match(src, /buildCatalogFallbackResponsibilities\(categoryKey, locale\)/);
+  assert.match(src, /assignedTo: 'unassigned'/);
+});
+
+test('Unassigned fallback cards use visible text in assign mode', () => {
+  const src = read('components/home/ResponsibilityCard.tsx');
+
+  assert.match(src, /const textColor = mode === 'start'\s*\? priorityConfig\[responsibility\.priority\]\.text\s*:\s*responsibility\.assignedTo === 'unassigned'\s*\? 'var\(--color-text-primary\)'\s*:\s*'#FFFFFF';/);
+});
+
+test('Ownership dashboard ensures missing category cards even when some cards already exist', () => {
+  const src = read('app/app/ownership-dashboard/page.tsx');
+
+  assert.match(src, /if \(!categoryKeys\.length\) return;/);
+  assert.doesNotMatch(src, /if \(!categoryKeys\.length \|\| cards\.length > 0\) return;/);
+  assert.match(src, /ensureOwnershipCardsForCategories\({/);
+});
+
+test('OwnershipBoard uses catalog fallbacks for empty dashboard categories', () => {
+  const src = read('components/ownership/OwnershipBoard.tsx');
+
+  assert.match(src, /buildCatalogOwnershipCards\(/);
+  assert.match(src, /const cardsForCategory = list\.length > 0 \|\| mode === 'home'\s*\? list\s*:\s*buildCatalogOwnershipCards\(category\);/);
+});

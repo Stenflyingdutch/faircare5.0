@@ -18,7 +18,6 @@ interface SendMailInput {
   invitationId?: string;
 }
 
-const DEFAULT_TEST_RECIPIENT = 'pa4sten@gmail.com';
 const DEFAULT_MAIL_FROM = 'FairCare <noreply@mail.mental-faircare.de>';
 const REQUIRED_MAIL_FROM_DOMAIN = '@mail.mental-faircare.de';
 
@@ -47,11 +46,19 @@ function isProduction() {
 }
 
 export function resolveRecipient(email: string) {
-  const overrideRecipient = process.env.TEST_EMAIL_OVERRIDE?.trim() || DEFAULT_TEST_RECIPIENT;
   if (isProduction()) {
     return { actualRecipient: email, subjectPrefix: '' };
   }
-  return { actualRecipient: overrideRecipient, subjectPrefix: '[TEST] ' };
+  const overrideRecipient = process.env.TEST_EMAIL_OVERRIDE?.trim();
+  if (overrideRecipient) {
+    return { actualRecipient: overrideRecipient, subjectPrefix: '[TEST] ' };
+  }
+  if (resolveAppEnvironment() === 'staging') {
+    return { actualRecipient: email, subjectPrefix: '' };
+  }
+  // development without override: noop
+  console.warn('[mail.resolveRecipient] TEST_EMAIL_OVERRIDE nicht gesetzt in development. Mail wird als noop behandelt.');
+  return { actualRecipient: email, subjectPrefix: '[TEST-NOOP] ' };
 }
 
 async function sendViaResend(to: string, subject: string, html: string) {
@@ -153,6 +160,14 @@ async function sendViaSendgrid(to: string, subject: string, html: string) {
 
 async function sendViaProvider(to: string, subject: string, html: string) {
   const configuredProvider = (process.env.MAIL_PROVIDER ?? '').toLowerCase();
+  const env = resolveAppEnvironment();
+  if (env === 'development' && !process.env.TEST_EMAIL_OVERRIDE) {
+    console.warn('[mail.dispatch] Kein TEST_EMAIL_OVERRIDE in development – verwende noop für Sicherheit.', {
+      to,
+      subject,
+    });
+    return { ok: true, reason: 'noop (no override in dev)', provider: 'noop' };
+  }
   if (configuredProvider === 'noop' || configuredProvider === 'console') {
     console.warn('[mail.dispatch] MAIL_PROVIDER=noop aktiv – Mail wird nicht extern versendet.', {
       to,

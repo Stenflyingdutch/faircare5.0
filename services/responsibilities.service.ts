@@ -1,6 +1,8 @@
 import { onSnapshot, collection, query, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
+import { ownershipTaskPackageSeed } from '@/data/ownershipTaskPackageTemplates';
+import { resolveLocalizedText } from '@/types/i18n';
 import type { OwnershipCardDocument, ResponsibilityPriority, ResponsibilityOwner } from '@/types/ownership';
 import type { QuizCategory } from '@/types/quiz';
 
@@ -248,4 +250,44 @@ export function sortCategoriesByRelevance(
     const countB = countByCategory.get(b) ?? 0;
     return countB - countA;
   });
+}
+
+export function getAllOwnershipCategories(): QuizCategory[] {
+  return Object.keys(ownershipTaskPackageSeed) as QuizCategory[];
+}
+
+export function buildCatalogFallbackResponsibilities(
+  categoryKey: QuizCategory,
+  locale: 'de' | 'en' | 'nl' = 'de',
+): Responsibility[] {
+  const templates = ownershipTaskPackageSeed[categoryKey] ?? [];
+  return templates.map((template, index) => ({
+    id: `catalog_${categoryKey}_${index + 1}`,
+    categoryKey,
+    sourceTemplateId: null,
+    title: resolveLocalizedText(template.title, locale),
+    note: resolveLocalizedText(template.note, locale),
+    ownerUserId: null,
+    focusLevel: null,
+    sortOrder: index + 1,
+    isActive: false,
+    isDeleted: false,
+    createdBy: 'system',
+    updatedBy: 'system',
+    priority: 'observe',
+    assignedTo: 'unassigned',
+  }));
+}
+
+export function mergeResponsibilitiesWithCatalogFallback(
+  categoryKey: QuizCategory,
+  responsibilities: Responsibility[],
+  locale: 'de' | 'en' | 'nl' = 'de',
+): Responsibility[] {
+  const fallbackItems = buildCatalogFallbackResponsibilities(categoryKey, locale);
+  const existingTitles = new Set(responsibilities.map((item) => item.title.trim().toLowerCase()));
+  return [
+    ...responsibilities,
+    ...fallbackItems.filter((item) => !existingTitles.has(item.title.trim().toLowerCase())),
+  ];
 }

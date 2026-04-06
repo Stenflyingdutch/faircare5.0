@@ -4,6 +4,7 @@ import { MouseEvent, useEffect, useMemo, useState } from 'react';
 
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
+  buildCatalogOwnershipCards,
   createOwnershipCard,
   softDeleteOwnershipCard,
   updateOwnershipCardFocus,
@@ -101,8 +102,19 @@ export function OwnershipBoard({
       map.set(card.categoryKey, list);
     });
 
+    if (mode === 'dashboard') {
+      for (const categoryKey of categoryKeys) {
+        if (!map.has(categoryKey)) {
+          map.set(categoryKey, []);
+        }
+      }
+    }
+
     for (const [category, list] of map.entries()) {
-      const sorted = [...list].sort((a, b) => {
+      const cardsForCategory = list.length > 0 || mode === 'home'
+        ? list
+        : buildCatalogOwnershipCards(category);
+      const sorted = [...cardsForCategory].sort((a, b) => {
         if (mode === 'home' && homeOrder) {
           return (homeOrder[a.id] ?? Number.MAX_SAFE_INTEGER) - (homeOrder[b.id] ?? Number.MAX_SAFE_INTEGER);
         }

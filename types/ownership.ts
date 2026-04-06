@@ -3,7 +3,7 @@ import type { Locale, LocalizedText } from '@/types/i18n';
 
 export type OwnershipFocusLevel = 'now' | 'soon' | 'later';
 export type ResponsibilityPriority = 'act' | 'plan' | 'observe';
-export type ResponsibilityOwner = 'user' | 'partner';
+export type ResponsibilityOwner = 'user' | 'partner' | 'unassigned';
 export type RecommendationReasonCode = 'high_test_load' | 'high_perceived_stress' | 'different_perception';
 
 export interface TaskPackageTemplate {

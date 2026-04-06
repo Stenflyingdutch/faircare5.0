@@ -19,6 +19,7 @@ import {
 import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
 import { ownershipTaskPackageSeed } from '@/data/ownershipTaskPackageTemplates';
+import { resolveLocalizedText } from '@/types/i18n';
 import type { Locale } from '@/types/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
 import type {
@@ -156,6 +157,10 @@ export async function saveTaskPackageTemplate(template: TaskPackageTemplate, act
 }
 
 export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: string) {
+  if (ageGroup !== '0_1') {
+    return 0;
+  }
+
   const existing = await fetchTaskPackageTemplatesForAdmin(ageGroup);
   const existingByCategory = new Map<QuizCategory, number>();
   existing.forEach((entry) => {
@@ -350,6 +355,26 @@ export async function ensureOwnershipCardsForCategories(params: {
   if (writes > 0) {
     await batch.commit();
   }
+}
+
+export function buildCatalogOwnershipCards(categoryKey: QuizCategory, locale: Locale = 'de'): OwnershipCardDocument[] {
+  const templates = ownershipTaskPackageSeed[categoryKey] ?? [];
+  return templates.map((template, index) => ({
+    id: `catalog_${categoryKey}_${index + 1}`,
+    categoryKey,
+    sourceTemplateId: null,
+    title: resolveLocalizedText(template.title, locale),
+    note: resolveLocalizedText(template.note, locale),
+    ownerUserId: null,
+    focusLevel: null,
+    sortOrder: index + 1,
+    isActive: false,
+    isDeleted: false,
+    createdBy: 'system',
+    updatedBy: 'system',
+    createdAt: undefined,
+    updatedAt: undefined,
+  }));
 }
 
 export function observeOwnershipCategories(
