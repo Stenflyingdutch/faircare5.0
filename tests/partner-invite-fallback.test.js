@@ -26,5 +26,6 @@ test('partner invite environment detection treats vercel previews as non-product
 test('partner invite and follow-up mails prefer the current browser origin for links', () => {
   assert.match(src, /function resolveAppBaseUrl/);
   assert.match(src, /window\.location\.origin/);
+  assert.match(src, /process\.env\.VERCEL_URL/);
   assert.doesNotMatch(src, /const baseUrl = process\.env\.NEXT_PUBLIC_APP_URL \?\? window\.location\.origin/);
 });

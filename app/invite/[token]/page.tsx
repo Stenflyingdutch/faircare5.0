@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 
 import { fetchAppUserProfile, resolveInvitationByToken, startPartnerSession } from '@/services/partnerFlow.service';
 import { savePartnerLocalSession } from '@/services/partnerSessionStorage';
-import type { InvitationDocument } from '@/types/partner-flow';
+import type { InvitationDocument, InvitationResolutionReason, InvitationResolutionStatus } from '@/types/partner-flow';
 
 
 function normalizeName(value?: string | null) {
@@ -19,20 +19,33 @@ export default function InviteLandingPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<'valid' | 'accepted' | 'expired' | 'invalid'>('invalid');
+  const [status, setStatus] = useState<InvitationResolutionStatus>('invalid');
+  const [reason, setReason] = useState<InvitationResolutionReason | null>('missing_token');
   const [invitation, setInvitation] = useState<InvitationDocument | null>(null);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    const token = params?.token;
-    if (!token) return;
+    const token = params?.token?.trim();
+    console.info('invite.route.entered', { hasToken: Boolean(token), tokenLength: token?.length ?? 0 });
+    if (!token) {
+      setStatus('invalid');
+      setReason('missing_token');
+      setLoading(false);
+      return;
+    }
 
     resolveInvitationByToken(token)
       .then((result) => {
         setStatus(result.status);
-        if (result.status !== 'invalid') {
+        setReason(result.reason);
+        if ('invitation' in result && result.invitation) {
           setInvitation(result.invitation);
         }
+      })
+      .catch((error) => {
+        console.error('invite.route.lookup_failed', error);
+        setStatus('error');
+        setReason('lookup_failed');
       })
       .finally(() => setLoading(false));
   }, [params?.token]);
@@ -81,7 +94,11 @@ export default function InviteLandingPage() {
               {status === 'accepted' && 'Diese Einladung wurde bereits verwendet.'}
               {status === 'expired' && 'Diese Einladung ist abgelaufen.'}
               {status === 'invalid' && 'Dieser Einladungslink ist ungültig.'}
+              {status === 'error' && 'Der Einladungslink konnte gerade nicht geprüft werden. Bitte versuche es erneut.'}
             </p>
+            {status === 'error' && reason === 'lookup_failed' && (
+              <p className="helper">Wenn der Fehler bestehen bleibt, erstelle bitte eine neue Einladung.</p>
+            )}
             <Link href="/" className="button secondary">Zur Startseite</Link>
           </article>
         )}
