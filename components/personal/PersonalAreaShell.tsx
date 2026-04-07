@@ -10,7 +10,7 @@ import { isTeamCheckBadgeVisible } from '@/services/teamCheck.logic';
 
 const personalNavItems = [
   { label: 'Meine', href: '/app/home', tone: 'violet', gatedUntilPartnerCompleted: true },
-  { label: 'Unsere', href: '/app/ownership-dashboard', tone: 'petrol', gatedUntilPartnerCompleted: true },
+  { label: 'Unsere', href: '/app/ownership-dashboard', tone: 'petrol', gatedUntilPartnerCompleted: false },
   { label: 'Austausch', href: '/app/review', tone: 'violet', gatedUntilPartnerCompleted: true },
   { label: 'Transparenz', href: '/app/transparenz', tone: 'petrol', gatedUntilPartnerCompleted: false },
 ] as const;
