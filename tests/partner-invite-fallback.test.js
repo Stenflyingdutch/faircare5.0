@@ -28,3 +28,10 @@ test('partner invite and follow-up mails prefer the current browser origin for l
   assert.match(src, /window\.location\.origin/);
   assert.doesNotMatch(src, /const baseUrl = process\.env\.NEXT_PUBLIC_APP_URL \?\? window\.location\.origin/);
 });
+
+test('invitation token resolution normalizes pasted or encoded tokens', () => {
+  assert.match(src, /function normalizeInvitationToken/);
+  assert.match(src, /decodeURIComponent/);
+  assert.match(src, /match\(\/\[a-f0-9\]\{64\}\/i\)/);
+  assert.match(src, /toLowerCase\(\)/);
+});

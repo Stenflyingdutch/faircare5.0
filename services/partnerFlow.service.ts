@@ -99,6 +99,19 @@ function randomToken() {
   return Array.from(arr).map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
+function normalizeInvitationToken(rawToken: string) {
+  const trimmed = rawToken.trim();
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(trimmed);
+    } catch {
+      return trimmed;
+    }
+  })();
+  const candidate = decoded.match(/[a-f0-9]{64}/i)?.[0] ?? decoded;
+  return candidate.toLowerCase();
+}
+
 export interface InviteDebugDetails {
   headline: string;
   userErrors: string[];
@@ -462,7 +475,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
 }
 
 export async function resolveInvitationByToken(token: string) {
-  const tokenHash = await sha256(token);
+  const tokenHash = await sha256(normalizeInvitationToken(token));
   const snap = await getDocs(query(collection(db, firestoreCollections.invitations), where('tokenHash', '==', tokenHash), limit(1)));
   if (snap.empty) {
     return { status: 'invalid' as const };
