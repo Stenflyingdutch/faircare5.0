@@ -3,9 +3,19 @@ import type { OwnershipAnswer, QuestionTemplate, QuizCategory, StressSelection }
 import type { TeamCheckPlan } from '@/types/team-check';
 
 export type FamilyStatus = 'invited' | 'partner_completed' | 'joint_pending' | 'joint_active';
-export type InvitationStatus = 'sent' | 'accepted' | 'expired';
+export type InvitationStatus = 'sent' | 'accepted' | 'expired' | 'revoked';
 export type JointResultStatus = 'pending_activation' | 'active';
 export type FamilyRole = 'initiator' | 'partner';
+export type InvitationResolutionStatus = 'valid' | 'accepted' | 'expired' | 'invalid' | 'error';
+export type InvitationResolutionReason =
+  | 'missing_token'
+  | 'invite_not_found'
+  | 'invite_expired'
+  | 'invite_revoked'
+  | 'invite_already_completed'
+  | 'lookup_failed'
+  | 'invalid_route_params'
+  | 'premature_invalid_state';
 
 export interface AppUserProfile {
   id: string;
@@ -52,14 +62,44 @@ export interface InvitationDocument {
   initiatorUserId: string;
   partnerEmail: string;
   personalMessage?: string | null;
-  tokenHash: string;
+  token?: string | null;
+  tokenHash?: string | null;
   status: InvitationStatus;
   sentAt: string;
   acceptedAt?: string | null;
-  expiresAt: string;
-  questionSetId: string;
-  questionSetSnapshot: QuestionTemplate[];
+  expiresAt?: string | null;
+  revokedAt?: string | null;
+  questionSetId?: string | null;
+  questionIds?: string[];
+  questionSetSnapshot?: QuestionTemplate[];
 }
+
+export type InvitationResolution =
+  | {
+    status: 'valid';
+    reason: null;
+    invitation: InvitationDocument;
+  }
+  | {
+    status: 'accepted';
+    reason: 'invite_already_completed';
+    invitation: InvitationDocument;
+  }
+  | {
+    status: 'expired';
+    reason: 'invite_expired';
+    invitation: InvitationDocument;
+  }
+  | {
+    status: 'invalid';
+    reason: Exclude<InvitationResolutionReason, 'invite_already_completed' | 'invite_expired' | 'lookup_failed'>;
+    invitation?: InvitationDocument;
+  }
+  | {
+    status: 'error';
+    reason: 'lookup_failed';
+    errorMessage?: string;
+  };
 
 export interface QuizSessionDocument {
   id: string;

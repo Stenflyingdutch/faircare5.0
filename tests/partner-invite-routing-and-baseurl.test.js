@@ -17,7 +17,7 @@ test('legacy invite query links are redirected to token path route', () => {
 test('invite page keeps invalid-state messaging distinct from transient lookup failures', () => {
   assert.match(inviteTokenPageSrc, /setReason\('lookup_failed'\)/);
   assert.match(inviteTokenPageSrc, /reason === 'lookup_failed'/);
-  assert.match(inviteTokenPageSrc, /Die Einladung konnte gerade nicht geprüft werden/);
+  assert.match(inviteTokenPageSrc, /Einladungslink konnte gerade nicht geprüft werden/);
 });
 
 test('invite base-url resolution prefers Vercel production custom domain over deployment url', () => {

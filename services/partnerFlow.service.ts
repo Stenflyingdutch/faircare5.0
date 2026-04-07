@@ -23,6 +23,7 @@ import type {
   FamilyDocument,
   FamilyRole,
   InvitationDocument,
+  InvitationResolution,
   JointResultDocument,
   QuizResultDocument,
   QuizSessionDocument,
@@ -147,6 +148,19 @@ export function sanitizeInvitationToken(rawToken?: string | null) {
   return token.replace(/\s+/g, '');
 }
 
+function maskTokenForLog(token: string) {
+  if (token.length <= 12) return token;
+  return `${token.slice(0, 8)}...${token.slice(-4)}`;
+}
+
+function isInvitationCompleted(status?: string | null) {
+  return ['accepted', 'completed', 'consumed', 'used'].includes((status ?? '').toLowerCase());
+}
+
+function isInvitationRevoked(status?: string | null) {
+  return ['revoked', 'cancelled', 'canceled'].includes((status ?? '').toLowerCase());
+}
+
 export interface InviteDebugDetails {
   headline: string;
   userErrors: string[];
@@ -171,19 +185,6 @@ export class InviteFlowError extends Error {
     this.details = details;
   }
 }
-
-export type InvitationResolveReason =
-  | 'ok'
-  | 'missing_token'
-  | 'invalid_route_params'
-  | 'invite_not_found'
-  | 'invite_expired'
-  | 'invite_revoked'
-  | 'invite_already_completed'
-  | 'family_missing'
-  | 'partner_email_mismatch'
-  | 'project_mismatch'
-  | 'lookup_failed';
 
 function buildInviteError(
   code: string,
@@ -521,11 +522,16 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
   }
 }
 
-export async function resolveInvitationByToken(token: string) {
+export async function resolveInvitationByToken(token: string): Promise<InvitationResolution> {
   const normalizedToken = sanitizeInvitationToken(token);
   if (!normalizedToken) {
-    return { status: 'invalid' as const, reason: 'missing_token' as const };
+    return { status: 'invalid', reason: token ? 'invalid_route_params' : 'missing_token' };
   }
+
+  console.info('invite.lookup.start', {
+    token: maskTokenForLog(normalizedToken),
+    tokenLength: normalizedToken.length,
+  });
 
   try {
     const invitationCollection = collection(db, firestoreCollections.invitations);
@@ -568,42 +574,85 @@ export async function resolveInvitationByToken(token: string) {
     }
 
     if (!invitation) {
-      console.info('invite.lookup.not_found', { reason: 'invite_not_found', tokenLength: normalizedToken.length });
-      return { status: 'invalid' as const, reason: 'invite_not_found' as const };
+      console.info('invite.lookup.result', { reason: 'invite_not_found', token: maskTokenForLog(normalizedToken) });
+      return { status: 'invalid', reason: 'invite_not_found' };
     }
 
-    if (invitation.status === 'accepted') return { status: 'accepted' as const, invitation, reason: 'invite_already_completed' as const };
-    if ((invitation as { status?: string }).status === 'revoked') {
-      return { status: 'invalid' as const, invitation, reason: 'invite_revoked' as const };
+    const invitationStatus = invitation.status?.toLowerCase() ?? '';
+
+    console.info('invite.lookup.result', {
+      invitationId: invitation.id,
+      status: invitationStatus || 'missing',
+    });
+
+    if (isInvitationRevoked(invitationStatus) || invitation.revokedAt) {
+      console.info('invite.lookup.invalid_reason', { invitationId: invitation.id, reason: 'invite_revoked' });
+      return { status: 'invalid', reason: 'invite_revoked', invitation };
+    }
+
+    if (isInvitationCompleted(invitationStatus) || Boolean(invitation.acceptedAt)) {
+      console.info('invite.lookup.status', { invitationId: invitation.id, reason: 'invite_already_completed' });
+      return { status: 'accepted', reason: 'invite_already_completed', invitation };
+    }
+
+    if (invitationStatus === 'expired') {
+      console.info('invite.lookup.status', { invitationId: invitation.id, reason: 'invite_expired' });
+      return { status: 'expired', reason: 'invite_expired', invitation };
     }
 
     const familySnapshot = await getDoc(doc(db, firestoreCollections.families, invitation.familyId));
     if (familySnapshot.exists()) {
       const family = familySnapshot.data() as FamilyDocument;
       if (family.partnerRegistered || family.partnerUserId) {
-        return { status: 'accepted' as const, invitation, reason: 'invite_already_completed' as const };
+        console.info('invite.lookup.status', { invitationId: invitation.id, reason: 'invite_already_completed' });
+        return { status: 'accepted', reason: 'invite_already_completed', invitation };
       }
-    } else {
-      return { status: 'invalid' as const, invitation, reason: 'family_missing' as const };
     }
 
-    if (Date.parse(invitation.expiresAt) < Date.now()) {
-      await setDoc(doc(db, firestoreCollections.invitations, invitation.id), { status: 'expired' }, { merge: true });
-      return { status: 'expired' as const, invitation, reason: 'invite_expired' as const };
+    if (invitation.expiresAt) {
+      const expiresAtTime = Date.parse(invitation.expiresAt);
+      if (Number.isFinite(expiresAtTime) && expiresAtTime < Date.now()) {
+        await setDoc(doc(db, firestoreCollections.invitations, invitation.id), { status: 'expired' }, { merge: true });
+        console.info('invite.lookup.status', { invitationId: invitation.id, reason: 'invite_expired' });
+        return { status: 'expired', reason: 'invite_expired', invitation };
+      }
     }
 
-    return { status: 'valid' as const, invitation, reason: 'ok' as const };
+    if (invitationStatus && invitationStatus !== 'sent') {
+      console.warn('invite.lookup.invalid_reason', {
+        invitationId: invitation.id,
+        reason: 'premature_invalid_state',
+        invitationStatus,
+      });
+      return { status: 'invalid', reason: 'premature_invalid_state', invitation };
+    }
+
+    console.info('invite.lookup.status', { invitationId: invitation.id, reason: 'valid' });
+    return { status: 'valid', reason: null, invitation };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('invite.lookup.failed', {
-      reason: 'lookup_failed',
-      message: error instanceof Error ? error.message : String(error),
+      token: maskTokenForLog(normalizedToken),
+      errorMessage,
       project: firebaseProjectId,
     });
-    return { status: 'invalid' as const, reason: 'lookup_failed' as const };
+    return {
+      status: 'error',
+      reason: 'lookup_failed',
+      errorMessage,
+    };
   }
 }
 
 export async function startPartnerSession(invitation: InvitationDocument) {
+  const questionSetSnapshot = invitation.questionSetSnapshot?.length
+    ? invitation.questionSetSnapshot
+    : (invitation.questionIds?.length ? await getQuestionSnapshot(invitation.questionIds) : []);
+
+  if (!questionSetSnapshot.length) {
+    throw new Error('Der Fragenkatalog für diese Einladung konnte nicht geladen werden.');
+  }
+
   const sessionId = doc(collection(db, firestoreCollections.quizSessions)).id;
   const payload: QuizSessionDocument = {
     id: sessionId,
@@ -611,8 +660,8 @@ export async function startPartnerSession(invitation: InvitationDocument) {
     userId: null,
     role: 'partner',
     source: 'partner',
-    questionSetId: invitation.questionSetId,
-    questionSetSnapshot: invitation.questionSetSnapshot,
+    questionSetId: invitation.questionSetId ?? `invite-${invitation.id}`,
+    questionSetSnapshot,
     filterAnswers: null,
     stressCategories: [],
     answers: {},
