@@ -50,6 +50,19 @@ async function deleteFamilyCascade(familyId: string) {
   ]);
 }
 
+async function getAdminUserState(userId: string) {
+  const [profileSnapshot, authUser] = await Promise.all([
+    usersCollection().doc(userId).get(),
+    adminAuth.getUser(userId).catch(() => null),
+  ]);
+
+  return {
+    profile: profileSnapshot.exists ? profileSnapshot.data() as AppUserProfile : null,
+    authUser,
+    userRef: usersCollection().doc(userId),
+  };
+}
+
 function toAdminUserResponse(userId: string, profile: AppUserProfile, authUser?: Awaited<ReturnType<typeof adminAuth.getUser>>) {
   const firstName = deriveFirstName(profile);
   const lastName = deriveLastName(profile);
@@ -127,12 +140,10 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
   }
 
   const { userId } = await context.params;
-  const userRef = usersCollection().doc(userId);
-  const snapshot = await userRef.get();
-  const profile = snapshot.exists ? snapshot.data() as AppUserProfile : null;
+  const { profile, authUser, userRef } = await getAdminUserState(userId);
 
-  if (!profile) {
-    return NextResponse.json({ error: 'Nutzerprofil nicht gefunden.' }, { status: 404 });
+  if (!profile && !authUser) {
+    return NextResponse.json({ error: 'Nutzerkonto nicht gefunden.' }, { status: 404 });
   }
 
   try {
@@ -141,7 +152,7 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
     return NextResponse.json({ error: (error as Error).message }, { status: 409 });
   }
 
-  if (profile.familyId) {
+  if (profile?.familyId) {
     await deleteFamilyCascade(profile.familyId);
   }
 
@@ -150,10 +161,12 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
     deleteCollectionByField('quizResults', 'userId', userId),
     deleteCollectionByField('quizSessions', 'userId', userId),
     deleteCollectionByField('mailLogs', 'userId', userId),
-    userRef.delete(),
+    profile ? userRef.delete() : Promise.resolve(),
   ]);
 
-  await adminAuth.deleteUser(userId);
+  if (authUser) {
+    await adminAuth.deleteUser(userId);
+  }
 
   return NextResponse.json({ success: true });
 }
