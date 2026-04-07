@@ -946,12 +946,26 @@ export async function fetchDashboardBundle(userId: string) {
   const profile = await fetchAppUserProfile(userId);
   if (!profile) return { profile: null };
 
-  let ownResult = profile.familyId
-    ? await fetchResultByRole(profile.familyId, profile.role === 'partner' ? 'partner' : 'initiator')
-    : null;
+  const familyId = profile.familyId ?? null;
+  const ownRole = profile.role === 'partner' ? 'partner' : 'initiator';
 
+  let latestInitiatorResultPromise: Promise<Awaited<ReturnType<typeof getLatestInitiatorResult>> | null> | null = null;
+  const getLatestInitiatorResultOnce = async () => {
+    if (profile.role === 'partner') return null;
+    if (!latestInitiatorResultPromise) {
+      latestInitiatorResultPromise = getLatestInitiatorResult(userId);
+    }
+    return latestInitiatorResultPromise;
+  };
+
+  const [ownResultInitial, familySnapshot] = await Promise.all([
+    familyId ? fetchResultByRole(familyId, ownRole) : Promise.resolve(null),
+    familyId ? getDoc(doc(db, firestoreCollections.families, familyId)) : Promise.resolve(null),
+  ]);
+
+  let ownResult = ownResultInitial;
   if (ownResult && profile.role !== 'partner' && (!ownResult.stressCategories || ownResult.stressCategories.length === 0)) {
-    const raw = await getLatestInitiatorResult(userId);
+    const raw = await getLatestInitiatorResultOnce();
     if (raw?.stressCategories) {
       ownResult = {
         ...ownResult,
@@ -969,45 +983,47 @@ export async function fetchDashboardBundle(userId: string) {
   let invitationPartnerEmail: string | null = null;
   let ageGroupForOwnership: AgeGroup | null = null;
 
-  if (profile.familyId) {
-    const familySnap = await getDoc(doc(db, firestoreCollections.families, profile.familyId));
-    family = familySnap.exists() ? (familySnap.data() as FamilyDocument) : null;
-    if (family?.initiatorUserId) {
-      const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
-      initiatorDisplayName = initiatorProfile?.displayName || deriveNameFromEmail(initiatorProfile?.email) || 'Initiator';
-    }
-    if (family?.partnerUserId) {
-      const partnerProfile = await fetchAppUserProfile(family.partnerUserId);
-      partnerDisplayName = partnerProfile?.displayName || deriveNameFromEmail(partnerProfile?.email) || null;
-    }
-    if (family?.invitationId) {
-      const invitationSnap = await getDoc(doc(db, firestoreCollections.invitations, family.invitationId));
-      if (invitationSnap.exists()) {
-        const invitation = invitationSnap.data() as InvitationDocument;
-        invitationPartnerEmail = invitation.partnerEmail ?? null;
-        if (!partnerDisplayName) {
-          partnerDisplayName = deriveNameFromEmail(invitationPartnerEmail);
-        }
-      }
+  family = familySnapshot?.exists() ? (familySnapshot.data() as FamilyDocument) : null;
+
+  if (family) {
+    const [initiatorProfile, partnerProfile, invitation] = await Promise.all([
+      family.initiatorUserId ? fetchAppUserProfile(family.initiatorUserId) : Promise.resolve(null),
+      family.partnerUserId ? fetchAppUserProfile(family.partnerUserId) : Promise.resolve(null),
+      family.invitationId
+        ? getDoc(doc(db, firestoreCollections.invitations, family.invitationId)).then((snap) => (snap.exists() ? snap.data() as InvitationDocument : null))
+        : Promise.resolve(null),
+    ]);
+
+    initiatorDisplayName = initiatorProfile?.displayName || deriveNameFromEmail(initiatorProfile?.email) || 'Initiator';
+    partnerDisplayName = partnerProfile?.displayName || deriveNameFromEmail(partnerProfile?.email) || null;
+
+    invitationPartnerEmail = invitation?.partnerEmail ?? null;
+    if (!partnerDisplayName) {
+      partnerDisplayName = deriveNameFromEmail(invitationPartnerEmail);
     }
 
-    const canSeeSharedResults = Boolean(family?.resultsUnlocked && family?.sharedResultsOpened);
-    if (canSeeSharedResults) {
-      const jointSnap = await getDocs(query(
-        collection(db, firestoreCollections.jointResults),
-        where('familyId', '==', profile.familyId),
-        limit(1),
-      ));
+    const canSeeSharedResults = Boolean(family.resultsUnlocked && family.sharedResultsOpened);
+    if (canSeeSharedResults && familyId) {
+      const [jointSnap, initiator, partner] = await Promise.all([
+        getDocs(query(
+          collection(db, firestoreCollections.jointResults),
+          where('familyId', '==', familyId),
+          limit(1),
+        )),
+        fetchResultByRole(familyId, 'initiator'),
+        fetchResultByRole(familyId, 'partner'),
+      ]);
+
       if (!jointSnap.empty) {
         joint = { id: jointSnap.docs[0].id, ...jointSnap.docs[0].data() } as JointResultDocument;
       }
-      initiatorResult = await fetchResultByRole(profile.familyId, 'initiator');
-      partnerResult = await fetchResultByRole(profile.familyId, 'partner');
+      initiatorResult = initiator;
+      partnerResult = partner;
     }
   }
 
   if (!ownResult && profile.role !== 'partner') {
-    const raw = await getLatestInitiatorResult(userId);
+    const raw = await getLatestInitiatorResultOnce();
     if (raw?.questionIds?.length) {
       const snapshot = await getQuestionSnapshot(raw.questionIds);
       const categoryScores = computeCategoryScores(snapshot, raw.answers);
@@ -1033,7 +1049,7 @@ export async function fetchDashboardBundle(userId: string) {
     ageGroupForOwnership = ownResult.questionSetSnapshot[0]?.ageGroup ?? null;
   }
   if (!ageGroupForOwnership && profile.role !== 'partner') {
-    const raw = await getLatestInitiatorResult(userId);
+    const raw = await getLatestInitiatorResultOnce();
     const candidate = raw?.filter?.youngestAgeGroup;
     if (candidate && ['0_1', '1_3', '3_6', '6_10', '10_plus'].includes(candidate)) {
       ageGroupForOwnership = candidate as AgeGroup;
