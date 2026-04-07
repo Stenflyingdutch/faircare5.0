@@ -99,8 +99,6 @@ export function OwnershipBoard({
   mode,
   ownerOptions,
   categoryKeys = [],
-  preselectedCategoryKeys = [],
-  isFocusedEntry = false,
 }: OwnershipBoardProps) {
   const [openedCardId, setOpenedCardId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -168,26 +166,15 @@ export function OwnershipBoard({
     cards: categoryCards,
   })), [grouped]);
 
-  const resolvedPreselectedCategories = useMemo(
-    () => preselectedCategoryKeys.filter((entry) => groupedWithStatus.some((group) => group.category === entry)),
-    [preselectedCategoryKeys, groupedWithStatus],
-  );
-
   useEffect(() => {
     if (mode !== 'dashboard') return;
-    if (isFocusedEntry && selectedCategories.length === 0 && resolvedPreselectedCategories.length > 0) {
-      if (!areCategoryListsEqual(selectedCategories, resolvedPreselectedCategories)) {
-        setSelectedCategories(resolvedPreselectedCategories);
-      }
-      return;
-    }
     if (!selectedCategories.length) return;
     const validSet = new Set(groupedWithStatus.map((group) => group.category));
     const next = selectedCategories.filter((category) => validSet.has(category));
     if (!areCategoryListsEqual(next, selectedCategories)) {
       setSelectedCategories(next);
     }
-  }, [mode, isFocusedEntry, selectedCategories, groupedWithStatus, resolvedPreselectedCategories]);
+  }, [mode, selectedCategories, groupedWithStatus]);
 
   const filteredGroups = useMemo(() => groupedWithStatus
     .filter((group) => {
