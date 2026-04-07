@@ -4,7 +4,13 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { fetchAppUserProfile, resolveInvitationByToken, sanitizeInvitationToken, startPartnerSession } from '@/services/partnerFlow.service';
+import {
+  fetchAppUserProfile,
+  resolveInvitationByToken,
+  sanitizeInvitationToken,
+  startPartnerSession,
+  type InvitationResolveReason,
+} from '@/services/partnerFlow.service';
 import { savePartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { InvitationDocument } from '@/types/partner-flow';
 
@@ -20,19 +26,37 @@ export default function InviteLandingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<'valid' | 'accepted' | 'expired' | 'invalid'>('invalid');
+  const [reason, setReason] = useState<InvitationResolveReason>('invalid_route_params');
   const [invitation, setInvitation] = useState<InvitationDocument | null>(null);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
+    console.info('invite.route.entered', { rawToken: params?.token ?? null });
     const token = sanitizeInvitationToken(params?.token);
-    if (!token) return;
+    console.info('invite.route.parsed_token', { tokenLength: token.length });
+    if (!token) {
+      setStatus('invalid');
+      setReason('missing_token');
+      setLoading(false);
+      return;
+    }
 
     resolveInvitationByToken(token)
       .then((result) => {
+        console.info('invite.lookup.result', { status: result.status, reason: result.reason ?? 'n/a' });
         setStatus(result.status);
+        setReason(result.reason ?? 'lookup_failed');
         if (result.status !== 'invalid') {
           setInvitation(result.invitation);
         }
+      })
+      .catch((error) => {
+        console.error('invite.lookup.failed', {
+          reason: 'lookup_failed',
+          message: error instanceof Error ? error.message : String(error),
+        });
+        setStatus('invalid');
+        setReason('lookup_failed');
       })
       .finally(() => setLoading(false));
   }, [params?.token]);
@@ -81,7 +105,8 @@ export default function InviteLandingPage() {
             <p>
               {status === 'accepted' && 'Diese Einladung wurde bereits verwendet.'}
               {status === 'expired' && 'Diese Einladung ist abgelaufen.'}
-              {status === 'invalid' && 'Dieser Einladungslink ist ungültig.'}
+              {status === 'invalid' && reason === 'lookup_failed' && 'Die Einladung konnte gerade nicht geprüft werden. Bitte versuche es erneut.'}
+              {status === 'invalid' && reason !== 'lookup_failed' && 'Dieser Einladungslink ist ungültig.'}
             </p>
             <Link href="/" className="button secondary">Zur Startseite</Link>
           </article>
