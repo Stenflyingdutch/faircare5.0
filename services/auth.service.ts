@@ -7,7 +7,46 @@ export function observeAuthState(callback: (user: User | null) => void) {
 }
 
 export async function registerUser(email: string, password: string) {
-  return createUserWithEmailAndPassword(auth, email, password);
+  return createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+}
+
+function isNetworkLikeError(error: unknown) {
+  const code = (error as { code?: string })?.code?.toLowerCase();
+  const message = (error as { message?: string })?.message?.toLowerCase() ?? '';
+
+  return code === 'auth/network-request-failed'
+    || message.includes('failed to fetch')
+    || message.includes('network request failed')
+    || message.includes('load failed');
+}
+
+async function postJson(url: string, body: Record<string, unknown>, code: string, fallbackMessage: string) {
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    const message = isNetworkLikeError(error)
+      ? 'Die Verbindung zum Server ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.'
+      : fallbackMessage;
+    const wrapped = new Error(message) as Error & { code?: string };
+    wrapped.code = code;
+    throw wrapped;
+  }
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    const wrapped = new Error(payload?.error ?? fallbackMessage) as Error & { code?: string };
+    wrapped.code = code;
+    throw wrapped;
+  }
+
+  return response.json().catch(() => null);
 }
 
 export async function loginUser(email: string, password: string) {
@@ -16,19 +55,12 @@ export async function loginUser(email: string, password: string) {
 
 export async function syncAuthSession(user: User) {
   const idToken = await user.getIdToken();
-  const response = await fetch('/api/auth/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
-    body: JSON.stringify({ idToken }),
-  });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    const error = new Error(payload?.error ?? 'Deine Anmeldung konnte nicht bestätigt werden. Bitte versuche es erneut.') as Error & { code?: string };
-    error.code = 'auth/session-sync-failed';
-    throw error;
-  }
+  await postJson(
+    '/api/auth/session',
+    { idToken },
+    'auth/session-sync-failed',
+    'Deine Anmeldung konnte nicht bestätigt werden. Bitte versuche es erneut.',
+  );
 }
 
 export async function signOutUser() {
@@ -57,12 +89,24 @@ export function resolveRegistrationErrorMessage(error: unknown) {
     return 'Bitte verwende ein stärkeres Passwort mit mindestens 6 Zeichen.';
   }
 
+  if (code === 'auth/operation-not-allowed') {
+    return 'E-Mail-Registrierung ist aktuell nicht aktiviert. Bitte prüfe Firebase Auth in Production.';
+  }
+
+  if (code === 'auth/network-request-failed') {
+    return 'Die Verbindung zu Firebase ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.';
+  }
+
   if (code === 'auth/session-sync-failed') {
     return message || 'Deine Anmeldung konnte nicht bestätigt werden. Bitte versuche es erneut.';
   }
 
   if (code?.startsWith('partner_registration/')) {
     return message || 'Die Partner-Registrierung konnte nicht abgeschlossen werden.';
+  }
+
+  if (message && isNetworkLikeError(error)) {
+    return 'Die Verbindung zum Server ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.';
   }
 
   return 'Registrierung fehlgeschlagen. Bitte prüfe deine Eingaben und versuche es erneut.';

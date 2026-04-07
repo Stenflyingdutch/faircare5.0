@@ -737,17 +737,25 @@ export async function finalizePartnerRegistration(params: {
   email: string;
   displayName?: string | null;
 }) {
-  const response = await fetch('/api/partner/finalize-registration', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
-    body: JSON.stringify(params),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch('/api/partner/finalize-registration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(params),
+    });
+  } catch {
+    const error = new Error('Die Verbindung zum Server ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.') as Error & { code?: string };
+    error.code = 'partner_registration/network_failed';
+    throw error;
+  }
 
   const payload = await response.json().catch(() => null) as { error?: string; code?: string; familyId?: string } | null;
   if (!response.ok) {
     const error = new Error(payload?.error ?? 'Partner-Registrierung konnte nicht abgeschlossen werden.') as Error & { code?: string };
-    error.code = payload?.code;
+    error.code = payload?.code ?? 'partner_registration/unexpected';
     throw error;
   }
 

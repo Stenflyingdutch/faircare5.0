@@ -26,4 +26,7 @@ test('registration error handling exposes partner finalization and session sync 
   assert.match(authServiceSrc, /auth\/session-sync-failed/);
   assert.match(authServiceSrc, /code\?\.startsWith\('partner_registration\/'\)/);
   assert.match(authServiceSrc, /Deine Anmeldung konnte nicht bestätigt werden/);
+  assert.match(authServiceSrc, /auth\/operation-not-allowed/);
+  assert.match(authServiceSrc, /auth\/network-request-failed/);
+  assert.match(partnerFlowSrc, /partner_registration\/network_failed/);
 });
