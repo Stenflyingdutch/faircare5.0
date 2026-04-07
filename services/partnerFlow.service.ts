@@ -737,110 +737,21 @@ export async function finalizePartnerRegistration(params: {
   email: string;
   displayName?: string | null;
 }) {
-  const invitationState = await resolveInvitationByToken(params.invitationToken);
-  if (invitationState.status !== 'valid') {
-    throw new Error('Die Einladung ist ungültig oder nicht mehr aktiv.');
-  }
-
-  const invitation = invitationState.invitation;
-  const normalizedEmail = normalizeEmail(params.email);
-
-  const sessionRef = doc(db, firestoreCollections.quizSessions, params.sessionId);
-  const sessionSnapshot = await getDoc(sessionRef);
-  if (!sessionSnapshot.exists()) throw new Error('Partner-Session fehlt.');
-  const session = sessionSnapshot.data() as QuizSessionDocument;
-  if (session.familyId !== invitation.familyId) {
-    throw new Error('Die Partner-Session passt nicht zur Einladung. Bitte starte den Link erneut.');
-  }
-  if (!session.completedAt) throw new Error('Bitte schließe erst den Partner-Test ab.');
-
-  const categoryScores = computeCategoryScores(session.questionSetSnapshot, session.answers);
-  const totalScore = computeTotalScore(categoryScores);
-
-  const resultId = doc(collection(db, firestoreCollections.quizResults)).id;
-  const createdAt = nowIso();
-  const normalizedDisplayName = normalizeName(params.displayName?.trim()) || deriveNameFromEmail(normalizedEmail);
-  const firstName = normalizedDisplayName?.split(' ')[0] ?? '';
-  const lastName = normalizedDisplayName?.split(' ').slice(1).join(' ') ?? '';
-
-  await runTransaction(db, async (transaction) => {
-    transaction.set(doc(db, firestoreCollections.users, params.userId), {
-      id: params.userId,
-      email: normalizedEmail,
-      displayName: buildDisplayName(firstName, lastName) || normalizeName(normalizedDisplayName) || null,
-      firstName: normalizeName(firstName) ?? null,
-      lastName: normalizeName(lastName) ?? null,
-      familyId: invitation.familyId,
-      role: 'partner',
-      createdAt,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-
-    transaction.set(sessionRef, {
-      userId: params.userId,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-
-    transaction.set(doc(db, firestoreCollections.quizResults, resultId), {
-      id: resultId,
-      familyId: invitation.familyId,
-      userId: params.userId,
-      role: 'partner',
-      answers: session.answers,
-      categoryScores,
-      totalScore,
-      interpretation: describeTotalScore(totalScore),
-      filterPerceptionAnswer: session.filterAnswers?.perception ?? null,
-      stressCategories: session.stressCategories ?? [],
-      completedAt: session.completedAt!,
-      questionSetSnapshot: session.questionSetSnapshot,
-      createdAt,
-    } satisfies QuizResultDocument);
-
-    transaction.set(doc(db, firestoreCollections.families, invitation.familyId), {
-      partnerUserId: params.userId,
-      status: 'partner_completed',
-      initiatorRegistered: true,
-      initiatorCompleted: true,
-      partnerCompleted: true,
-      partnerRegistered: true,
-      resultsUnlocked: false,
-      sharedResultsOpened: false,
-      unlockedAt: null,
-      unlockedBy: null,
-      sharedResultsOpenedAt: null,
-      sharedResultsOpenedBy: null,
-      resultsDiscussedAt: null,
-      resultsDiscussedBy: null,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
+  const response = await fetch('/api/partner/finalize-registration', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(params),
   });
 
-  const familyRef = doc(db, firestoreCollections.families, invitation.familyId);
-  const familySnapshot = await getDoc(familyRef);
-  if (familySnapshot.exists()) {
-    const family = familySnapshot.data() as FamilyDocument;
-    const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
-    const baseUrl = resolveAppBaseUrl();
-    const loginUrl = `${baseUrl}/login`;
-
-    if (initiatorProfile?.email) {
-      await sendAppMail({
-        type: 'partner_completed_notify_initiator',
-        to: initiatorProfile.email,
-        subject: 'Dein Partner hat FairCare abgeschlossen',
-        familyId: family.id,
-        html: `
-          <h2>Dein Partner hat FairCare abgeschlossen</h2>
-          <p>Dein Partner hat den Test und die Registrierung erfolgreich abgeschlossen.</p>
-          <p>Melde dich jetzt an, um die Partner- und Gesamtergebnisse freizuschalten.</p>
-          <p><a href="${loginUrl}">Zum Login</a></p>
-        `,
-      });
-    }
+  const payload = await response.json().catch(() => null) as { error?: string; code?: string; familyId?: string } | null;
+  if (!response.ok) {
+    const error = new Error(payload?.error ?? 'Partner-Registrierung konnte nicht abgeschlossen werden.') as Error & { code?: string };
+    error.code = payload?.code;
+    throw error;
   }
 
-  return { familyId: invitation.familyId };
+  return { familyId: payload?.familyId ?? '' };
 }
 
 async function fetchResultByRole(familyId: string, role: FamilyRole) {
