@@ -14,7 +14,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 import { app, auth, db, firebaseProjectId } from '@/lib/firebase';
-import { sendAppMail } from '@/services/mail-client.service';
+import { MailClientError, sendAppMail } from '@/services/mail-client.service';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
 import { buildDisplayName, normalizeEmailAddress, normalizePersonName } from '@/services/user-profile.service';
 import { firestoreCollections } from '@/types/domain';
@@ -84,7 +84,14 @@ function resolveAppBaseUrl() {
     return window.location.origin;
   }
 
-  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_BASE_URL ?? 'http://localhost:3000';
+  const explicitUrl = process.env.APP_BASE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (explicitUrl) return explicitUrl.replace(/\/+$/, '');
+
+  if (process.env.VERCEL_URL?.trim()) {
+    return `https://${process.env.VERCEL_URL.trim().replace(/\/+$/, '')}`;
+  }
+
+  return 'http://localhost:3000';
 }
 
 async function sha256(value: string) {
@@ -236,25 +243,24 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
   } catch (error) {
     const callableError = error as { code?: string; message?: string; details?: unknown };
     const appEnv = resolveInviteRuntimeEnvironment();
-    const allowLocalFallback = appEnv !== 'production';
     const fallbackEligible = shouldUseCallableInviteFallback(callableError);
 
-    if (allowLocalFallback && fallbackEligible) {
+    if (fallbackEligible) {
       console.info('[sendPartnerInvitation] Callable sendPartnerInvite unavailable, using fallback.', {
         appEnv,
         code: callableError?.code,
         message: callableError?.message,
       });
     } else {
-      console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
+      console.error('mail.invite.callable_error', {
         code: callableError?.code,
         message: callableError?.message,
         details: callableError?.details,
       });
     }
 
-    if (allowLocalFallback && fallbackEligible) {
-      console.info('[sendPartnerInvitation] Falling back to local invite flow', {
+    if (fallbackEligible) {
+      console.info('mail.invite.callable_fallback', {
         appEnv,
         code: callableError?.code,
       });
@@ -279,9 +285,7 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
 }
 
 async function sendPartnerInvitationFallback(partnerEmail: string, userId: string, personalMessage?: string) {
-  console.info('[sendPartnerInvite:fallback] Function gestartet');
-  console.info('[sendPartnerInvite:fallback] request.auth vorhanden', { hasAuth: Boolean(userId) });
-  console.info('[sendPartnerInvite:fallback] partnerEmail vorhanden', { hasPartnerEmail: Boolean(partnerEmail) });
+  console.info('mail.invite.start', { hasAuth: Boolean(userId), hasPartnerEmail: Boolean(partnerEmail) });
 
   try {
     const userProfile = await fetchAppUserProfile(userId);
@@ -387,7 +391,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'none'),
     });
 
-    console.info('[sendPartnerInvite:fallback] Mailversand gestartet', { partnerEmail });
+    console.info('mail.invite.provider_start', { partnerEmailMasked: partnerEmail.replace(/(^..).+(@.+$)/, '$1***$2') });
     const mailOutcome = await sendAppMail({
       type: 'partner_invitation',
       to: partnerEmail,
@@ -401,7 +405,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       `,
     });
     const provider = String(mailOutcome?.result?.provider ?? 'unknown');
-    console.info('[sendPartnerInvite:fallback] Mailversand abgeschlossen', {
+    console.info('mail.invite.success', {
       originalRecipient: partnerEmail,
       actualRecipient: mailOutcome?.payload?.actualRecipient ?? partnerEmail,
       overrideApplied: Boolean(mailOutcome?.payload?.overrideApplied),
@@ -423,39 +427,41 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       provider,
     } satisfies SendPartnerInviteResult;
   } catch (error) {
-    console.error('[sendPartnerInvite:fallback] Fehler im lokalen Invite-Flow', error);
     if (error instanceof InviteFlowError) throw error;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes('Kein Mail-Provider konfiguriert')) {
-      throw buildInviteError(
-        'failed-precondition',
-        'Mail-Provider nicht konfiguriert.',
-        {
+
+    if (error instanceof MailClientError) {
+      if (error.category === 'validation_error') {
+        console.error('mail.invite.validation_failed', { code: error.code });
+        throw buildInviteError('invalid-argument', 'Die Einladung konnte nicht gesendet werden. Bitte prüfe die E-Mail-Adresse.', {
+          userErrors: ['Bitte gib eine gültige E-Mail-Adresse ein.'],
+        }, [error.code ?? error.message]);
+      }
+
+      if (error.category === 'config_error') {
+        console.error('mail.invite.config_error', { code: error.code });
+        throw buildInviteError('failed-precondition', 'Die Einladung konnte nicht gesendet werden, weil die Mail-Konfiguration unvollständig ist.', {
           configErrors: [
-            'Für lokalen Versand fehlt die Mail-Konfiguration.',
-            'Setze MAIL_PROVIDER=resend + RESEND_API_KEY oder MAIL_PROVIDER=sendgrid + SENDGRID_API_KEY.',
-            'Für reine lokale Smoke-Tests kannst du MAIL_PROVIDER=noop setzen.',
+            'Erforderlich: MAIL_PROVIDER, MAIL_FROM und der passende API-Key.',
+            'Für Resend: MAIL_PROVIDER=resend + RESEND_API_KEY + verifizierte MAIL_FROM-Domain.',
+            'Für SendGrid: MAIL_PROVIDER=sendgrid + SENDGRID_API_KEY + verifizierter Sender.',
           ],
-          serverErrors: ['Die Einladung wurde gespeichert, aber der Mailversand konnte nicht gestartet werden.'],
-        },
-        [errorMessage],
-      );
+        }, [error.code ?? error.message]);
+      }
+
+      if (error.category === 'provider_error') {
+        console.error('mail.invite.provider_error', { code: error.code });
+        throw buildInviteError('internal', 'Die Einladung konnte nicht gesendet werden. Bitte später erneut versuchen.', {
+          serverErrors: ['Die Einladung wurde gespeichert, aber der Mail-Provider hat den Versand abgelehnt.'],
+        }, [error.code ?? error.message]);
+      }
     }
-    if (errorMessage.includes('Mail provider error')) {
-      throw buildInviteError(
-        'internal',
-        'Mailversand fehlgeschlagen.',
-        {
-          serverErrors: ['Die Einladung wurde gespeichert, aber der Mailversand ist fehlgeschlagen.'],
-          configErrors: ['Bitte MAIL_PROVIDER, API-Key und Sender-Adresse prüfen.'],
-        },
-        [errorMessage],
-      );
-    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('mail.invite.unexpected_error', { errorMessage });
     throw buildInviteError(
       'internal',
-      'Unbekannter Serverfehler im Invite-Flow.',
-      { serverErrors: ['Ein unerwarteter Fehler ist aufgetreten.'] },
+      'Die Einladung konnte nicht gesendet werden. Bitte später erneut versuchen.',
+      { serverErrors: ['Ein unerwarteter Serverfehler ist aufgetreten.'] },
       [errorMessage],
     );
   }

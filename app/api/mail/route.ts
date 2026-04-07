@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { dispatchMail, type MailType } from '@/services/server/mail.service';
+import { dispatchMail, MailDispatchError, type MailType } from '@/services/server/mail.service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,12 +16,28 @@ export async function POST(request: NextRequest) {
     };
 
     if (!type || !to || !subject || !html) {
-      return NextResponse.json({ error: 'Ungültiger Mail-Payload.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Ungültiger Mail-Payload.', category: 'validation_error', code: 'mail_validation_invalid_payload' },
+        { status: 400 },
+      );
     }
 
     const outcome = await dispatchMail({ type, to, subject, html, originalRecipient: originalRecipient || to, familyId, invitationId });
     return NextResponse.json(outcome);
   } catch (error) {
-    return NextResponse.json({ error: 'Mail-Versand fehlgeschlagen.', detail: String(error) }, { status: 500 });
+    if (error instanceof MailDispatchError) {
+      return NextResponse.json(
+        { error: error.message, category: error.category, code: error.code, provider: error.provider ?? null },
+        { status: error.status },
+      );
+    }
+
+    console.error('mail.dispatch.unexpected_error', {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: 'Mail-Versand fehlgeschlagen.', category: 'server_error', code: 'mail_server_unexpected' },
+      { status: 500 },
+    );
   }
 }
