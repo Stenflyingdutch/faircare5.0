@@ -7,8 +7,11 @@ const partnerFlowSrc = fs.readFileSync(path.join(process.cwd(), 'services/partne
 const invitePageSrc = fs.readFileSync(path.join(process.cwd(), 'app/invite/[token]/page.tsx'), 'utf8');
 
 test('invite lookup supports legacy plain token docs before tokenHash fallback', () => {
-  assert.match(partnerFlowSrc, /const hashFields = \['tokenHash', 'inviteTokenHash', 'token_hash'\]/);
-  assert.match(partnerFlowSrc, /const plainTokenFields = \['token', 'inviteToken'\]/);
+  const plainTokenFieldsIndex = partnerFlowSrc.indexOf("const plainTokenFields = ['token', 'inviteToken']");
+  const hashFieldsIndex = partnerFlowSrc.indexOf("const hashFields = ['tokenHash', 'inviteTokenHash', 'token_hash']");
+  assert.ok(plainTokenFieldsIndex > -1, 'plain token fallback fields should exist');
+  assert.ok(hashFieldsIndex > -1, 'hash fallback fields should exist');
+  assert.ok(plainTokenFieldsIndex < hashFieldsIndex, 'plain token lookup should run before hash lookup');
   assert.match(partnerFlowSrc, /doc\(db, firestoreCollections\.invitations, normalizedToken\)/);
 });
 

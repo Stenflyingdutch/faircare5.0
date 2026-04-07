@@ -16,6 +16,11 @@ test('partner registration finalization is routed through a server endpoint', ()
 });
 
 test('server-side partner finalization marks invites accepted and writes with admin db', () => {
+  const plainTokenLookupIndex = finalizeServiceSrc.indexOf("for (const field of ['token', 'inviteToken'])");
+  const tokenHashLookupIndex = finalizeServiceSrc.indexOf("for (const field of ['tokenHash', 'inviteTokenHash', 'token_hash'])");
+  assert.ok(plainTokenLookupIndex > -1, 'plain token lookup should exist');
+  assert.ok(tokenHashLookupIndex > -1, 'token hash lookup should exist');
+  assert.ok(plainTokenLookupIndex < tokenHashLookupIndex, 'server should resolve plain token before token hash');
   assert.match(finalizeServiceSrc, /adminDb\.runTransaction/);
   assert.match(finalizeServiceSrc, /collection\(firestoreCollections\.invitations\)\.doc\(invitation\.id\)/);
   assert.match(finalizeServiceSrc, /status: 'accepted'/);
