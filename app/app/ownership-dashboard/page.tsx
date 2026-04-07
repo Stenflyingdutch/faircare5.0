@@ -17,7 +17,7 @@ import { ensureInitiatorFamilySetup, fetchDashboardBundle } from '@/services/par
 import { categoryLabelMap } from '@/services/resultCalculator';
 import { getCurrentLocale } from '@/lib/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
-import type { OwnershipCardDocument, OwnershipCategoryDocument } from '@/types/ownership';
+import type { OwnershipCardDocument } from '@/types/ownership';
 
 export default function OwnershipDashboardPage() {
   return (
@@ -33,7 +33,6 @@ function OwnershipDashboardPageContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
-  const [categories, setCategories] = useState<OwnershipCategoryDocument[]>([]);
   const [ageGroup, setAgeGroup] = useState<AgeGroup | null>(null);
   const [ownerOptions, setOwnerOptions] = useState<Array<{ userId: string; label: string }>>([]);
   const [autoPreselectedCategoryKeys, setAutoPreselectedCategoryKeys] = useState<QuizCategory[]>([]);
@@ -116,7 +115,7 @@ function OwnershipDashboardPageContent() {
   useEffect(() => {
     if (!familyId) return;
     const stopCards = listenToAllResponsibilities(familyId, setCards, () => setLoadError('Die Karten konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
-    const stopCategories = observeOwnershipCategories(familyId, setCategories, () => setLoadError('Die Kategorien konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
+    const stopCategories = observeOwnershipCategories(familyId, () => undefined, () => setLoadError('Die Kategorien konnten gerade nicht geladen werden. Bitte versuche es erneut.'));
     return () => {
       stopCards();
       stopCategories();
