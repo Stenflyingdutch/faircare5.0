@@ -65,6 +65,10 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
     }
   }
 
+  function goToRegister() {
+    router.push('/register');
+  }
+
   return (
     <section className="section">
       <div className="container test-shell stack">
@@ -75,6 +79,7 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
           {error && <p className="inline-error">{error}</p>}
           {resetMessage && <p className="helper">{resetMessage}</p>}
           <button className="button primary" type="submit">Anmelden</button>
+          <button className="button" type="button" onClick={goToRegister}>Registrieren</button>
           <button className="button" type="button" onClick={forgotPassword}>Passwort vergessen?</button>
         </form>
       </div>
