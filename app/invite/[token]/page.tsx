@@ -36,6 +36,7 @@ export default function InviteLandingPage() {
 
     resolveInvitationByToken(token)
       .then((result) => {
+        console.info('invite.lookup.result', { status: result.status, reason: result.reason ?? 'none' });
         setStatus(result.status);
         setReason(result.reason);
         if ('invitation' in result && result.invitation) {
