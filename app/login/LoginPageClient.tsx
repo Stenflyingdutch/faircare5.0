@@ -3,7 +3,14 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { loginUser, requestPasswordReset, resolveLoginErrorMessage, signOutUser, syncAuthSession } from '@/services/auth.service';
+import {
+  loginUser,
+  requestPasswordReset,
+  resolveLoginErrorMessage,
+  resolvePasswordResetErrorMessage,
+  signOutUser,
+  syncAuthSession,
+} from '@/services/auth.service';
 import { ensureInitiatorFamilySetup, fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { hasOwnershipCardsForFamily } from '@/services/ownership.service';
 import { isBlockedProfile } from '@/services/user-profile.service';
@@ -64,8 +71,8 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
     try {
       await requestPasswordReset(email.trim());
       setResetMessage('Wir haben dir eine E-Mail zum Zurücksetzen deines Passworts geschickt.');
-    } catch {
-      setError('Passwort-Reset konnte nicht gestartet werden. Bitte prüfe deine E-Mail-Adresse.');
+    } catch (resetError) {
+      setError(resolvePasswordResetErrorMessage(resetError));
     }
   }
 
