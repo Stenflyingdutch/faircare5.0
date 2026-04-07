@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { isKnownQuizCategory, resolveCategoryLabel } from '@/services/resultCalculator';
 import {
@@ -99,6 +99,7 @@ export function OwnershipBoard({
   mode,
   ownerOptions,
   categoryKeys = [],
+  preselectedCategoryKeys = [],
 }: OwnershipBoardProps) {
   const [openedCardId, setOpenedCardId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -108,6 +109,7 @@ export function OwnershipBoard({
   const [focusOverrides, setFocusOverrides] = useState<Record<string, OwnershipFocusLevel | null>>({});
   const [homeOrder, setHomeOrder] = useState<Record<string, number> | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<QuizCategory[]>([]);
+  const hasAppliedInitialFilter = useRef(false);
 
   const openedCard = useMemo(() => cards.find((item) => item.id === openedCardId) ?? null, [cards, openedCardId]);
 
@@ -175,6 +177,16 @@ export function OwnershipBoard({
       setSelectedCategories(next);
     }
   }, [mode, selectedCategories, groupedWithStatus]);
+
+  useEffect(() => {
+    if (mode !== 'dashboard' || hasAppliedInitialFilter.current) return;
+    if (!preselectedCategoryKeys.length || !groupedWithStatus.length) return;
+    const validSet = new Set(groupedWithStatus.map((group) => group.category));
+    const initial = preselectedCategoryKeys.filter((category) => validSet.has(category));
+    if (!initial.length) return;
+    setSelectedCategories(initial);
+    hasAppliedInitialFilter.current = true;
+  }, [mode, preselectedCategoryKeys, groupedWithStatus]);
 
   const filteredGroups = useMemo(() => groupedWithStatus
     .filter((group) => {

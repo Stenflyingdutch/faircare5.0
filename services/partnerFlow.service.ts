@@ -758,6 +758,48 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
   return resultId;
 }
 
+export async function ensureInitiatorFamilySetup(userId: string) {
+  const profile = await fetchAppUserProfile(userId);
+  if (!profile || profile.role === 'partner') return null;
+
+  if (profile.familyId) {
+    await buildOrUpdateInitiatorResult(userId);
+    return profile.familyId;
+  }
+
+  const familyId = doc(collection(db, firestoreCollections.families)).id;
+  await setDoc(doc(db, firestoreCollections.families, familyId), {
+    id: familyId,
+    initiatorUserId: userId,
+    partnerUserId: null,
+    status: 'invited',
+    initiatorCompleted: true,
+    partnerCompleted: false,
+    initiatorRegistered: true,
+    partnerRegistered: false,
+    resultsUnlocked: false,
+    sharedResultsOpened: false,
+    unlockedAt: null,
+    unlockedBy: null,
+    sharedResultsOpenedAt: null,
+    sharedResultsOpenedBy: null,
+    resultsDiscussedAt: null,
+    resultsDiscussedBy: null,
+    invitationId: null,
+    createdAt: nowIso(),
+    updatedAt: serverTimestamp(),
+  });
+
+  await setDoc(doc(db, firestoreCollections.users, userId), {
+    familyId,
+    role: 'initiator',
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  await buildOrUpdateInitiatorResult(userId);
+  return familyId;
+}
+
 export async function triggerJointPreparationByPartner(userId: string) {
   const profile = await fetchAppUserProfile(userId);
   if (!profile?.familyId || profile.role !== 'partner') throw new Error('Nur Partner können diesen Schritt auslösen.');

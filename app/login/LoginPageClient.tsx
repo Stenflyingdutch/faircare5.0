@@ -4,7 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { loginUser, requestPasswordReset, resolveLoginErrorMessage, signOutUser, syncAuthSession } from '@/services/auth.service';
-import { fetchDashboardBundle } from '@/services/partnerFlow.service';
+import { ensureInitiatorFamilySetup, fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { hasOwnershipCardsForFamily } from '@/services/ownership.service';
 import { isBlockedProfile } from '@/services/user-profile.service';
 
@@ -29,7 +29,11 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
       const userCredential = await loginUser(email, password);
       await syncAuthSession(userCredential.user);
       const userId = userCredential.user.uid;
-      const bundle = await fetchDashboardBundle(userId);
+      let bundle = await fetchDashboardBundle(userId);
+      if (bundle.profile?.role !== 'partner' && !bundle.profile?.familyId) {
+        await ensureInitiatorFamilySetup(userId);
+        bundle = await fetchDashboardBundle(userId);
+      }
       if (isBlockedProfile(bundle.profile)) {
         await signOutUser();
         setError('Dein Konto ist derzeit gesperrt. Bitte kontaktiere den Support.');
