@@ -166,11 +166,9 @@ function OwnershipDashboardPageContent() {
           Jede Karte steht für einen klar zugeordneten Verantwortungsbereich inklusive Planung und Durchführung.
         </p>
         <p className="helper" style={{ margin: 0 }}>
-          {isRecommendationEntry
-            ? 'Du startest direkt mit den ausgewählten Verantwortungsbereichen.'
-            : recommendedCount > 0
-              ? `${recommendedCount} Startkategorien wurden als Orientierung markiert.`
-              : 'Alle aktiven Kategorien sind gleichwertig sichtbar.'}
+          {recommendedCount > 0
+            ? `${recommendedCount} Startkategorien wurden als Orientierung markiert.`
+            : 'Alle aktiven Kategorien sind gleichwertig sichtbar.'}
         </p>
       </article>
       <OwnershipBoard
