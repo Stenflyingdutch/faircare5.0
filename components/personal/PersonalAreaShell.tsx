@@ -9,16 +9,20 @@ import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { isTeamCheckBadgeVisible } from '@/services/teamCheck.logic';
 
 const personalNavItems = [
-  { label: 'Meins', href: '/app/home', tone: 'violet' },
-  { label: 'Unser', href: '/app/ownership-dashboard', tone: 'petrol' },
-  { label: 'Austausch', href: '/app/review', tone: 'violet' },
+  { label: 'Meine', href: '/app/home', tone: 'violet', gatedUntilPartnerCompleted: true },
+  { label: 'Unsere', href: '/app/ownership-dashboard', tone: 'petrol', gatedUntilPartnerCompleted: true },
+  { label: 'Austausch', href: '/app/review', tone: 'violet', gatedUntilPartnerCompleted: true },
+  { label: 'Transparenz', href: '/app/transparenz', tone: 'petrol', gatedUntilPartnerCompleted: false },
 ] as const;
+
+const LOCKED_TAB_HINT = 'Dieser Bereich wird sichtbar, sobald dein Partner den Test abgeschlossen hat.';
 
 export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
   const [showTeamCheckDot, setShowTeamCheckDot] = useState(false);
+  const [partnerCompleted, setPartnerCompleted] = useState(false);
 
   useEffect(() => {
     const unsubscribe = observeAuthState(async (user) => {
@@ -31,6 +35,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         nextCheckInAt: bundle.family?.teamCheckPlan?.nextCheckInAt,
         reminderActiveAt: bundle.family?.teamCheckPlan?.reminderActiveAt,
       }));
+      setPartnerCompleted(Boolean(bundle.family?.partnerCompleted));
       setIsReady(true);
     });
 
@@ -46,6 +51,8 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   }
 
   const showNavigation = !pathname.startsWith('/app/ergebnisse');
+  const activeNavItem = personalNavItems.find((item) => pathname.startsWith(item.href)) ?? null;
+  const showLockedPlaceholder = Boolean(activeNavItem?.gatedUntilPartnerCompleted) && !partnerCompleted;
 
   return (
     <section className="section personal-area-section">
@@ -81,7 +88,14 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
             )}
           </div>
         </header>
-        <div className="personal-area-content">{children}</div>
+        <div className="personal-area-content">
+          {showLockedPlaceholder ? (
+            <article className="card stack">
+              <strong>Noch ein kleiner Schritt</strong>
+              <p className="card-description">{LOCKED_TAB_HINT}</p>
+            </article>
+          ) : children}
+        </div>
       </div>
     </section>
   );

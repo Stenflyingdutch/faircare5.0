@@ -43,7 +43,7 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
       if (familyId && await hasOwnershipCardsForFamily(familyId)) {
         router.push('/app/home');
       } else {
-        router.push('/app/ergebnisse');
+        router.push('/app/transparenz');
       }
     } catch (loginError) {
       setError(resolveLoginErrorMessage(loginError));

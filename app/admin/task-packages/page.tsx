@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { LoginBackButton } from '@/components/personal/LoginBackButton';
 
 import { fetchTaskPackageTemplatesForAdmin, saveTaskPackageTemplate, seedTaskPackageTemplates } from '@/services/ownership.service';
 import { quizCatalog } from '@/data/questionTemplates';
@@ -97,6 +98,7 @@ export default function AdminTaskPackagesPage() {
   return (
     <section className="section">
       <div className="container stack">
+        <LoginBackButton fallbackHref="/admin" label="Zurück zu Admin" />
         <article className="card stack">
           <h1 className="test-title">Admin · Ownership-Aufgabenpakete</h1>
           <p className="card-description">Globale Vorlagen werden hier gepflegt und bei Aktivierung in familienlokale Karten kopiert.</p>

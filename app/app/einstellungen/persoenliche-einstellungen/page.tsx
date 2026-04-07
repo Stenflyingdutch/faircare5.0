@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { LoginBackButton } from '@/components/personal/LoginBackButton';
 import { observeAuthState } from '@/services/auth.service';
 import { fetchAppUserProfile } from '@/services/partnerFlow.service';
 import {
@@ -178,7 +178,7 @@ export default function PersonalSettingsPage() {
   return (
     <article className="card stack">
       <div className="settings-subpage-head">
-        <Link href="/app/einstellungen" className="button settings-back-button">Zurück zu Einstellungen</Link>
+        <LoginBackButton fallbackHref="/app/einstellungen" label="Zurück zu Einstellungen" />
         <h2 className="card-title">Persönliche Einstellungen</h2>
       </div>
 
