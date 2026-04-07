@@ -97,12 +97,32 @@ export function resolveRegistrationErrorMessage(error: unknown) {
     return 'Die Verbindung zu Firebase ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.';
   }
 
+  if (code === 'auth/too-many-requests') {
+    return 'Zu viele Registrierungsversuche in kurzer Zeit. Bitte warte kurz und versuche es erneut.';
+  }
+
+  if (code === 'auth/quota-exceeded') {
+    return 'Firebase Auth hat sein aktuelles Kontingent erreicht. Bitte versuche es später erneut.';
+  }
+
+  if (code === 'auth/unauthorized-domain') {
+    return 'Diese Domain ist in Firebase Auth noch nicht freigeschaltet. Bitte prüfe die Authorized Domains.';
+  }
+
+  if (code === 'auth/internal-error') {
+    return 'Firebase Auth hat einen internen Fehler gemeldet. Bitte versuche es erneut.';
+  }
+
   if (code === 'auth/session-sync-failed') {
     return message || 'Deine Anmeldung konnte nicht bestätigt werden. Bitte versuche es erneut.';
   }
 
   if (code?.startsWith('partner_registration/')) {
     return message || 'Die Partner-Registrierung konnte nicht abgeschlossen werden.';
+  }
+
+  if (code?.startsWith('auth/')) {
+    return `Registrierung mit Firebase fehlgeschlagen (${code}). Bitte versuche es erneut.`;
   }
 
   if (message && isNetworkLikeError(error)) {

@@ -64,6 +64,10 @@ function RegisterAfterTestContent() {
       clearPartnerLocalSession();
       router.push('/app/transparenz');
     } catch (submitError) {
+      console.error('register-after-test.submit_failed', {
+        code: (submitError as { code?: string })?.code ?? null,
+        message: submitError instanceof Error ? submitError.message : String(submitError),
+      });
       setError(resolveRegistrationErrorMessage(submitError));
       setIsSubmitting(false);
     }

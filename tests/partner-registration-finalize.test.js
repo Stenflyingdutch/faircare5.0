@@ -28,5 +28,9 @@ test('registration error handling exposes partner finalization and session sync 
   assert.match(authServiceSrc, /Deine Anmeldung konnte nicht bestätigt werden/);
   assert.match(authServiceSrc, /auth\/operation-not-allowed/);
   assert.match(authServiceSrc, /auth\/network-request-failed/);
+  assert.match(authServiceSrc, /auth\/too-many-requests/);
+  assert.match(authServiceSrc, /auth\/quota-exceeded/);
+  assert.match(authServiceSrc, /auth\/unauthorized-domain/);
+  assert.match(authServiceSrc, /Registrierung mit Firebase fehlgeschlagen/);
   assert.match(partnerFlowSrc, /partner_registration\/network_failed/);
 });
