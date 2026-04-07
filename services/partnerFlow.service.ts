@@ -528,18 +528,50 @@ export async function resolveInvitationByToken(token: string) {
   }
 
   try {
+    const invitationCollection = collection(db, firestoreCollections.invitations);
     const tokenCandidates = Array.from(new Set([normalizedToken, normalizedToken.toLowerCase()]));
-    let snap = await getDocs(query(collection(db, firestoreCollections.invitations), where('tokenHash', '==', await sha256(tokenCandidates[0])), limit(1)));
+    const hashCandidates = await Promise.all(tokenCandidates.map((candidate) => sha256(candidate)));
 
-    if (snap.empty && tokenCandidates.length > 1) {
-      snap = await getDocs(query(collection(db, firestoreCollections.invitations), where('tokenHash', '==', await sha256(tokenCandidates[1])), limit(1)));
+    const hashFields = ['tokenHash', 'inviteTokenHash', 'token_hash'];
+    let invitation: InvitationDocument | null = null;
+
+    for (const hashField of hashFields) {
+      for (const hashValue of hashCandidates) {
+        const snap = await getDocs(query(invitationCollection, where(hashField, '==', hashValue), limit(1)));
+        if (!snap.empty) {
+          invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
+          break;
+        }
+      }
+      if (invitation) break;
     }
 
-    if (snap.empty) {
+    if (!invitation) {
+      const plainTokenFields = ['token', 'inviteToken'];
+      for (const plainField of plainTokenFields) {
+        for (const tokenCandidate of tokenCandidates) {
+          const snap = await getDocs(query(invitationCollection, where(plainField, '==', tokenCandidate), limit(1)));
+          if (!snap.empty) {
+            invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
+            break;
+          }
+        }
+        if (invitation) break;
+      }
+    }
+
+    if (!invitation) {
+      const directIdSnap = await getDoc(doc(db, firestoreCollections.invitations, normalizedToken));
+      if (directIdSnap.exists()) {
+        invitation = { id: directIdSnap.id, ...directIdSnap.data() } as InvitationDocument;
+      }
+    }
+
+    if (!invitation) {
+      console.info('invite.lookup.not_found', { reason: 'invite_not_found', tokenLength: normalizedToken.length });
       return { status: 'invalid' as const, reason: 'invite_not_found' as const };
     }
 
-    const invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
     if (invitation.status === 'accepted') return { status: 'accepted' as const, invitation, reason: 'invite_already_completed' as const };
     if ((invitation as { status?: string }).status === 'revoked') {
       return { status: 'invalid' as const, invitation, reason: 'invite_revoked' as const };
