@@ -16,12 +16,19 @@ export async function loginUser(email: string, password: string) {
 
 export async function syncAuthSession(user: User) {
   const idToken = await user.getIdToken();
-  await fetch('/api/auth/session', {
+  const response = await fetch('/api/auth/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
     body: JSON.stringify({ idToken }),
   });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    const error = new Error(payload?.error ?? 'Deine Anmeldung konnte nicht bestätigt werden. Bitte versuche es erneut.') as Error & { code?: string };
+    error.code = 'auth/session-sync-failed';
+    throw error;
+  }
 }
 
 export async function signOutUser() {
@@ -36,6 +43,7 @@ export async function requestPasswordReset(email: string) {
 
 export function resolveRegistrationErrorMessage(error: unknown) {
   const code = (error as { code?: string })?.code;
+  const message = (error as { message?: string })?.message?.trim();
 
   if (code === 'auth/email-already-in-use') {
     return 'Diese E-Mail-Adresse wird bereits verwendet. Bitte melde dich an oder nutze „Passwort vergessen“.';
@@ -47,6 +55,14 @@ export function resolveRegistrationErrorMessage(error: unknown) {
 
   if (code === 'auth/weak-password') {
     return 'Bitte verwende ein stärkeres Passwort mit mindestens 6 Zeichen.';
+  }
+
+  if (code === 'auth/session-sync-failed') {
+    return message || 'Deine Anmeldung konnte nicht bestätigt werden. Bitte versuche es erneut.';
+  }
+
+  if (code?.startsWith('partner_registration/')) {
+    return message || 'Die Partner-Registrierung konnte nicht abgeschlossen werden.';
   }
 
   return 'Registrierung fehlgeschlagen. Bitte prüfe deine Eingaben und versuche es erneut.';
