@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 
 import { registerUser, resolveRegistrationErrorMessage, syncAuthSession } from '@/services/auth.service';
-import { ensureUserProfile } from '@/services/partnerFlow.service';
+import { ensureInitiatorFamilySetup, ensureUserProfile } from '@/services/partnerFlow.service';
 import { linkAnonymousSessionToUser } from '@/services/sessionLinking';
 import { loadSessionFromStorage } from '@/services/sessionStorage';
 
@@ -39,6 +39,7 @@ export default function RegisterPage() {
         displayName: normalizedDisplayName,
         role: 'initiator',
       });
+      await ensureInitiatorFamilySetup(credential.user.uid);
       const session = loadSessionFromStorage();
       if (session) {
         await linkAnonymousSessionToUser(credential.user, session);
