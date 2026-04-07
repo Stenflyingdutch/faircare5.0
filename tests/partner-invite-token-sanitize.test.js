@@ -21,3 +21,9 @@ test('token sanitizer extracts token from full invite URLs and query params', ()
 test('invite landing page normalizes route token before resolving invitations', () => {
   assert.match(invitePageSrc, /sanitizeInvitationToken\(params\?\.token\)/);
 });
+
+test('invitation lookup remains compatible with legacy token field variants', () => {
+  assert.match(partnerFlowSrc, /const hashFields = \['tokenHash', 'inviteTokenHash', 'token_hash'\]/);
+  assert.match(partnerFlowSrc, /const plainTokenFields = \['token', 'inviteToken'\]/);
+  assert.match(partnerFlowSrc, /doc\(db, firestoreCollections\.invitations, normalizedToken\)/);
+});
