@@ -43,7 +43,7 @@ export default function RegisterPage() {
       if (session) {
         await linkAnonymousSessionToUser(credential.user, session);
       }
-      router.push('/app/ergebnisse');
+      router.push('/app/transparenz');
     } catch (registrationError) {
       setError(resolveRegistrationErrorMessage(registrationError));
       setIsSubmitting(false);

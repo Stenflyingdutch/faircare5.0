@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
+import { LoginBackButton } from '@/components/personal/LoginBackButton';
 
 import { resultLogicDocumentation } from '@/services/resultInsights';
 
@@ -57,7 +58,7 @@ export default function AdminResultLogicPage() {
           </div>
         </article>
 
-        <Link href="/admin" className="button">Zurück zum Admin-Bereich</Link>
+        <LoginBackButton fallbackHref="/admin" label="Zurück zu Admin" />
       </div>
     </section>
   );

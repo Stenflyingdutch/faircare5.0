@@ -22,7 +22,7 @@ const baseSettingsEntries = [
   {
     title: 'Quizergebnisse einsehen',
     description: 'Zur bestehenden Ergebnisübersicht wechseln',
-    href: '/app/ergebnisse',
+    href: '/app/transparenz',
   },
 ] as const;
 

@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { LoginBackButton } from '@/components/personal/LoginBackButton';
 import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import {
@@ -123,7 +123,7 @@ export default function TeamCheckPlanungPage() {
   return (
     <article className="card stack team-check-settings-card">
       <div className="settings-subpage-head">
-        <Link href="/app/einstellungen" className="button settings-back-button">Zurück zu Einstellungen</Link>
+        <LoginBackButton fallbackHref="/app/einstellungen" label="Zurück zu Einstellungen" />
         <h2 className="card-title">Check-in Planung</h2>
       </div>
 

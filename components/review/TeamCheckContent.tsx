@@ -233,7 +233,7 @@ export function TeamCheckContent() {
               <div className="report-block stack">
                 <strong>Quiz-Ergebnisse durchgesprochen</strong>
                 <p className="helper" style={{ margin: 0 }}>am {discussedDate}</p>
-                <Link href="/app/ergebnisse" className="button" style={{ width: 'fit-content' }}>
+                <Link href="/app/transparenz" className="button" style={{ width: 'fit-content' }}>
                   Testergebnisse ansehen
                 </Link>
               </div>

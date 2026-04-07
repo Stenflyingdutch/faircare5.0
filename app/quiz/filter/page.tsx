@@ -57,7 +57,7 @@ export default function QuizFilterPage() {
       if (!user || user.isAnonymous || !user.email) return;
       const profile = await fetchAppUserProfile(user.uid);
       if (profile?.role === 'partner') {
-        router.replace('/app/ergebnisse');
+        router.replace('/app/transparenz');
       }
     });
     return () => unsubscribe();

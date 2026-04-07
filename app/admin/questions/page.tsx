@@ -1,5 +1,7 @@
 'use client';
 
+import { LoginBackButton } from '@/components/personal/LoginBackButton';
+
 import { useEffect, useMemo, useState } from 'react';
 
 import { quizCatalog as seededCatalog } from '@/data/questionTemplates';
@@ -62,6 +64,7 @@ export default function AdminQuestionsPage() {
   return (
     <section className="section">
       <div className="container stack">
+        <LoginBackButton fallbackHref="/admin" label="Zurück zu Admin" />
         <h1>Quizfragen verwalten</h1>
         <p className="helper">Kategorien, Beschreibungen, Fragen, Sortierung, Aktivstatus, Altersgruppe und Filterzuordnung sind editierbar.</p>
         <div className="chip-row">

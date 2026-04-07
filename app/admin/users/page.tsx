@@ -1,5 +1,7 @@
 'use client';
 
+import { LoginBackButton } from '@/components/personal/LoginBackButton';
+
 import { useEffect, useMemo, useState } from 'react';
 
 import { Modal } from '@/components/Modal';
@@ -178,6 +180,7 @@ export default function AdminUsersPage() {
   return (
     <section className="section">
       <div className="container stack">
+        <LoginBackButton fallbackHref="/admin" label="Zurück zu Admin" />
         <div className="stack" style={{ gap: 8 }}>
           <h1 className="test-title">Nutzerverwaltung</h1>
           <p className="helper">Admins können hier Nutzer suchen, Rollen ändern, Konten sperren und Konten mit verknüpften Daten löschen.</p>
