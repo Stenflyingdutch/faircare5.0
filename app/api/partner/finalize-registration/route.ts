@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     const decodedToken = await verifyAdminSessionCookie(sessionCookie);
 
     if (!decodedToken?.uid) {
+      console.error('invite.join.failed', { code: 'partner_registration/unauthorized' });
       return NextResponse.json(
         { error: 'Deine Anmeldung konnte nicht bestätigt werden. Bitte registriere dich erneut.', code: 'partner_registration/unauthorized' },
         { status: 401 },
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
     };
 
     if (!body.invitationToken || !body.sessionId) {
+      console.error('invite.join.failed', { code: 'partner_registration/invalid_payload' });
       return NextResponse.json(
         { error: 'Registrierungsdaten für den Partner fehlen.', code: 'partner_registration/invalid_payload' },
         { status: 400 },
@@ -44,12 +46,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof PartnerRegistrationFinalizeError) {
+      console.error('invite.join.failed', { code: error.code, message: error.message });
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
 
     console.error('partner.finalize.unexpected_error', {
       message: error instanceof Error ? error.message : String(error),
     });
+    console.error('invite.join.failed', { code: 'partner_registration/unexpected' });
 
     return NextResponse.json(
       { error: 'Partner-Registrierung konnte nicht abgeschlossen werden.', code: 'partner_registration/unexpected' },

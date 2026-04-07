@@ -252,6 +252,7 @@ async function getQuestionSnapshot(questionIds: string[]): Promise<QuestionTempl
 }
 
 export async function sendPartnerInvitation(partnerEmail: string, personalMessage?: string) {
+  console.info('invite.create.start', { hasPartnerEmail: Boolean(partnerEmail), hasPersonalMessage: Boolean(personalMessage?.trim()) });
   const user = auth.currentUser;
   if (!user?.email) {
     throw buildInviteError(
@@ -291,6 +292,7 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
   const sendPartnerInvite = httpsCallable<{ partnerEmail: string; personalMessage?: string }, { partnerEmail?: string }>(functions, 'sendPartnerInvite');
   try {
     const response = await sendPartnerInvite({ partnerEmail: normalizedPartnerEmail, personalMessage: personalMessage?.trim() });
+    console.info('invite.create.success', { delivery: 'email_sent', path: 'callable' });
     return {
       partnerEmail: response.data?.partnerEmail ?? normalizedPartnerEmail,
       delivery: 'email_sent',
@@ -420,6 +422,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       createdAt: nowIso(),
       updatedAt: serverTimestamp(),
     });
+    console.info('invite.persist.success', { invitationId: invitationRef.id, familyId, path: 'fallback' });
 
     await setDoc(doc(db, firestoreCollections.families, familyId), {
       invitationId: invitationRef.id,
@@ -442,6 +445,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
 
     const baseUrl = resolveAppBaseUrl();
     const inviteUrl = `${baseUrl}/invite/${token}`;
+    console.info('invite.mail.prepare', { invitationId: invitationRef.id, familyId });
     console.info('[sendPartnerInvite:fallback] Mail-Provider gewählt', {
       provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'none'),
     });
@@ -467,8 +471,10 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       environment: mailOutcome?.payload?.environment ?? 'unknown',
       provider,
     });
+    console.info('invite.mail.send.success', { invitationId: invitationRef.id, familyId, provider });
 
     if (provider === 'noop') {
+      console.info('invite.create.success', { delivery: 'saved_without_email', path: 'fallback', provider });
       return {
         partnerEmail,
         delivery: 'saved_without_email',
@@ -476,6 +482,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       } satisfies SendPartnerInviteResult;
     }
 
+    console.info('invite.create.success', { delivery: 'email_sent', path: 'fallback', provider });
     return {
       partnerEmail,
       delivery: 'email_sent',
@@ -487,6 +494,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
     if (error instanceof MailClientError) {
       if (error.category === 'validation_error') {
         console.error('mail.invite.validation_failed', { code: error.code });
+        console.error('invite.mail.send.failed', { code: error.code, category: error.category });
         throw buildInviteError('invalid-argument', 'Die Einladung konnte nicht gesendet werden. Bitte prüfe die E-Mail-Adresse.', {
           userErrors: ['Bitte gib eine gültige E-Mail-Adresse ein.'],
         }, [error.code ?? error.message]);
@@ -494,6 +502,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
 
       if (error.category === 'config_error') {
         console.error('mail.invite.config_error', { code: error.code });
+        console.error('invite.mail.send.failed', { code: error.code, category: error.category });
         throw buildInviteError('failed-precondition', 'Die Einladung konnte nicht gesendet werden, weil die Mail-Konfiguration unvollständig ist.', {
           configErrors: [
             'Erforderlich: MAIL_PROVIDER, MAIL_FROM und der passende API-Key.',
@@ -505,6 +514,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
 
       if (error.category === 'provider_error') {
         console.error('mail.invite.provider_error', { code: error.code });
+        console.error('invite.mail.send.failed', { code: error.code, category: error.category });
         throw buildInviteError('internal', 'Die Einladung konnte nicht gesendet werden. Bitte später erneut versuchen.', {
           serverErrors: ['Die Einladung wurde gespeichert, aber der Mail-Provider hat den Versand abgelehnt.'],
         }, [error.code ?? error.message]);
@@ -513,6 +523,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
 
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('mail.invite.unexpected_error', { errorMessage });
+    console.error('invite.mail.send.failed', { code: 'unexpected_error', category: 'server_error' });
     throw buildInviteError(
       'internal',
       'Die Einladung konnte nicht gesendet werden. Bitte später erneut versuchen.',
@@ -538,12 +549,12 @@ export async function resolveInvitationByToken(token: string): Promise<Invitatio
     const tokenCandidates = Array.from(new Set([normalizedToken, normalizedToken.toLowerCase()]));
     const hashCandidates = await Promise.all(tokenCandidates.map((candidate) => sha256(candidate)));
 
-    const hashFields = ['tokenHash', 'inviteTokenHash', 'token_hash'];
     let invitation: InvitationDocument | null = null;
 
-    for (const hashField of hashFields) {
-      for (const hashValue of hashCandidates) {
-        const snap = await getDocs(query(invitationCollection, where(hashField, '==', hashValue), limit(1)));
+    const plainTokenFields = ['token', 'inviteToken'];
+    for (const plainField of plainTokenFields) {
+      for (const tokenCandidate of tokenCandidates) {
+        const snap = await getDocs(query(invitationCollection, where(plainField, '==', tokenCandidate), limit(1)));
         if (!snap.empty) {
           invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
           break;
@@ -552,11 +563,11 @@ export async function resolveInvitationByToken(token: string): Promise<Invitatio
       if (invitation) break;
     }
 
+    const hashFields = ['tokenHash', 'inviteTokenHash', 'token_hash'];
     if (!invitation) {
-      const plainTokenFields = ['token', 'inviteToken'];
-      for (const plainField of plainTokenFields) {
-        for (const tokenCandidate of tokenCandidates) {
-          const snap = await getDocs(query(invitationCollection, where(plainField, '==', tokenCandidate), limit(1)));
+      for (const hashField of hashFields) {
+        for (const hashValue of hashCandidates) {
+          const snap = await getDocs(query(invitationCollection, where(hashField, '==', hashValue), limit(1)));
           if (!snap.empty) {
             invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
             break;
@@ -737,6 +748,11 @@ export async function finalizePartnerRegistration(params: {
   email: string;
   displayName?: string | null;
 }) {
+  console.info('invite.join.start', {
+    hasInvitationToken: Boolean(params.invitationToken),
+    hasSessionId: Boolean(params.sessionId),
+    userId: params.userId,
+  });
   let response: Response;
 
   try {
@@ -749,6 +765,7 @@ export async function finalizePartnerRegistration(params: {
   } catch {
     const error = new Error('Die Verbindung zum Server ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.') as Error & { code?: string };
     error.code = 'partner_registration/network_failed';
+    console.error('invite.join.failed', { code: error.code });
     throw error;
   }
 
@@ -756,9 +773,11 @@ export async function finalizePartnerRegistration(params: {
   if (!response.ok) {
     const error = new Error(payload?.error ?? 'Partner-Registrierung konnte nicht abgeschlossen werden.') as Error & { code?: string };
     error.code = payload?.code ?? 'partner_registration/unexpected';
+    console.error('invite.join.failed', { code: error.code, message: error.message });
     throw error;
   }
 
+  console.info('invite.join.success', { familyId: payload?.familyId ?? null });
   return { familyId: payload?.familyId ?? '' };
 }
 
