@@ -171,6 +171,9 @@ function resolveConfiguredProvider(): MailProvider {
 function resolveAppBaseUrlForLinks() {
   const explicit = process.env.APP_BASE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (explicit) return explicit.replace(/\/+$/, '');
+  const vercelEnv = (process.env.VERCEL_ENV ?? '').toLowerCase();
+  const productionDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelEnv === 'production' && productionDomain) return `https://${productionDomain.replace(/\/+$/, '')}`;
   if (process.env.VERCEL_URL?.trim()) return `https://${process.env.VERCEL_URL.trim().replace(/\/+$/, '')}`;
   return null;
 }
