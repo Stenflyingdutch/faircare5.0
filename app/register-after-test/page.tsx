@@ -62,7 +62,7 @@ function RegisterAfterTestContent() {
         displayName: normalizedDisplayName,
       });
       clearPartnerLocalSession();
-      router.push('/app/ergebnisse');
+      router.push('/app/transparenz');
     } catch (submitError) {
       setError(resolveRegistrationErrorMessage(submitError));
       setIsSubmitting(false);

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
-export default function DashboardRedirectPage() {
-  redirect('/app/ergebnisse');
+export default function DashboardPage() {
+  redirect('/app/transparenz');
 }

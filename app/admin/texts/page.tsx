@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { LoginBackButton } from '@/components/personal/LoginBackButton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { fetchContentBlocks, persistContentBlocks } from '@/services/contentBlocks.service';
@@ -58,6 +59,7 @@ export default function AdminTextsPage() {
   return (
     <section className="section">
       <div className="container stack">
+        <LoginBackButton fallbackHref="/admin" label="Zurück zu Admin" />
         <h1 className="test-title">Textbausteine verwalten</h1>
         <p className="helper">Alle sichtbaren Standardtexte sind fachlich gruppiert, mehrsprachig bearbeitbar und ohne JSON-Pflege editierbar.</p>
 
