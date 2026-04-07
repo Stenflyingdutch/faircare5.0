@@ -1,5 +1,5 @@
-import { ReviewResultsContent } from '@/components/review/ReviewResultsContent';
+import { redirect } from 'next/navigation';
 
 export default function ResultsPage() {
-  return <ReviewResultsContent />;
+  redirect('/app/transparenz');
 }

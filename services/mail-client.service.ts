@@ -20,6 +20,17 @@ interface SendMailInput {
   invitationId?: string;
 }
 
+export class MailClientError extends Error {
+  category: 'validation_error' | 'config_error' | 'provider_error' | 'server_error';
+  code?: string;
+
+  constructor(message: string, category: MailClientError['category'], code?: string) {
+    super(message);
+    this.category = category;
+    this.code = code;
+  }
+}
+
 export async function sendAppMail(input: SendMailInput) {
   const response = await fetch('/api/mail', {
     method: 'POST',
@@ -32,8 +43,11 @@ export async function sendAppMail(input: SendMailInput) {
 
   const payload = await response.json();
   if (!response.ok) {
-    const detail = payload?.detail ? ` (${payload.detail})` : '';
-    throw new Error(`${payload?.error ?? 'Mail konnte nicht versendet werden.'}${detail}`);
+    throw new MailClientError(
+      payload?.error ?? 'Mail konnte nicht versendet werden.',
+      payload?.category ?? 'server_error',
+      payload?.code,
+    );
   }
 
   await addDoc(collection(db, firestoreCollections.mailLogs), payload.payload);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { isKnownQuizCategory, resolveCategoryLabel } from '@/services/resultCalculator';
 import {
@@ -100,7 +100,6 @@ export function OwnershipBoard({
   ownerOptions,
   categoryKeys = [],
   preselectedCategoryKeys = [],
-  isFocusedEntry = false,
 }: OwnershipBoardProps) {
   const [openedCardId, setOpenedCardId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -110,6 +109,7 @@ export function OwnershipBoard({
   const [focusOverrides, setFocusOverrides] = useState<Record<string, OwnershipFocusLevel | null>>({});
   const [homeOrder, setHomeOrder] = useState<Record<string, number> | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<QuizCategory[]>([]);
+  const hasAppliedInitialFilter = useRef(false);
 
   const openedCard = useMemo(() => cards.find((item) => item.id === openedCardId) ?? null, [cards, openedCardId]);
 
@@ -168,26 +168,25 @@ export function OwnershipBoard({
     cards: categoryCards,
   })), [grouped]);
 
-  const resolvedPreselectedCategories = useMemo(
-    () => preselectedCategoryKeys.filter((entry) => groupedWithStatus.some((group) => group.category === entry)),
-    [preselectedCategoryKeys, groupedWithStatus],
-  );
-
   useEffect(() => {
     if (mode !== 'dashboard') return;
-    if (isFocusedEntry && selectedCategories.length === 0 && resolvedPreselectedCategories.length > 0) {
-      if (!areCategoryListsEqual(selectedCategories, resolvedPreselectedCategories)) {
-        setSelectedCategories(resolvedPreselectedCategories);
-      }
-      return;
-    }
     if (!selectedCategories.length) return;
     const validSet = new Set(groupedWithStatus.map((group) => group.category));
     const next = selectedCategories.filter((category) => validSet.has(category));
     if (!areCategoryListsEqual(next, selectedCategories)) {
       setSelectedCategories(next);
     }
-  }, [mode, isFocusedEntry, selectedCategories, groupedWithStatus, resolvedPreselectedCategories]);
+  }, [mode, selectedCategories, groupedWithStatus]);
+
+  useEffect(() => {
+    if (mode !== 'dashboard' || hasAppliedInitialFilter.current) return;
+    if (!preselectedCategoryKeys.length || !groupedWithStatus.length) return;
+    const validSet = new Set(groupedWithStatus.map((group) => group.category));
+    const initial = preselectedCategoryKeys.filter((category) => validSet.has(category));
+    if (!initial.length) return;
+    setSelectedCategories(initial);
+    hasAppliedInitialFilter.current = true;
+  }, [mode, preselectedCategoryKeys, groupedWithStatus]);
 
   const filteredGroups = useMemo(() => groupedWithStatus
     .filter((group) => {

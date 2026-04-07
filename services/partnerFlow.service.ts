@@ -14,7 +14,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 import { app, auth, db, firebaseProjectId } from '@/lib/firebase';
-import { sendAppMail } from '@/services/mail-client.service';
+import { MailClientError, sendAppMail } from '@/services/mail-client.service';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
 import { buildDisplayName, normalizeEmailAddress, normalizePersonName } from '@/services/user-profile.service';
 import { firestoreCollections } from '@/types/domain';
@@ -88,6 +88,12 @@ function resolveAppBaseUrl() {
   const explicitUrl = process.env.APP_BASE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (explicitUrl) return explicitUrl.replace(/\/+$/, '');
 
+  const vercelEnv = (process.env.VERCEL_ENV ?? '').toLowerCase();
+  const productionDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelEnv === 'production' && productionDomain) {
+    return `https://${productionDomain.replace(/\/+$/, '')}`;
+  }
+
   if (process.env.VERCEL_URL?.trim()) {
     return `https://${process.env.VERCEL_URL.trim().replace(/\/+$/, '')}`;
   }
@@ -107,8 +113,39 @@ function randomToken() {
   return Array.from(arr).map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
-function normalizeInvitationToken(token: string | null | undefined) {
-  return token?.trim() ?? '';
+export function sanitizeInvitationToken(rawToken?: string | null) {
+  if (!rawToken) return '';
+
+  let token = rawToken.trim().replace(/\u200B/g, '');
+  if (!token) return '';
+
+  try {
+    token = decodeURIComponent(token);
+  } catch {
+    // keep raw token when it is not URI-encoded
+  }
+
+  if (token.startsWith('http://') || token.startsWith('https://')) {
+    try {
+      const parsed = new URL(token);
+      const fromQuery = parsed.searchParams.get('token')?.trim();
+      if (fromQuery) {
+        token = fromQuery;
+      } else {
+        const segments = parsed.pathname.split('/').filter(Boolean);
+        token = segments.at(-1) ?? token;
+      }
+    } catch {
+      // ignore URL parsing issues and continue with fallback cleanup
+    }
+  }
+
+  token = token
+    .replace(/^['"<(\[]+/, '')
+    .replace(/['">)\].,;!?]+$/, '')
+    .trim();
+
+  return token.replace(/\s+/g, '');
 }
 
 function maskTokenForLog(token: string) {
@@ -261,25 +298,24 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
   } catch (error) {
     const callableError = error as { code?: string; message?: string; details?: unknown };
     const appEnv = resolveInviteRuntimeEnvironment();
-    const allowLocalFallback = appEnv !== 'production';
     const fallbackEligible = shouldUseCallableInviteFallback(callableError);
 
-    if (allowLocalFallback && fallbackEligible) {
+    if (fallbackEligible) {
       console.info('[sendPartnerInvitation] Callable sendPartnerInvite unavailable, using fallback.', {
         appEnv,
         code: callableError?.code,
         message: callableError?.message,
       });
     } else {
-      console.error('[sendPartnerInvitation] Callable sendPartnerInvite failed', {
+      console.error('mail.invite.callable_error', {
         code: callableError?.code,
         message: callableError?.message,
         details: callableError?.details,
       });
     }
 
-    if (allowLocalFallback && fallbackEligible) {
-      console.info('[sendPartnerInvitation] Falling back to local invite flow', {
+    if (fallbackEligible) {
+      console.info('mail.invite.callable_fallback', {
         appEnv,
         code: callableError?.code,
       });
@@ -304,9 +340,7 @@ export async function sendPartnerInvitation(partnerEmail: string, personalMessag
 }
 
 async function sendPartnerInvitationFallback(partnerEmail: string, userId: string, personalMessage?: string) {
-  console.info('[sendPartnerInvite:fallback] Function gestartet');
-  console.info('[sendPartnerInvite:fallback] request.auth vorhanden', { hasAuth: Boolean(userId) });
-  console.info('[sendPartnerInvite:fallback] partnerEmail vorhanden', { hasPartnerEmail: Boolean(partnerEmail) });
+  console.info('mail.invite.start', { hasAuth: Boolean(userId), hasPartnerEmail: Boolean(partnerEmail) });
 
   try {
     const userProfile = await fetchAppUserProfile(userId);
@@ -412,7 +446,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SENDGRID_API_KEY ? 'sendgrid' : 'none'),
     });
 
-    console.info('[sendPartnerInvite:fallback] Mailversand gestartet', { partnerEmail });
+    console.info('mail.invite.provider_start', { partnerEmailMasked: partnerEmail.replace(/(^..).+(@.+$)/, '$1***$2') });
     const mailOutcome = await sendAppMail({
       type: 'partner_invitation',
       to: partnerEmail,
@@ -426,7 +460,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       `,
     });
     const provider = String(mailOutcome?.result?.provider ?? 'unknown');
-    console.info('[sendPartnerInvite:fallback] Mailversand abgeschlossen', {
+    console.info('mail.invite.success', {
       originalRecipient: partnerEmail,
       actualRecipient: mailOutcome?.payload?.actualRecipient ?? partnerEmail,
       overrideApplied: Boolean(mailOutcome?.payload?.overrideApplied),
@@ -448,90 +482,106 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       provider,
     } satisfies SendPartnerInviteResult;
   } catch (error) {
-    console.error('[sendPartnerInvite:fallback] Fehler im lokalen Invite-Flow', error);
     if (error instanceof InviteFlowError) throw error;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes('Kein Mail-Provider konfiguriert')) {
-      throw buildInviteError(
-        'failed-precondition',
-        'Mail-Provider nicht konfiguriert.',
-        {
+
+    if (error instanceof MailClientError) {
+      if (error.category === 'validation_error') {
+        console.error('mail.invite.validation_failed', { code: error.code });
+        throw buildInviteError('invalid-argument', 'Die Einladung konnte nicht gesendet werden. Bitte prüfe die E-Mail-Adresse.', {
+          userErrors: ['Bitte gib eine gültige E-Mail-Adresse ein.'],
+        }, [error.code ?? error.message]);
+      }
+
+      if (error.category === 'config_error') {
+        console.error('mail.invite.config_error', { code: error.code });
+        throw buildInviteError('failed-precondition', 'Die Einladung konnte nicht gesendet werden, weil die Mail-Konfiguration unvollständig ist.', {
           configErrors: [
-            'Für lokalen Versand fehlt die Mail-Konfiguration.',
-            'Setze MAIL_PROVIDER=resend + RESEND_API_KEY oder MAIL_PROVIDER=sendgrid + SENDGRID_API_KEY.',
-            'Für reine lokale Smoke-Tests kannst du MAIL_PROVIDER=noop setzen.',
+            'Erforderlich: MAIL_PROVIDER, MAIL_FROM und der passende API-Key.',
+            'Für Resend: MAIL_PROVIDER=resend + RESEND_API_KEY + verifizierte MAIL_FROM-Domain.',
+            'Für SendGrid: MAIL_PROVIDER=sendgrid + SENDGRID_API_KEY + verifizierter Sender.',
           ],
-          serverErrors: ['Die Einladung wurde gespeichert, aber der Mailversand konnte nicht gestartet werden.'],
-        },
-        [errorMessage],
-      );
+        }, [error.code ?? error.message]);
+      }
+
+      if (error.category === 'provider_error') {
+        console.error('mail.invite.provider_error', { code: error.code });
+        throw buildInviteError('internal', 'Die Einladung konnte nicht gesendet werden. Bitte später erneut versuchen.', {
+          serverErrors: ['Die Einladung wurde gespeichert, aber der Mail-Provider hat den Versand abgelehnt.'],
+        }, [error.code ?? error.message]);
+      }
     }
-    if (errorMessage.includes('Mail provider error')) {
-      throw buildInviteError(
-        'internal',
-        'Mailversand fehlgeschlagen.',
-        {
-          serverErrors: ['Die Einladung wurde gespeichert, aber der Mailversand ist fehlgeschlagen.'],
-          configErrors: ['Bitte MAIL_PROVIDER, API-Key und Sender-Adresse prüfen.'],
-        },
-        [errorMessage],
-      );
-    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('mail.invite.unexpected_error', { errorMessage });
     throw buildInviteError(
       'internal',
-      'Unbekannter Serverfehler im Invite-Flow.',
-      { serverErrors: ['Ein unerwarteter Fehler ist aufgetreten.'] },
+      'Die Einladung konnte nicht gesendet werden. Bitte später erneut versuchen.',
+      { serverErrors: ['Ein unerwarteter Serverfehler ist aufgetreten.'] },
       [errorMessage],
     );
   }
 }
 
-export async function resolveInvitationByToken(rawToken: string): Promise<InvitationResolution> {
-  const token = normalizeInvitationToken(rawToken);
-
-  if (!token) {
-    return {
-      status: 'invalid',
-      reason: rawToken ? 'invalid_route_params' : 'missing_token',
-    };
+export async function resolveInvitationByToken(token: string): Promise<InvitationResolution> {
+  const normalizedToken = sanitizeInvitationToken(token);
+  if (!normalizedToken) {
+    return { status: 'invalid', reason: token ? 'invalid_route_params' : 'missing_token' };
   }
 
   console.info('invite.lookup.start', {
-    token: maskTokenForLog(token),
-    tokenLength: token.length,
+    token: maskTokenForLog(normalizedToken),
+    tokenLength: normalizedToken.length,
   });
 
   try {
-    const plainTokenSnap = await getDocs(query(
-      collection(db, firestoreCollections.invitations),
-      where('token', '==', token),
-      limit(1),
-    ));
+    const invitationCollection = collection(db, firestoreCollections.invitations);
+    const tokenCandidates = Array.from(new Set([normalizedToken, normalizedToken.toLowerCase()]));
+    const hashCandidates = await Promise.all(tokenCandidates.map((candidate) => sha256(candidate)));
 
-    let invitationSnapshot = plainTokenSnap;
-    let lookupMode: 'plain_token' | 'token_hash' = 'plain_token';
+    const hashFields = ['tokenHash', 'inviteTokenHash', 'token_hash'];
+    let invitation: InvitationDocument | null = null;
 
-    if (invitationSnapshot.empty) {
-      const tokenHash = await sha256(token);
-      invitationSnapshot = await getDocs(query(
-        collection(db, firestoreCollections.invitations),
-        where('tokenHash', '==', tokenHash),
-        limit(1),
-      ));
-      lookupMode = 'token_hash';
+    for (const hashField of hashFields) {
+      for (const hashValue of hashCandidates) {
+        const snap = await getDocs(query(invitationCollection, where(hashField, '==', hashValue), limit(1)));
+        if (!snap.empty) {
+          invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
+          break;
+        }
+      }
+      if (invitation) break;
     }
 
-    if (invitationSnapshot.empty) {
-      console.info('invite.lookup.result', { reason: 'invite_not_found', token: maskTokenForLog(token) });
+    if (!invitation) {
+      const plainTokenFields = ['token', 'inviteToken'];
+      for (const plainField of plainTokenFields) {
+        for (const tokenCandidate of tokenCandidates) {
+          const snap = await getDocs(query(invitationCollection, where(plainField, '==', tokenCandidate), limit(1)));
+          if (!snap.empty) {
+            invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
+            break;
+          }
+        }
+        if (invitation) break;
+      }
+    }
+
+    if (!invitation) {
+      const directIdSnap = await getDoc(doc(db, firestoreCollections.invitations, normalizedToken));
+      if (directIdSnap.exists()) {
+        invitation = { id: directIdSnap.id, ...directIdSnap.data() } as InvitationDocument;
+      }
+    }
+
+    if (!invitation) {
+      console.info('invite.lookup.result', { reason: 'invite_not_found', token: maskTokenForLog(normalizedToken) });
       return { status: 'invalid', reason: 'invite_not_found' };
     }
 
-    const invitation = { id: invitationSnapshot.docs[0].id, ...invitationSnapshot.docs[0].data() } as InvitationDocument;
     const invitationStatus = invitation.status?.toLowerCase() ?? '';
 
     console.info('invite.lookup.result', {
       invitationId: invitation.id,
-      lookupMode,
       status: invitationStatus || 'missing',
     });
 
@@ -582,8 +632,9 @@ export async function resolveInvitationByToken(rawToken: string): Promise<Invita
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('invite.lookup.failed', {
-      token: maskTokenForLog(token),
+      token: maskTokenForLog(normalizedToken),
       errorMessage,
+      project: firebaseProjectId,
     });
     return {
       status: 'error',
@@ -872,6 +923,48 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
   return resultId;
 }
 
+export async function ensureInitiatorFamilySetup(userId: string) {
+  const profile = await fetchAppUserProfile(userId);
+  if (!profile || profile.role === 'partner') return null;
+
+  if (profile.familyId) {
+    await buildOrUpdateInitiatorResult(userId);
+    return profile.familyId;
+  }
+
+  const familyId = doc(collection(db, firestoreCollections.families)).id;
+  await setDoc(doc(db, firestoreCollections.families, familyId), {
+    id: familyId,
+    initiatorUserId: userId,
+    partnerUserId: null,
+    status: 'invited',
+    initiatorCompleted: true,
+    partnerCompleted: false,
+    initiatorRegistered: true,
+    partnerRegistered: false,
+    resultsUnlocked: false,
+    sharedResultsOpened: false,
+    unlockedAt: null,
+    unlockedBy: null,
+    sharedResultsOpenedAt: null,
+    sharedResultsOpenedBy: null,
+    resultsDiscussedAt: null,
+    resultsDiscussedBy: null,
+    invitationId: null,
+    createdAt: nowIso(),
+    updatedAt: serverTimestamp(),
+  });
+
+  await setDoc(doc(db, firestoreCollections.users, userId), {
+    familyId,
+    role: 'initiator',
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  await buildOrUpdateInitiatorResult(userId);
+  return familyId;
+}
+
 export async function triggerJointPreparationByPartner(userId: string) {
   const profile = await fetchAppUserProfile(userId);
   if (!profile?.familyId || profile.role !== 'partner') throw new Error('Nur Partner können diesen Schritt auslösen.');
@@ -1018,12 +1111,26 @@ export async function fetchDashboardBundle(userId: string) {
   const profile = await fetchAppUserProfile(userId);
   if (!profile) return { profile: null };
 
-  let ownResult = profile.familyId
-    ? await fetchResultByRole(profile.familyId, profile.role === 'partner' ? 'partner' : 'initiator')
-    : null;
+  const familyId = profile.familyId ?? null;
+  const ownRole = profile.role === 'partner' ? 'partner' : 'initiator';
 
+  let latestInitiatorResultPromise: Promise<Awaited<ReturnType<typeof getLatestInitiatorResult>> | null> | null = null;
+  const getLatestInitiatorResultOnce = async () => {
+    if (profile.role === 'partner') return null;
+    if (!latestInitiatorResultPromise) {
+      latestInitiatorResultPromise = getLatestInitiatorResult(userId);
+    }
+    return latestInitiatorResultPromise;
+  };
+
+  const [ownResultInitial, familySnapshot] = await Promise.all([
+    familyId ? fetchResultByRole(familyId, ownRole) : Promise.resolve(null),
+    familyId ? getDoc(doc(db, firestoreCollections.families, familyId)) : Promise.resolve(null),
+  ]);
+
+  let ownResult = ownResultInitial;
   if (ownResult && profile.role !== 'partner' && (!ownResult.stressCategories || ownResult.stressCategories.length === 0)) {
-    const raw = await getLatestInitiatorResult(userId);
+    const raw = await getLatestInitiatorResultOnce();
     if (raw?.stressCategories) {
       ownResult = {
         ...ownResult,
@@ -1041,45 +1148,47 @@ export async function fetchDashboardBundle(userId: string) {
   let invitationPartnerEmail: string | null = null;
   let ageGroupForOwnership: AgeGroup | null = null;
 
-  if (profile.familyId) {
-    const familySnap = await getDoc(doc(db, firestoreCollections.families, profile.familyId));
-    family = familySnap.exists() ? (familySnap.data() as FamilyDocument) : null;
-    if (family?.initiatorUserId) {
-      const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
-      initiatorDisplayName = initiatorProfile?.displayName || deriveNameFromEmail(initiatorProfile?.email) || 'Initiator';
-    }
-    if (family?.partnerUserId) {
-      const partnerProfile = await fetchAppUserProfile(family.partnerUserId);
-      partnerDisplayName = partnerProfile?.displayName || deriveNameFromEmail(partnerProfile?.email) || null;
-    }
-    if (family?.invitationId) {
-      const invitationSnap = await getDoc(doc(db, firestoreCollections.invitations, family.invitationId));
-      if (invitationSnap.exists()) {
-        const invitation = invitationSnap.data() as InvitationDocument;
-        invitationPartnerEmail = invitation.partnerEmail ?? null;
-        if (!partnerDisplayName) {
-          partnerDisplayName = deriveNameFromEmail(invitationPartnerEmail);
-        }
-      }
+  family = familySnapshot?.exists() ? (familySnapshot.data() as FamilyDocument) : null;
+
+  if (family) {
+    const [initiatorProfile, partnerProfile, invitation] = await Promise.all([
+      family.initiatorUserId ? fetchAppUserProfile(family.initiatorUserId) : Promise.resolve(null),
+      family.partnerUserId ? fetchAppUserProfile(family.partnerUserId) : Promise.resolve(null),
+      family.invitationId
+        ? getDoc(doc(db, firestoreCollections.invitations, family.invitationId)).then((snap) => (snap.exists() ? snap.data() as InvitationDocument : null))
+        : Promise.resolve(null),
+    ]);
+
+    initiatorDisplayName = initiatorProfile?.displayName || deriveNameFromEmail(initiatorProfile?.email) || 'Initiator';
+    partnerDisplayName = partnerProfile?.displayName || deriveNameFromEmail(partnerProfile?.email) || null;
+
+    invitationPartnerEmail = invitation?.partnerEmail ?? null;
+    if (!partnerDisplayName) {
+      partnerDisplayName = deriveNameFromEmail(invitationPartnerEmail);
     }
 
-    const canSeeSharedResults = Boolean(family?.resultsUnlocked && family?.sharedResultsOpened);
-    if (canSeeSharedResults) {
-      const jointSnap = await getDocs(query(
-        collection(db, firestoreCollections.jointResults),
-        where('familyId', '==', profile.familyId),
-        limit(1),
-      ));
+    const canSeeSharedResults = Boolean(family.resultsUnlocked && family.sharedResultsOpened);
+    if (canSeeSharedResults && familyId) {
+      const [jointSnap, initiator, partner] = await Promise.all([
+        getDocs(query(
+          collection(db, firestoreCollections.jointResults),
+          where('familyId', '==', familyId),
+          limit(1),
+        )),
+        fetchResultByRole(familyId, 'initiator'),
+        fetchResultByRole(familyId, 'partner'),
+      ]);
+
       if (!jointSnap.empty) {
         joint = { id: jointSnap.docs[0].id, ...jointSnap.docs[0].data() } as JointResultDocument;
       }
-      initiatorResult = await fetchResultByRole(profile.familyId, 'initiator');
-      partnerResult = await fetchResultByRole(profile.familyId, 'partner');
+      initiatorResult = initiator;
+      partnerResult = partner;
     }
   }
 
   if (!ownResult && profile.role !== 'partner') {
-    const raw = await getLatestInitiatorResult(userId);
+    const raw = await getLatestInitiatorResultOnce();
     if (raw?.questionIds?.length) {
       const snapshot = await getQuestionSnapshot(raw.questionIds);
       const categoryScores = computeCategoryScores(snapshot, raw.answers);
@@ -1105,7 +1214,7 @@ export async function fetchDashboardBundle(userId: string) {
     ageGroupForOwnership = ownResult.questionSetSnapshot[0]?.ageGroup ?? null;
   }
   if (!ageGroupForOwnership && profile.role !== 'partner') {
-    const raw = await getLatestInitiatorResult(userId);
+    const raw = await getLatestInitiatorResultOnce();
     const candidate = raw?.filter?.youngestAgeGroup;
     if (candidate && ['0_1', '1_3', '3_6', '6_10', '10_plus'].includes(candidate)) {
       ageGroupForOwnership = candidate as AgeGroup;

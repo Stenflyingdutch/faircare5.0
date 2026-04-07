@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import { ownershipOptions, splitClarityOptions } from '@/components/test/test-config';
-import { resolveInvitationByToken, savePartnerFilterPerception, savePartnerSessionAnswer } from '@/services/partnerFlow.service';
+import { resolveInvitationByToken, sanitizeInvitationToken, savePartnerFilterPerception, savePartnerSessionAnswer } from '@/services/partnerFlow.service';
 import { loadPartnerLocalSession, savePartnerLocalSession, type PartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { OwnershipAnswer } from '@/types/quiz';
 
@@ -28,7 +28,7 @@ export default function PartnerTestPage() {
   const [session, setSession] = useState<PartnerLocalSession | null>(loadPartnerLocalSession());
 
   useEffect(() => {
-    const token = params?.token;
+    const token = sanitizeInvitationToken(params?.token);
     const stored = loadPartnerLocalSession();
     if (!token || !stored || stored.invitationToken !== token) {
       router.replace(`/invite/${token}`);

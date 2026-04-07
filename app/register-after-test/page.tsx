@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 
 import { registerUser, resolveRegistrationErrorMessage, syncAuthSession } from '@/services/auth.service';
-import { finalizePartnerRegistration } from '@/services/partnerFlow.service';
+import { finalizePartnerRegistration, sanitizeInvitationToken } from '@/services/partnerFlow.service';
 import { clearPartnerLocalSession, loadPartnerLocalSession } from '@/services/partnerSessionStorage';
 
 export default function RegisterAfterTestPage() {
@@ -19,7 +19,7 @@ export default function RegisterAfterTestPage() {
 function RegisterAfterTestContent() {
   const router = useRouter();
   const params = useSearchParams();
-  const token = params.get('token') ?? '';
+  const token = sanitizeInvitationToken(params.get('token'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -62,7 +62,7 @@ function RegisterAfterTestContent() {
         displayName: normalizedDisplayName,
       });
       clearPartnerLocalSession();
-      router.push('/app/ergebnisse');
+      router.push('/app/transparenz');
     } catch (submitError) {
       setError(resolveRegistrationErrorMessage(submitError));
       setIsSubmitting(false);

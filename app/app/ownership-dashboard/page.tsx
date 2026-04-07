@@ -5,9 +5,15 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 
 import { OwnershipBoard } from '@/components/ownership/OwnershipBoard';
 import { observeAuthState } from '@/services/auth.service';
-import { ensureOwnershipCardsForCategories, observeOwnershipCategories } from '@/services/ownership.service';
+import {
+  buildOwnershipRecommendations,
+  computeOwnershipSignals,
+  ensureOwnershipCardsForCategories,
+  initializeFamilyOwnership,
+  observeOwnershipCategories,
+} from '@/services/ownership.service';
 import { listenToAllResponsibilities } from '@/services/responsibilities.service';
-import { fetchDashboardBundle } from '@/services/partnerFlow.service';
+import { ensureInitiatorFamilySetup, fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import { getCurrentLocale } from '@/lib/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
@@ -30,12 +36,19 @@ function OwnershipDashboardPageContent() {
   const [categories, setCategories] = useState<OwnershipCategoryDocument[]>([]);
   const [ageGroup, setAgeGroup] = useState<AgeGroup | null>(null);
   const [ownerOptions, setOwnerOptions] = useState<Array<{ userId: string; label: string }>>([]);
+  const [autoPreselectedCategoryKeys, setAutoPreselectedCategoryKeys] = useState<QuizCategory[]>([]);
+  const [recommendationPayload, setRecommendationPayload] = useState<{
+    selectedCategories: QuizCategory[];
+    recommendations: ReturnType<typeof buildOwnershipRecommendations>;
+    signals: ReturnType<typeof computeOwnershipSignals>;
+  } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const preselectedCategoryKeys = ((searchParams.get('categories') ?? '')
+  const queryCategoryKeys = ((searchParams.get('categories') ?? '')
     .split(',')
     .map((entry) => entry.trim())
     .filter((entry): entry is QuizCategory => Boolean(categoryLabelMap[entry as QuizCategory])));
-  const isRecommendationEntry = searchParams.get('from') === 'recommendation' && preselectedCategoryKeys.length > 0;
+  const preselectedCategoryKeys = queryCategoryKeys.length > 0 ? queryCategoryKeys : autoPreselectedCategoryKeys;
+  const isRecommendationEntry = preselectedCategoryKeys.length > 0;
   const allCategoryKeys = useMemo(() => Object.keys(categoryLabelMap) as QuizCategory[], []);
 
   useEffect(() => {
@@ -45,9 +58,36 @@ function OwnershipDashboardPageContent() {
         return;
       }
       setUserId(user.uid);
-      const bundle = await fetchDashboardBundle(user.uid);
-      setFamilyId(bundle.profile?.familyId ?? null);
+      let bundle = await fetchDashboardBundle(user.uid);
+      if (bundle.profile?.role !== 'partner' && !bundle.profile?.familyId) {
+        await ensureInitiatorFamilySetup(user.uid);
+        bundle = await fetchDashboardBundle(user.uid);
+      }
+      const resolvedFamilyId = bundle.profile?.familyId ?? null;
+      setFamilyId(resolvedFamilyId);
       setAgeGroup(bundle.ageGroupForOwnership ?? null);
+      if (bundle.ownResult) {
+        const signals = computeOwnershipSignals({
+          categoryScores: bundle.ownResult.categoryScores,
+          stressCategories: bundle.ownResult.stressCategories ?? [],
+          partnerCategoryScores: bundle.partnerResult?.categoryScores,
+        });
+        const recommendations = buildOwnershipRecommendations({
+          categoryScores: bundle.ownResult.categoryScores,
+          stressCategories: bundle.ownResult.stressCategories ?? [],
+          partnerCategoryScores: bundle.partnerResult?.categoryScores,
+        });
+        const selectedCategories = recommendations.map((entry) => entry.categoryKey);
+        setAutoPreselectedCategoryKeys(selectedCategories);
+        setRecommendationPayload(selectedCategories.length ? {
+          selectedCategories,
+          recommendations,
+          signals,
+        } : null);
+      } else {
+        setAutoPreselectedCategoryKeys([]);
+        setRecommendationPayload(null);
+      }
 
       console.info('[ownership-dashboard] membership debug', {
         userId: user.uid,
@@ -94,6 +134,19 @@ function OwnershipDashboardPageContent() {
     }).catch(() => setLoadError('Die Karten konnten gerade nicht geladen oder angelegt werden. Bitte versuche es erneut.'));
   }, [familyId, userId, ageGroup, allCategoryKeys]);
 
+  useEffect(() => {
+    if (!familyId || !userId || !ageGroup || !recommendationPayload?.selectedCategories.length) return;
+    initializeFamilyOwnership({
+      familyId,
+      ageGroup,
+      actorUserId: userId,
+      selectedCategories: recommendationPayload.selectedCategories,
+      recommendations: recommendationPayload.recommendations,
+      allSignals: recommendationPayload.signals,
+      locale: getCurrentLocale(),
+    }).catch(() => setLoadError('Die empfohlenen Kategorien konnten gerade nicht vorbereitet werden. Bitte versuche es erneut.'));
+  }, [familyId, userId, ageGroup, recommendationPayload]);
+
   if (!userId || !familyId) {
     return (
       <article className="card stack">
@@ -113,11 +166,9 @@ function OwnershipDashboardPageContent() {
           Jede Karte steht für einen klar zugeordneten Verantwortungsbereich inklusive Planung und Durchführung.
         </p>
         <p className="helper" style={{ margin: 0 }}>
-          {isRecommendationEntry
-            ? 'Du startest direkt mit den ausgewählten Verantwortungsbereichen.'
-            : recommendedCount > 0
-              ? `${recommendedCount} Startkategorien wurden als Orientierung markiert.`
-              : 'Alle aktiven Kategorien sind gleichwertig sichtbar.'}
+          {recommendedCount > 0
+            ? `${recommendedCount} Startkategorien wurden als Orientierung markiert.`
+            : 'Alle aktiven Kategorien sind gleichwertig sichtbar.'}
         </p>
       </article>
       <OwnershipBoard

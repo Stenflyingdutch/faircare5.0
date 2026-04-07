@@ -7,9 +7,9 @@ const partnerFlowSrc = fs.readFileSync(path.join(process.cwd(), 'services/partne
 const invitePageSrc = fs.readFileSync(path.join(process.cwd(), 'app/invite/[token]/page.tsx'), 'utf8');
 
 test('invite lookup supports legacy plain token docs before tokenHash fallback', () => {
-  assert.match(partnerFlowSrc, /where\('token', '==', token\)/);
-  assert.match(partnerFlowSrc, /where\('tokenHash', '==', tokenHash\)/);
-  assert.match(partnerFlowSrc, /lookupMode: 'plain_token' \| 'token_hash'/);
+  assert.match(partnerFlowSrc, /const hashFields = \['tokenHash', 'inviteTokenHash', 'token_hash'\]/);
+  assert.match(partnerFlowSrc, /const plainTokenFields = \['token', 'inviteToken'\]/);
+  assert.match(partnerFlowSrc, /doc\(db, firestoreCollections\.invitations, normalizedToken\)/);
 });
 
 test('invite lookup distinguishes lookup failures from truly invalid links', () => {

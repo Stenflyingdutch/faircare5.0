@@ -4,10 +4,14 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { fetchAppUserProfile, resolveInvitationByToken, startPartnerSession } from '@/services/partnerFlow.service';
+import {
+  fetchAppUserProfile,
+  resolveInvitationByToken,
+  sanitizeInvitationToken,
+  startPartnerSession,
+} from '@/services/partnerFlow.service';
 import { savePartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { InvitationDocument, InvitationResolutionReason, InvitationResolutionStatus } from '@/types/partner-flow';
-
 
 function normalizeName(value?: string | null) {
   const trimmed = value?.trim();
@@ -25,8 +29,10 @@ export default function InviteLandingPage() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    const token = params?.token?.trim();
-    console.info('invite.route.entered', { hasToken: Boolean(token), tokenLength: token?.length ?? 0 });
+    console.info('invite.route.entered', { rawToken: params?.token ?? null });
+    const token = sanitizeInvitationToken(params?.token);
+    console.info('invite.route.parsed_token', { tokenLength: token.length });
+
     if (!token) {
       setStatus('invalid');
       setReason('missing_token');
@@ -52,7 +58,8 @@ export default function InviteLandingPage() {
   }, [params?.token]);
 
   async function beginPartnerQuiz() {
-    if (!invitation || !params?.token) return;
+    const token = sanitizeInvitationToken(params?.token);
+    if (!invitation || !token) return;
     setStarting(true);
     try {
       const session = await startPartnerSession(invitation);
@@ -60,7 +67,7 @@ export default function InviteLandingPage() {
       const fallbackFromEmail = initiatorProfile?.email?.split('@')[0]?.trim();
 
       savePartnerLocalSession({
-        invitationToken: params.token,
+        invitationToken: token,
         invitationId: invitation.id,
         sessionId: session.id,
         familyId: invitation.familyId,
@@ -69,7 +76,7 @@ export default function InviteLandingPage() {
         answers: {},
         counterpartName: normalizeName(initiatorProfile?.displayName) || normalizeName(fallbackFromEmail) || 'Partner',
       });
-      router.push(`/partner-test/${params.token}`);
+      router.push(`/partner-test/${token}`);
     } catch {
       setStarting(false);
     }
@@ -97,7 +104,7 @@ export default function InviteLandingPage() {
               {status === 'invalid' && 'Dieser Einladungslink ist ungültig.'}
               {status === 'error' && 'Der Einladungslink konnte gerade nicht geprüft werden. Bitte versuche es erneut.'}
             </p>
-            {status === 'error' && reason === 'lookup_failed' && (
+            {reason === 'lookup_failed' && (
               <p className="helper">Wenn der Fehler bestehen bleibt, erstelle bitte eine neue Einladung.</p>
             )}
             <Link href="/" className="button secondary">Zur Startseite</Link>
