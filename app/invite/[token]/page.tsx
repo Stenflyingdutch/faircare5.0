@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { fetchAppUserProfile, resolveInvitationByToken, startPartnerSession } from '@/services/partnerFlow.service';
+import { fetchAppUserProfile, resolveInvitationByToken, sanitizeInvitationToken, startPartnerSession } from '@/services/partnerFlow.service';
 import { savePartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { InvitationDocument } from '@/types/partner-flow';
 
@@ -24,7 +24,7 @@ export default function InviteLandingPage() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    const token = params?.token;
+    const token = sanitizeInvitationToken(params?.token);
     if (!token) return;
 
     resolveInvitationByToken(token)
@@ -38,7 +38,8 @@ export default function InviteLandingPage() {
   }, [params?.token]);
 
   async function beginPartnerQuiz() {
-    if (!invitation || !params?.token) return;
+    const token = sanitizeInvitationToken(params?.token);
+    if (!invitation || !token) return;
     setStarting(true);
     try {
       const session = await startPartnerSession(invitation);
@@ -46,7 +47,7 @@ export default function InviteLandingPage() {
       const fallbackFromEmail = initiatorProfile?.email?.split('@')[0]?.trim();
 
       savePartnerLocalSession({
-        invitationToken: params.token,
+        invitationToken: token,
         invitationId: invitation.id,
         sessionId: session.id,
         familyId: invitation.familyId,
@@ -55,7 +56,7 @@ export default function InviteLandingPage() {
         answers: {},
         counterpartName: normalizeName(initiatorProfile?.displayName) || normalizeName(fallbackFromEmail) || 'Partner',
       });
-      router.push(`/partner-test/${params.token}`);
+      router.push(`/partner-test/${token}`);
     } catch {
       setStarting(false);
     }

@@ -106,6 +106,41 @@ function randomToken() {
   return Array.from(arr).map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
+export function sanitizeInvitationToken(rawToken?: string | null) {
+  if (!rawToken) return '';
+
+  let token = rawToken.trim().replace(/\u200B/g, '');
+  if (!token) return '';
+
+  try {
+    token = decodeURIComponent(token);
+  } catch {
+    // keep raw token when it is not URI-encoded
+  }
+
+  if (token.startsWith('http://') || token.startsWith('https://')) {
+    try {
+      const parsed = new URL(token);
+      const fromQuery = parsed.searchParams.get('token')?.trim();
+      if (fromQuery) {
+        token = fromQuery;
+      } else {
+        const segments = parsed.pathname.split('/').filter(Boolean);
+        token = segments.at(-1) ?? token;
+      }
+    } catch {
+      // ignore URL parsing issues and continue with fallback cleanup
+    }
+  }
+
+  token = token
+    .replace(/^['"<(\[]+/, '')
+    .replace(/['">)\].,;!?]+$/, '')
+    .trim();
+
+  return token.replace(/\s+/g, '');
+}
+
 export interface InviteDebugDetails {
   headline: string;
   userErrors: string[];
@@ -468,8 +503,18 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
 }
 
 export async function resolveInvitationByToken(token: string) {
-  const tokenHash = await sha256(token);
-  const snap = await getDocs(query(collection(db, firestoreCollections.invitations), where('tokenHash', '==', tokenHash), limit(1)));
+  const normalizedToken = sanitizeInvitationToken(token);
+  if (!normalizedToken) {
+    return { status: 'invalid' as const };
+  }
+
+  const tokenCandidates = Array.from(new Set([normalizedToken, normalizedToken.toLowerCase()]));
+  let snap = await getDocs(query(collection(db, firestoreCollections.invitations), where('tokenHash', '==', await sha256(tokenCandidates[0])), limit(1)));
+
+  if (snap.empty && tokenCandidates.length > 1) {
+    snap = await getDocs(query(collection(db, firestoreCollections.invitations), where('tokenHash', '==', await sha256(tokenCandidates[1])), limit(1)));
+  }
+
   if (snap.empty) {
     return { status: 'invalid' as const };
   }

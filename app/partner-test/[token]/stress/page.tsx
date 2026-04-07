@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { stressOptions } from '@/components/test/test-config';
-import { completePartnerSession, savePartnerStressSelection } from '@/services/partnerFlow.service';
+import { completePartnerSession, sanitizeInvitationToken, savePartnerStressSelection } from '@/services/partnerFlow.service';
 import { loadPartnerLocalSession, savePartnerLocalSession, type PartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { StressSelection } from '@/types/quiz';
 
@@ -24,7 +24,7 @@ export default function PartnerStressPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = params?.token;
+    const token = sanitizeInvitationToken(params?.token);
     const stored = loadPartnerLocalSession();
     if (!token || !stored || stored.invitationToken !== token) {
       router.replace(`/invite/${token}`);
