@@ -35,3 +35,11 @@ test('invitation token resolution normalizes pasted or encoded tokens', () => {
   assert.match(src, /match\(\/\[a-f0-9\]\{64\}\/i\)/);
   assert.match(src, /toLowerCase\(\)/);
 });
+
+test('invitation lookup supports legacy token storage variants', () => {
+  assert.match(src, /function buildInvitationTokenCandidates/);
+  assert.match(src, /where\(documentId\(\), 'in', tokenCandidates\.slice\(0, 10\)\)/);
+  assert.match(src, /'token_hash'/);
+  assert.match(src, /'tokenDigest'/);
+  assert.match(src, /'token'/);
+});

@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  documentId,
   doc,
   getDoc,
   getDocs,
@@ -110,6 +111,63 @@ function normalizeInvitationToken(rawToken: string) {
   })();
   const candidate = decoded.match(/[a-f0-9]{64}/i)?.[0] ?? decoded;
   return candidate.toLowerCase();
+}
+
+function buildInvitationTokenCandidates(rawToken: string) {
+  const trimmed = rawToken.trim();
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(trimmed);
+    } catch {
+      return trimmed;
+    }
+  })();
+
+  const unwrapped = decoded
+    .replace(/^["'(<\[]+/, '')
+    .replace(/[>"')\].,;!?]+$/, '');
+
+  const candidates = new Set<string>([trimmed, decoded, unwrapped]);
+  const extractedHex = unwrapped.match(/[a-f0-9]{64}/i)?.[0];
+  if (extractedHex) candidates.add(extractedHex.toLowerCase());
+  return Array.from(candidates).map((candidate) => candidate.trim()).filter(Boolean);
+}
+
+async function findInvitationByToken(token: string) {
+  const tokenCandidates = buildInvitationTokenCandidates(token);
+  const tokenHashes = await Promise.all(tokenCandidates.map((candidate) => sha256(candidate)));
+
+  const invitationById = await getDocs(query(
+    collection(db, firestoreCollections.invitations),
+    where(documentId(), 'in', tokenCandidates.slice(0, 10)),
+    limit(1),
+  ));
+  if (!invitationById.empty) {
+    return { id: invitationById.docs[0].id, ...invitationById.docs[0].data() } as InvitationDocument;
+  }
+
+  const fieldCandidates = [
+    'tokenHash',
+    'token_hash',
+    'tokenDigest',
+    'token',
+  ] as const;
+
+  for (const tokenField of fieldCandidates) {
+    const valueCandidates = tokenField === 'token' ? tokenCandidates : tokenHashes;
+    for (const candidate of valueCandidates.slice(0, 10)) {
+      const snap = await getDocs(query(
+        collection(db, firestoreCollections.invitations),
+        where(tokenField, '==', candidate),
+        limit(1),
+      ));
+      if (!snap.empty) {
+        return { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
+      }
+    }
+  }
+
+  return null;
 }
 
 export interface InviteDebugDetails {
@@ -475,13 +533,21 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
 }
 
 export async function resolveInvitationByToken(token: string) {
-  const tokenHash = await sha256(normalizeInvitationToken(token));
-  const snap = await getDocs(query(collection(db, firestoreCollections.invitations), where('tokenHash', '==', tokenHash), limit(1)));
-  if (snap.empty) {
+  const normalizedTokenHash = await sha256(normalizeInvitationToken(token));
+  const normalizedSnap = await getDocs(query(
+    collection(db, firestoreCollections.invitations),
+    where('tokenHash', '==', normalizedTokenHash),
+    limit(1),
+  ));
+
+  const invitation = normalizedSnap.empty
+    ? await findInvitationByToken(token)
+    : ({ id: normalizedSnap.docs[0].id, ...normalizedSnap.docs[0].data() } as InvitationDocument);
+
+  if (!invitation) {
     return { status: 'invalid' as const };
   }
 
-  const invitation = { id: snap.docs[0].id, ...snap.docs[0].data() } as InvitationDocument;
   if (invitation.status === 'accepted') return { status: 'accepted' as const, invitation };
 
   const familySnapshot = await getDoc(doc(db, firestoreCollections.families, invitation.familyId));
