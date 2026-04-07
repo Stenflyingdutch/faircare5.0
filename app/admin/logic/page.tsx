@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo } from 'react';
-import Link from 'next/link';
 import { LoginBackButton } from '@/components/personal/LoginBackButton';
 
 import { resultLogicDocumentation } from '@/services/resultInsights';
