@@ -16,6 +16,7 @@ const loginClientSrc = read('app/login/LoginPageClient.tsx');
 test('signup debug helper logs auth state and invite context metadata without exposing tokens', () => {
   assert.match(signupDebugSrc, /hasAuthCurrentUser: Boolean\(currentUser\)/);
   assert.match(signupDebugSrc, /hasInviteContext: Boolean\(context\.inviteContextPresent\)/);
+  assert.match(signupDebugSrc, /projectId: firebaseProjectId \?\? null/);
   assert.match(signupDebugSrc, /errorCode: \(error as \{ code\?: string \}\)\?\.code \?\? null/);
 });
 
@@ -27,6 +28,9 @@ test('register flow emits explicit signup diagnostics and separates missing invi
   assert.match(registerSrc, /signup\.finalize\.start/);
   assert.match(registerSrc, /signup\.finalize\.success/);
   assert.match(registerSrc, /signup\.finalize\.failed/);
+  assert.match(registerSrc, /signup\.redirect\.start/);
+  assert.match(registerSrc, /signup\.redirect\.target/);
+  assert.match(registerSrc, /signup\.flow\.failed/);
 });
 
 test('partner registration flow logs invite detection and technical finalize failures', () => {
@@ -35,6 +39,9 @@ test('partner registration flow logs invite detection and technical finalize fai
   assert.match(registerAfterTestSrc, /signup\.finalize\.start/);
   assert.match(registerAfterTestSrc, /signup\.finalize\.success/);
   assert.match(registerAfterTestSrc, /signup\.finalize\.failed/);
+  assert.match(registerAfterTestSrc, /signup\.redirect\.start/);
+  assert.match(registerAfterTestSrc, /signup\.redirect\.target/);
+  assert.match(registerAfterTestSrc, /signup\.flow\.failed/);
 });
 
 test('auth creation and profile bootstrap log the exact Firestore steps behind permission-denied', () => {
@@ -44,12 +51,23 @@ test('auth creation and profile bootstrap log the exact Firestore steps behind p
   assert.match(partnerFlowSrc, /user_doc\.read\.start/);
   assert.match(partnerFlowSrc, /user_doc\.read\.success/);
   assert.match(partnerFlowSrc, /user_doc\.read\.failed/);
+  assert.match(partnerFlowSrc, /signup\.next_read\.start/);
+  assert.match(partnerFlowSrc, /signup\.next_read\.success/);
+  assert.match(partnerFlowSrc, /signup\.next_read\.failed/);
+  assert.match(partnerFlowSrc, /user_profile\.create\.start/);
+  assert.match(partnerFlowSrc, /user_profile\.create\.success/);
+  assert.match(partnerFlowSrc, /user_profile\.create\.failed/);
   assert.match(partnerFlowSrc, /user_doc\.create\.start/);
   assert.match(partnerFlowSrc, /user_doc\.create\.success/);
   assert.match(partnerFlowSrc, /user_doc\.create\.failed/);
   assert.match(partnerFlowSrc, /family_doc\.create\.start/);
   assert.match(partnerFlowSrc, /family_doc\.create\.success/);
   assert.match(partnerFlowSrc, /family_doc\.create\.failed/);
+});
+
+test('profile bootstrap still attempts users write when initial self-read is denied on legacy rules', () => {
+  assert.match(partnerFlowSrc, /if \(code === 'permission-denied' \|\| code === 'firestore\/permission-denied'\) \{/);
+  assert.match(partnerFlowSrc, /existingSnapshot = null;/);
 });
 
 test('signup bootstrap reads own userResults by deterministic document id instead of a blocked collection query', () => {
