@@ -399,6 +399,22 @@ export async function ensureUserProfile(params: {
 
 export async function fetchAppUserProfile(userId: string) {
   const userPath = `${firestoreCollections.users}/${userId}`;
+
+  if (!auth.currentUser) {
+    logSignupInfo('dashboard.first_read.skipped_no_auth', {
+      step: 'fetchAppUserProfile',
+      path: userPath,
+      uid: userId,
+    });
+    logSignupInfo('auth_required_loader_skipped', {
+      step: 'fetchAppUserProfile',
+      path: userPath,
+      uid: userId,
+      extra: { loader: 'fetchAppUserProfile' },
+    });
+    return null;
+  }
+
   logSignupInfo('dashboard.first_read.start', {
     step: 'fetchAppUserProfile',
     path: userPath,
