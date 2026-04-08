@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
 
 const repoRoot = path.resolve(__dirname, '..');
 
@@ -9,38 +11,73 @@ function read(relPath) {
   return fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
 }
 
-test('0_1 ownership task package seed contains exactly 40 final packages grouped into 4 categories', () => {
-  const src = read('data/ownershipTaskPackageTemplates.ts');
-  const ageBlock = src.match(/'0_1': \{([\s\S]*?)\n  \},/);
+function loadTsModule(relPath) {
+  const source = read(relPath);
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
 
-  assert.ok(ageBlock, '0_1 seed block not found');
-  const categoryBlocks = [...ageBlock[1].matchAll(/([a-z_]+): \[(.*?)\n    \],/gs)];
-  assert.equal(categoryBlocks.length, 4, 'expected 4 categories for 0_1');
+  const module = { exports: {} };
+  const context = {
+    module,
+    exports: module.exports,
+    require,
+    __dirname: path.dirname(path.join(repoRoot, relPath)),
+    __filename: path.join(repoRoot, relPath),
+  };
+  vm.runInNewContext(compiled, context, { filename: relPath });
+  return module.exports;
+}
 
-  const itemCount = [...ageBlock[1].matchAll(/\bitem\('/g)].length;
-  assert.equal(itemCount, 40, 'expected exactly 40 task packages for 0_1');
+test('ownership task package seeds contain 40 final packages for every age group', () => {
+  const { ownershipTaskPackageSeedByAgeGroup } = loadTsModule('data/ownershipTaskPackageTemplates.ts');
+  const ageGroups = ['0_1', '1_3', '3_6', '6_10', '10_plus'];
 
-  for (const [, categoryKey, block] of categoryBlocks) {
-    const count = [...block.matchAll(/\bitem\('/g)].length;
-    assert.equal(count, 10, `expected 10 task packages in ${categoryKey}`);
+  for (const ageGroup of ageGroups) {
+    const categories = ownershipTaskPackageSeedByAgeGroup[ageGroup];
+    assert.ok(categories, `expected seed block for ${ageGroup}`);
+
+    const categoryKeys = Object.keys(categories);
+    assert.deepEqual(categoryKeys, [
+      'betreuung_entwicklung',
+      'gesundheit',
+      'babyalltag_pflege',
+      'haushalt_einkaeufe_vorraete',
+    ]);
+
+    const itemCount = Object.values(categories).reduce((sum, items) => sum + items.length, 0);
+    assert.equal(itemCount, 40, `expected exactly 40 task packages for ${ageGroup}`);
+
+    for (const [categoryKey, items] of Object.entries(categories)) {
+      assert.equal(items.length, 10, `expected 10 task packages in ${ageGroup}/${categoryKey}`);
+    }
   }
 });
 
-test('0_1 task package seed includes localized detail lists and no new ages are filled', () => {
-  const dataSrc = read('data/ownershipTaskPackageTemplates.ts');
+test('task package seed keeps localized structure and fills all prepared ages', () => {
+  const { ownershipTaskPackageSeedByAgeGroup } = loadTsModule('data/ownershipTaskPackageTemplates.ts');
   const typeSrc = read('types/ownership.ts');
   const serviceSrc = read('services/ownership.service.ts');
 
   assert.match(typeSrc, /details: LocalizedTextList;/);
-  assert.match(dataSrc, /details: \{ de: details, en: \[\], nl: \[\] \}/);
-  assert.doesNotMatch(dataSrc, /'1_3': \{/);
-  assert.doesNotMatch(dataSrc, /'3_6': \{/);
-  assert.doesNotMatch(dataSrc, /'6_10': \{/);
-  assert.doesNotMatch(dataSrc, /'10_plus': \{/);
   assert.match(serviceSrc, /function getOwnershipTaskPackageSeed\(ageGroup: AgeGroup, categoryKey: QuizCategory\)/);
+
+  for (const ageGroup of ['0_1', '1_3', '3_6', '6_10', '10_plus']) {
+    for (const items of Object.values(ownershipTaskPackageSeedByAgeGroup[ageGroup])) {
+      for (const entry of items) {
+        assert.ok(typeof entry.title.de === 'string' && entry.title.de.length > 0);
+        assert.ok(Array.isArray(entry.details.de) && entry.details.de.length >= 1);
+        assert.ok(Array.isArray(entry.details.en) && entry.details.en.length === 0);
+        assert.ok(Array.isArray(entry.details.nl) && entry.details.nl.length === 0);
+      }
+    }
+  }
 });
 
-test('task package service normalizes details and seeds deterministic 0_1 ids without duplicate count logic', () => {
+test('task package service still normalizes details and seeds deterministic ids', () => {
   const src = read('services/ownership.service.ts');
 
   assert.match(src, /function normalizeTaskPackageTemplate\(template: TaskPackageTemplate\)/);
@@ -49,8 +86,9 @@ test('task package service normalizes details and seeds deterministic 0_1 ids wi
   assert.doesNotMatch(src, /const count = existingByCategory/);
 });
 
-test('admin task packages page supports age filter, language switch, and editable detail list fields', () => {
+test('admin task packages page supports age filter, language switch, detail lists and renamed display labels', () => {
   const src = read('app/admin/task-packages/page.tsx');
+  const configSrc = read('components/test/test-config.ts');
 
   assert.match(src, /const ageGroups: AgeGroup\[] = \['0_1', '1_3', '3_6', '6_10', '10_plus'\];/);
   assert.match(src, /const locales: Locale\[] = \['de', 'en', 'nl'\];/);
@@ -58,13 +96,17 @@ test('admin task packages page supports age filter, language switch, and editabl
   assert.match(src, /Details \(\{activeLocale\.toUpperCase\(\)\}\)/);
   assert.match(src, /template\.details\[activeLocale\] \|\| template\.details\.de \|\| \[\]/);
   assert.match(src, /updateDetail\(index, e\.target\.value\)/);
+  assert.match(src, /resolveAgeGroupLabel\(draft\.ageGroup\)/);
+  assert.match(configSrc, /return '6–12 Jahre';/);
+  assert.match(configSrc, /return '12–18 Jahre';/);
 });
 
-test('seed includes the final fixed titles for each category', () => {
-  const src = read('data/ownershipTaskPackageTemplates.ts');
+test('seed includes the final fixed titles for every age range', () => {
+  const { ownershipTaskPackageSeedByAgeGroup } = loadTsModule('data/ownershipTaskPackageTemplates.ts');
 
-  assert.match(src, /Wer wählt passende Spiel- und Lernimpulse aus/);
-  assert.match(src, /Wer behält Vorsorgeuntersuchungen im Blick/);
-  assert.match(src, /Wer behält den Überblick über tägliche Routinen/);
-  assert.match(src, /Wer plant den Wocheneinkauf gedanklich/);
+  assert.equal(ownershipTaskPackageSeedByAgeGroup['0_1'].betreuung_entwicklung[0].title.de, 'Wer wählt passende Spiel- und Lernimpulse aus');
+  assert.equal(ownershipTaskPackageSeedByAgeGroup['1_3'].betreuung_entwicklung[0].title.de, 'Tagesrhythmus passend steuern');
+  assert.equal(ownershipTaskPackageSeedByAgeGroup['3_6'].gesundheit[0].title.de, 'Vorsorge, Zahnarzt und Impfungen steuern');
+  assert.equal(ownershipTaskPackageSeedByAgeGroup['6_10'].haushalt_einkaeufe_vorraete[0].title.de, 'Schulmaterial rechtzeitig ergänzen');
+  assert.equal(ownershipTaskPackageSeedByAgeGroup['10_plus'].babyalltag_pflege[0].title.de, 'Essen, Trinken und Tagesstruktur im Blick behalten');
 });

@@ -87,11 +87,6 @@ export default function QuizFilterPage() {
       return;
     }
 
-    if (filter.youngestAgeGroup !== '0_1') {
-      setError(t('quiz.error.ageUnsupported', locale, undefined, textDictionary));
-      return;
-    }
-
     setIsSubmitting(true);
     const tempSessionId = createTempSessionId();
     const normalized = filter as QuizFilterInput;
@@ -105,6 +100,12 @@ export default function QuizFilterPage() {
       childcareTags: normalized.childcareTags,
       tempSessionId,
     });
+
+    if (!questions.length) {
+      setIsSubmitting(false);
+      setError(t('quiz.error.ageUnsupported', locale, undefined, textDictionary));
+      return;
+    }
 
     const session: TempQuizSession = {
       ...normalized,

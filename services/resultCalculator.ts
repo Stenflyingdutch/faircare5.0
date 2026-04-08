@@ -1,6 +1,6 @@
 import { quizCatalog } from '@/data/questionTemplates';
 import { resolveLocalizedText } from '@/types/i18n';
-import type { OwnershipAnswer, QuestionTemplate, QuizCategory, QuizSummary } from '@/types/quiz';
+import type { AgeGroup, OwnershipAnswer, QuestionTemplate, QuizCategory, QuizSummary } from '@/types/quiz';
 
 const scoreMap: Record<OwnershipAnswer, number> = {
   ich: 4,
@@ -11,12 +11,32 @@ const scoreMap: Record<OwnershipAnswer, number> = {
 };
 
 export const categoryLabelMap: Record<QuizCategory, string> = quizCatalog.categories.reduce((acc, category) => {
+  if (category.ageGroup === '0_1' && acc[category.key]) return acc;
   acc[category.key] = resolveLocalizedText(category.label, 'de');
   return acc;
 }, {} as Record<QuizCategory, string>);
 
-export function resolveCategoryLabel(category: string) {
+function resolveCategoryEntry(category: QuizCategory, ageGroup?: AgeGroup) {
+  if (ageGroup) {
+    const exact = quizCatalog.categories.find((entry) => entry.key === category && entry.ageGroup === ageGroup);
+    if (exact) return exact;
+  }
+
+  return quizCatalog.categories.find((entry) => entry.key === category && entry.ageGroup !== '0_1')
+    ?? quizCatalog.categories.find((entry) => entry.key === category)
+    ?? null;
+}
+
+export function resolveCategoryLabel(category: string, ageGroup?: AgeGroup) {
+  const resolved = resolveCategoryEntry(category as QuizCategory, ageGroup);
+  if (resolved) return resolveLocalizedText(resolved.label, 'de');
   return categoryLabelMap[category as QuizCategory] ?? 'Unbekannter Bereich';
+}
+
+export function resolveCategoryDescription(category: string, ageGroup?: AgeGroup) {
+  const resolved = resolveCategoryEntry(category as QuizCategory, ageGroup);
+  if (!resolved) return '';
+  return resolveLocalizedText(resolved.description, 'de', '');
 }
 
 export function isKnownQuizCategory(category: string): category is QuizCategory {

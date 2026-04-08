@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import {
-  fetchAppUserProfile,
   resolveInvitationByToken,
   sanitizeInvitationToken,
   startPartnerSession,
@@ -63,8 +62,6 @@ export default function InviteLandingPage() {
     setStarting(true);
     try {
       const session = await startPartnerSession(invitation);
-      const initiatorProfile = await fetchAppUserProfile(invitation.initiatorUserId);
-      const fallbackFromEmail = initiatorProfile?.email?.split('@')[0]?.trim();
 
       savePartnerLocalSession({
         invitationToken: token,
@@ -74,7 +71,7 @@ export default function InviteLandingPage() {
         questionSetId: session.questionSetId,
         questions: session.questionSetSnapshot,
         answers: {},
-        counterpartName: normalizeName(initiatorProfile?.displayName) || normalizeName(fallbackFromEmail) || 'Partner',
+        counterpartName: normalizeName(invitation.initiatorDisplayName) || 'Initiator',
       });
       router.push(`/partner-test/${token}`);
     } catch {

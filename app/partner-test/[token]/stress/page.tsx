@@ -4,17 +4,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { stressOptions } from '@/components/test/test-config';
+import { resolveCategoryDescription, resolveCategoryLabel } from '@/services/resultCalculator';
 import { completePartnerSession, sanitizeInvitationToken, savePartnerStressSelection } from '@/services/partnerFlow.service';
 import { loadPartnerLocalSession, savePartnerLocalSession, type PartnerLocalSession } from '@/services/partnerSessionStorage';
 import type { StressSelection } from '@/types/quiz';
-
-const stressCategoryDescriptions: Record<StressSelection, string> = {
-  betreuung_entwicklung: 'Schlaf, Entwicklung und Begleitung im Alltag des Babys.',
-  gesundheit: 'Vorsorge, Symptome, Medikamente und gesundheitliche Entscheidungen.',
-  babyalltag_pflege: 'Essen, Wickeln, Baden, Kleidung und tägliche Pflege.',
-  haushalt_einkaeufe_vorraete: 'Einkäufe, Vorräte, Wäsche und laufende Besorgungen.',
-  keiner_genannten_bereiche: 'Aktuell empfinde ich in keinem der genannten Bereiche die größte Belastung.',
-};
 
 export default function PartnerStressPage() {
   const params = useParams<{ token: string }>();
@@ -56,6 +49,8 @@ export default function PartnerStressPage() {
 
   if (!session) return <section className="section"><div className="container test-shell">Partner-Test wird geladen …</div></section>;
 
+  const ageGroup = session.questions[0]?.ageGroup;
+
   return (
     <section className="section">
       <div className="container test-shell stack">
@@ -70,8 +65,12 @@ export default function PartnerStressPage() {
               onClick={() => selectCategory(option.value)}
               disabled={isSaving}
             >
-              <strong>{option.label}</strong>
-              <span className="helper" style={{ marginTop: 4, display: 'block' }}>{stressCategoryDescriptions[option.value]}</span>
+              <strong>{option.value === 'keiner_genannten_bereiche' ? option.label : resolveCategoryLabel(option.value, ageGroup)}</strong>
+              <span className="helper" style={{ marginTop: 4, display: 'block' }}>
+                {option.value === 'keiner_genannten_bereiche'
+                  ? 'Aktuell empfinde ich in keinem der genannten Bereiche die größte Belastung.'
+                  : resolveCategoryDescription(option.value, ageGroup)}
+              </span>
             </button>
           ))}
         </div>

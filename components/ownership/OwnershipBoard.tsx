@@ -11,7 +11,7 @@ import {
   updateOwnershipCardOwner,
 } from '@/services/ownership.service';
 import type { OwnershipCardDocument, OwnershipFocusLevel } from '@/types/ownership';
-import type { QuizCategory } from '@/types/quiz';
+import type { AgeGroup, QuizCategory } from '@/types/quiz';
 
 interface OwnershipBoardProps {
   familyId: string;
@@ -21,6 +21,7 @@ interface OwnershipBoardProps {
   ownerOptions: Array<{ userId: string; label: string }>;
   categoryKeys?: QuizCategory[];
   preselectedCategoryKeys?: QuizCategory[];
+  ageGroup?: AgeGroup | null;
   isFocusedEntry?: boolean;
 }
 
@@ -100,6 +101,7 @@ export function OwnershipBoard({
   ownerOptions,
   categoryKeys = [],
   preselectedCategoryKeys = [],
+  ageGroup,
 }: OwnershipBoardProps) {
   const [openedCardId, setOpenedCardId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -158,8 +160,8 @@ export function OwnershipBoard({
       map.set(category, sorted);
     }
 
-    return [...map.entries()].sort((a, b) => resolveCategoryLabel(a[0]).localeCompare(resolveCategoryLabel(b[0])));
-  }, [visibleCards, mode, categoryKeys, homeOrder]);
+    return [...map.entries()].sort((a, b) => resolveCategoryLabel(a[0], ageGroup ?? undefined).localeCompare(resolveCategoryLabel(b[0], ageGroup ?? undefined)));
+  }, [visibleCards, mode, categoryKeys, homeOrder, ageGroup]);
 
   const groupedWithStatus = useMemo(() => grouped.map(([category, categoryCards]) => ({
     category,
@@ -336,7 +338,7 @@ export function OwnershipBoard({
                 className={`option-chip ${selectedCategories.includes(group.category) ? 'selected' : ''}`}
                 onClick={() => toggleCategory(group.category)}
               >
-                {resolveCategoryLabel(group.category)}
+                {resolveCategoryLabel(group.category, ageGroup ?? undefined)}
               </button>
             ))}
           </div>
@@ -347,7 +349,7 @@ export function OwnershipBoard({
         <article key={group.category} className="card stack ownership-category-shell">
           <div className="ownership-group-header">
             <div className="ownership-group-heading">
-              <h3 className="card-title" style={{ margin: 0 }}>{resolveCategoryLabel(group.category)}</h3>
+              <h3 className="card-title" style={{ margin: 0 }}>{resolveCategoryLabel(group.category, ageGroup ?? undefined)}</h3>
               <span className="helper ownership-group-meta">{group.active} zugeordnet von {group.total}</span>
             </div>
             {mode === 'dashboard' && (
@@ -404,7 +406,7 @@ export function OwnershipBoard({
                   }}
                 >
                   <div className="ownership-card-topline">
-                    <span className="ownership-card-kicker">{resolveCategoryLabel(card.categoryKey)}</span>
+                    <span className="ownership-card-kicker">{resolveCategoryLabel(card.categoryKey, ageGroup ?? undefined)}</span>
                     {mode !== 'dashboard' && focusLevel ? <span className="ownership-card-focus">{focusLevelLabel[focusLevel]}</span> : null}
                   </div>
                   <strong className="ownership-card-title">{card.title}</strong>
@@ -481,7 +483,7 @@ export function OwnershipBoard({
           >
             <div className="ownership-modal-header">
               <div className="stack" style={{ gap: 6 }}>
-                <span className="ownership-card-kicker">{resolveCategoryLabel(openedCard.categoryKey)}</span>
+                <span className="ownership-card-kicker">{resolveCategoryLabel(openedCard.categoryKey, ageGroup ?? undefined)}</span>
                 <h3 className="card-title" style={{ margin: 0 }}>Karte bearbeiten</h3>
               </div>
               <button type="button" className="ownership-modal-close" onClick={() => { setOpenedCardId(null); setDraft(null); }}>
