@@ -16,6 +16,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app, auth, db, firebaseProjectId } from '@/lib/firebase';
 import { MailClientError, sendAppMail } from '@/services/mail-client.service';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
+import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
 import { buildDisplayName, normalizeEmailAddress, normalizePersonName } from '@/services/user-profile.service';
 import { firestoreCollections } from '@/types/domain';
 import type {
@@ -201,9 +202,45 @@ function buildInviteError(
   });
 }
 
-export async function ensureUserProfile(params: { userId: string; email: string; displayName?: string | null; role?: FamilyRole }) {
+export async function ensureUserProfile(params: {
+  userId: string;
+  email: string;
+  displayName?: string | null;
+  role?: FamilyRole;
+  inviteContextPresent?: boolean;
+}) {
   const userRef = doc(db, firestoreCollections.users, params.userId);
-  const existingSnapshot = await getDoc(userRef);
+  const userPath = `${firestoreCollections.users}/${params.userId}`;
+  const inviteContextPresent = params.inviteContextPresent ?? false;
+
+  logSignupInfo('user_doc.read.start', {
+    step: 'ensureUserProfile',
+    path: userPath,
+    uid: params.userId,
+    inviteContextPresent,
+  });
+
+  let existingSnapshot;
+
+  try {
+    existingSnapshot = await getDoc(userRef);
+    logSignupInfo('user_doc.read.success', {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+      extra: { exists: existingSnapshot.exists() },
+    });
+  } catch (error) {
+    logSignupError('user_doc.read.failed', error, {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+    });
+    throw error;
+  }
+
   const existingProfile = existingSnapshot.exists() ? existingSnapshot.data() as AppUserProfile : null;
   const normalizedDisplayName = params.displayName?.trim();
   const firstName = normalizedDisplayName?.split(' ')[0] ?? existingProfile?.firstName ?? '';
@@ -222,7 +259,31 @@ export async function ensureUserProfile(params: { userId: string; email: string;
   if (params.role) {
     payload.role = params.role;
   }
-  await setDoc(userRef, payload, { merge: true });
+
+  logSignupInfo('user_doc.create.start', {
+    step: 'ensureUserProfile',
+    path: userPath,
+    uid: params.userId,
+    inviteContextPresent,
+  });
+
+  try {
+    await setDoc(userRef, payload, { merge: true });
+    logSignupInfo('user_doc.create.success', {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+    });
+  } catch (error) {
+    logSignupError('user_doc.create.failed', error, {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+    });
+    throw error;
+  }
 }
 
 export async function fetchAppUserProfile(userId: string) {
@@ -861,8 +922,9 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
   return resultId;
 }
 
-export async function ensureInitiatorFamilySetup(userId: string) {
+export async function ensureInitiatorFamilySetup(userId: string, options?: { inviteContextPresent?: boolean }) {
   const profile = await fetchAppUserProfile(userId);
+  const inviteContextPresent = options?.inviteContextPresent ?? false;
   if (!profile || profile.role === 'partner') return null;
 
   if (profile.familyId) {
@@ -871,27 +933,52 @@ export async function ensureInitiatorFamilySetup(userId: string) {
   }
 
   const familyId = doc(collection(db, firestoreCollections.families)).id;
-  await setDoc(doc(db, firestoreCollections.families, familyId), {
-    id: familyId,
-    initiatorUserId: userId,
-    partnerUserId: null,
-    status: 'invited',
-    initiatorCompleted: true,
-    partnerCompleted: false,
-    initiatorRegistered: true,
-    partnerRegistered: false,
-    resultsUnlocked: false,
-    sharedResultsOpened: false,
-    unlockedAt: null,
-    unlockedBy: null,
-    sharedResultsOpenedAt: null,
-    sharedResultsOpenedBy: null,
-    resultsDiscussedAt: null,
-    resultsDiscussedBy: null,
-    invitationId: null,
-    createdAt: nowIso(),
-    updatedAt: serverTimestamp(),
+  const familyPath = `${firestoreCollections.families}/${familyId}`;
+
+  logSignupInfo('family_doc.create.start', {
+    step: 'ensureInitiatorFamilySetup',
+    path: familyPath,
+    uid: userId,
+    inviteContextPresent,
   });
+
+  try {
+    await setDoc(doc(db, firestoreCollections.families, familyId), {
+      id: familyId,
+      initiatorUserId: userId,
+      partnerUserId: null,
+      status: 'invited',
+      initiatorCompleted: true,
+      partnerCompleted: false,
+      initiatorRegistered: true,
+      partnerRegistered: false,
+      resultsUnlocked: false,
+      sharedResultsOpened: false,
+      unlockedAt: null,
+      unlockedBy: null,
+      sharedResultsOpenedAt: null,
+      sharedResultsOpenedBy: null,
+      resultsDiscussedAt: null,
+      resultsDiscussedBy: null,
+      invitationId: null,
+      createdAt: nowIso(),
+      updatedAt: serverTimestamp(),
+    });
+    logSignupInfo('family_doc.create.success', {
+      step: 'ensureInitiatorFamilySetup',
+      path: familyPath,
+      uid: userId,
+      inviteContextPresent,
+    });
+  } catch (error) {
+    logSignupError('family_doc.create.failed', error, {
+      step: 'ensureInitiatorFamilySetup',
+      path: familyPath,
+      uid: userId,
+      inviteContextPresent,
+    });
+    throw error;
+  }
 
   await setDoc(doc(db, firestoreCollections.users, userId), {
     familyId,

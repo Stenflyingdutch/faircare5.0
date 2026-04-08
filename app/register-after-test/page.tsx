@@ -15,6 +15,7 @@ import {
 } from '@/services/auth.service';
 import { finalizePartnerRegistration, sanitizeInvitationToken } from '@/services/partnerFlow.service';
 import { clearPartnerLocalSession, loadPartnerLocalSession } from '@/services/partnerSessionStorage';
+import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
 
 export default function RegisterAfterTestPage() {
   return (
@@ -55,10 +56,29 @@ function RegisterAfterTestContent() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     const session = loadPartnerLocalSession();
-    if (!session || !token) return;
+    const inviteContextPresent = Boolean(session && token);
+
+    if (!session || !token) {
+      logSignupInfo('invite_link_context.missing', {
+        step: 'registerAfterTest.submit',
+        path: '/register-after-test',
+        inviteContextPresent: false,
+      });
+      return;
+    }
 
     setError(null);
     setIsSubmitting(true);
+    logSignupInfo('signup.submit.start', {
+      step: 'registerAfterTest.submit',
+      path: '/register-after-test',
+      inviteContextPresent,
+    });
+    logSignupInfo('invite_link_context.detected', {
+      step: 'registerAfterTest.submit',
+      path: '/register-after-test',
+      inviteContextPresent,
+    });
 
     if (mode === 'register' && password !== passwordRepeat) {
       setError('Die Passwörter stimmen nicht überein.');
@@ -66,12 +86,39 @@ function RegisterAfterTestContent() {
       return;
     }
 
+    let finalizedUserId: string | null = null;
+    let finalizeStarted = false;
+
     try {
       const credential = mode === 'register'
-        ? await registerUser(email, password)
+        ? await registerUser(email, password, { inviteContextPresent })
         : await loginUser(email, password);
-      const normalizedDisplayName = displayName.trim();
+      finalizedUserId = credential.user.uid;
 
+      if (auth.currentUser?.uid === credential.user.uid) {
+        logSignupInfo('signup.auth_state.available', {
+          step: 'registerAfterTest.submit',
+          path: 'firebase-auth/currentUser',
+          uid: credential.user.uid,
+          inviteContextPresent,
+        });
+      } else {
+        logSignupInfo('signup.auth_state.missing', {
+          step: 'registerAfterTest.submit',
+          path: 'firebase-auth/currentUser',
+          uid: credential.user.uid,
+          inviteContextPresent,
+        });
+      }
+
+      finalizeStarted = true;
+      logSignupInfo('signup.finalize.start', {
+        step: 'registerAfterTest.submit',
+        path: '/api/partner/finalize-registration',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      const normalizedDisplayName = displayName.trim();
       if (mode === 'register' && normalizedDisplayName) {
         await updateProfile(credential.user, { displayName: normalizedDisplayName });
       }
@@ -84,9 +131,23 @@ function RegisterAfterTestContent() {
         email: credential.user.email ?? email.trim().toLowerCase(),
         displayName: normalizedDisplayName || credential.user.displayName || null,
       });
+      logSignupInfo('signup.finalize.success', {
+        step: 'registerAfterTest.submit',
+        path: '/api/partner/finalize-registration',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
       clearPartnerLocalSession();
       router.push('/app/transparenz');
     } catch (submitError) {
+      if (finalizeStarted) {
+        logSignupError('signup.finalize.failed', submitError, {
+          step: 'registerAfterTest.submit',
+          path: '/api/partner/finalize-registration',
+          uid: finalizedUserId,
+          inviteContextPresent,
+        });
+      }
       console.error('register-after-test.submit_failed', {
         code: (submitError as { code?: string })?.code ?? null,
         message: submitError instanceof Error ? submitError.message : String(submitError),
@@ -101,7 +162,15 @@ function RegisterAfterTestContent() {
   async function continueWithActiveSession() {
     const session = loadPartnerLocalSession();
     const currentUser = auth.currentUser;
-    if (!session || !token || !currentUser) return;
+    const inviteContextPresent = Boolean(session && token);
+    if (!session || !token || !currentUser) {
+      logSignupInfo('invite_link_context.missing', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/register-after-test',
+        inviteContextPresent: false,
+      });
+      return;
+    }
     if (!currentUser.email) {
       setError('Für dieses Konto fehlt eine E-Mail-Adresse. Bitte melde dich mit E-Mail und Passwort an.');
       return;
@@ -109,8 +178,32 @@ function RegisterAfterTestContent() {
 
     setError(null);
     setIsSubmitting(true);
+    logSignupInfo('signup.submit.start', {
+      step: 'registerAfterTest.continueWithActiveSession',
+      path: '/register-after-test',
+      uid: currentUser.uid,
+      inviteContextPresent,
+    });
+    logSignupInfo('invite_link_context.detected', {
+      step: 'registerAfterTest.continueWithActiveSession',
+      path: '/register-after-test',
+      uid: currentUser.uid,
+      inviteContextPresent,
+    });
+    logSignupInfo('signup.auth_state.available', {
+      step: 'registerAfterTest.continueWithActiveSession',
+      path: 'firebase-auth/currentUser',
+      uid: currentUser.uid,
+      inviteContextPresent,
+    });
 
     try {
+      logSignupInfo('signup.finalize.start', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/api/partner/finalize-registration',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
       await syncAuthSession(currentUser);
       const normalizedDisplayName = displayName.trim();
       await finalizePartnerRegistration({
@@ -120,9 +213,21 @@ function RegisterAfterTestContent() {
         email: currentUser.email,
         displayName: normalizedDisplayName || currentUser.displayName || null,
       });
+      logSignupInfo('signup.finalize.success', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/api/partner/finalize-registration',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
       clearPartnerLocalSession();
       router.push('/app/transparenz');
     } catch (submitError) {
+      logSignupError('signup.finalize.failed', submitError, {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/api/partner/finalize-registration',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
       console.error('register-after-test.active_session_failed', {
         code: (submitError as { code?: string })?.code ?? null,
         message: submitError instanceof Error ? submitError.message : String(submitError),

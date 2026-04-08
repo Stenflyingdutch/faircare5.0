@@ -1,6 +1,7 @@
 import { createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, type User } from 'firebase/auth';
 
 import { auth } from '@/lib/firebase';
+import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
 
 export function observeAuthState(callback: (user: User | null) => void) {
   return onAuthStateChanged(auth, callback);
@@ -35,18 +36,31 @@ function resolveAuthBaseUrl() {
   return 'http://localhost:3000';
 }
 
-export async function registerUser(email: string, password: string) {
+export async function registerUser(email: string, password: string, options?: { inviteContextPresent?: boolean }) {
   const normalizedEmail = email.trim().toLowerCase();
-  console.info('auth.register.start', { email: maskEmailForLog(normalizedEmail) });
+  const inviteContextPresent = options?.inviteContextPresent ?? false;
+  logSignupInfo('auth.create_user.start', {
+    step: 'registerUser',
+    path: 'firebase-auth/createUserWithEmailAndPassword',
+    inviteContextPresent,
+    extra: { email: maskEmailForLog(normalizedEmail) },
+  });
 
   try {
     const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-    console.info('auth.register.success', { userId: credential.user.uid });
+    logSignupInfo('auth.create_user.success', {
+      step: 'registerUser',
+      path: 'firebase-auth/createUserWithEmailAndPassword',
+      inviteContextPresent,
+      uid: credential.user.uid,
+    });
     return credential;
   } catch (error) {
-    console.error('auth.register.failed', {
-      code: (error as { code?: string })?.code ?? null,
-      message: error instanceof Error ? error.message : String(error),
+    logSignupError('auth.create_user.failed', error, {
+      step: 'registerUser',
+      path: 'firebase-auth/createUserWithEmailAndPassword',
+      inviteContextPresent,
+      extra: { email: maskEmailForLog(normalizedEmail) },
     });
     throw error;
   }
@@ -204,6 +218,10 @@ export function resolveRegistrationErrorMessage(error: unknown) {
 
   if (code === 'auth/internal-error') {
     return 'Firebase Auth hat einen internen Fehler gemeldet. Bitte versuche es erneut.';
+  }
+
+  if (code === 'permission-denied' || code === 'firestore/permission-denied') {
+    return 'Die Registrierung wurde technisch blockiert, bevor dein Profil vollständig gespeichert werden konnte. Bitte versuche es erneut. Falls das Problem bleibt, melde dich mit derselben E-Mail an oder nutze „Passwort vergessen“.';
   }
 
   if (code === 'auth/session-sync-failed') {

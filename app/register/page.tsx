@@ -4,10 +4,12 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 
+import { auth } from '@/lib/firebase';
 import { registerUser, resolveRegistrationErrorMessage, syncAuthSession } from '@/services/auth.service';
 import { ensureInitiatorFamilySetup, ensureUserProfile } from '@/services/partnerFlow.service';
 import { linkAnonymousSessionToUser } from '@/services/sessionLinking';
 import { loadSessionFromStorage } from '@/services/sessionStorage';
+import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -22,6 +24,21 @@ export default function RegisterPage() {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
+    const inviteContextPresent = false;
+    let userId: string | null = null;
+    let finalizeStarted = false;
+
+    logSignupInfo('signup.submit.start', {
+      step: 'register.handleSubmit',
+      path: '/register',
+      inviteContextPresent,
+    });
+    logSignupInfo('invite_link_context.missing', {
+      step: 'register.handleSubmit',
+      path: '/register',
+      inviteContextPresent,
+    });
+
     if (password !== passwordRepeat) {
       setError('Die Passwörter stimmen nicht überein.');
       setIsSubmitting(false);
@@ -29,7 +46,32 @@ export default function RegisterPage() {
     }
 
     try {
-      const credential = await registerUser(email, password);
+      const credential = await registerUser(email, password, { inviteContextPresent });
+      userId = credential.user.uid;
+
+      if (auth.currentUser?.uid === credential.user.uid) {
+        logSignupInfo('signup.auth_state.available', {
+          step: 'register.handleSubmit',
+          path: 'firebase-auth/currentUser',
+          uid: credential.user.uid,
+          inviteContextPresent,
+        });
+      } else {
+        logSignupInfo('signup.auth_state.missing', {
+          step: 'register.handleSubmit',
+          path: 'firebase-auth/currentUser',
+          uid: credential.user.uid,
+          inviteContextPresent,
+        });
+      }
+
+      finalizeStarted = true;
+      logSignupInfo('signup.finalize.start', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
       const normalizedDisplayName = displayName.trim();
       await updateProfile(credential.user, { displayName: normalizedDisplayName });
       await syncAuthSession(credential.user);
@@ -38,14 +80,29 @@ export default function RegisterPage() {
         email,
         displayName: normalizedDisplayName,
         role: 'initiator',
+        inviteContextPresent,
       });
-      await ensureInitiatorFamilySetup(credential.user.uid);
+      await ensureInitiatorFamilySetup(credential.user.uid, { inviteContextPresent });
       const session = loadSessionFromStorage();
       if (session) {
         await linkAnonymousSessionToUser(credential.user, session);
       }
+      logSignupInfo('signup.finalize.success', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
       router.push('/app/transparenz');
     } catch (registrationError) {
+      if (finalizeStarted) {
+        logSignupError('signup.finalize.failed', registrationError, {
+          step: 'register.handleSubmit',
+          path: '/register',
+          uid: userId,
+          inviteContextPresent,
+        });
+      }
       setError(resolveRegistrationErrorMessage(registrationError));
       setIsSubmitting(false);
     }
