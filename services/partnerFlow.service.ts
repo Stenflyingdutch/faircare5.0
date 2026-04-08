@@ -196,6 +196,12 @@ function maskTokenForLog(token: string) {
   return `${token.slice(0, 8)}...${token.slice(-4)}`;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function isInvitationCompleted(status?: string | null) {
   return ['accepted', 'completed', 'consumed', 'used'].includes((status ?? '').toLowerCase());
 }
@@ -227,6 +233,32 @@ export class InviteFlowError extends Error {
     this.code = code;
     this.details = details;
   }
+}
+
+function wrapSignupFlowError(params: {
+  message: string;
+  failedStep: string;
+  code?: string;
+  collection?: string;
+  queryName?: string;
+  path?: string;
+  cause: unknown;
+}) {
+  const wrapped = new Error(params.message) as Error & {
+    code?: string;
+    failedStep?: string;
+    collection?: string;
+    queryName?: string;
+    path?: string;
+    cause?: unknown;
+  };
+  wrapped.code = params.code ?? (params.cause as { code?: string })?.code;
+  wrapped.failedStep = params.failedStep;
+  wrapped.collection = params.collection;
+  wrapped.queryName = params.queryName;
+  wrapped.path = params.path;
+  wrapped.cause = params.cause;
+  return wrapped;
 }
 
 function buildInviteError(
@@ -373,6 +405,22 @@ export async function ensureUserProfile(params: {
 
 export async function fetchAppUserProfile(userId: string) {
   const userPath = `${firestoreCollections.users}/${userId}`;
+
+  if (!auth.currentUser) {
+    logSignupInfo('dashboard.first_read.skipped_no_auth', {
+      step: 'fetchAppUserProfile',
+      path: userPath,
+      uid: userId,
+    });
+    logSignupInfo('auth_required_loader_skipped', {
+      step: 'fetchAppUserProfile',
+      path: userPath,
+      uid: userId,
+      extra: { loader: 'fetchAppUserProfile' },
+    });
+    return null;
+  }
+
   logSignupInfo('dashboard.first_read.start', {
     step: 'fetchAppUserProfile',
     path: userPath,
@@ -389,12 +437,46 @@ export async function fetchAppUserProfile(userId: string) {
     });
     throw error;
   }
+  logSignupInfo('dashboard.first_read.success', {
+    step: 'fetchAppUserProfile',
+    path: userPath,
+    uid: userId,
+    extra: { exists: snapshot.exists() },
+  });
   if (!snapshot.exists()) return null;
   return snapshot.data() as AppUserProfile;
 }
 
 async function getLatestInitiatorResult(userId: string) {
-  const snapshot = await getDoc(doc(db, firestoreCollections.userResults, userId));
+  const resultPath = `${firestoreCollections.userResults}/${userId}`;
+  logSignupInfo('initiator_result.read.start', {
+    step: 'getLatestInitiatorResult',
+    path: resultPath,
+    uid: userId,
+  });
+  let snapshot;
+  try {
+    snapshot = await getDoc(doc(db, firestoreCollections.userResults, userId));
+  } catch (error) {
+    logSignupError('initiator_result.read.failed', error, {
+      step: 'getLatestInitiatorResult',
+      path: resultPath,
+      uid: userId,
+    });
+    throw wrapSignupFlowError({
+      message: 'Initiator-Ergebnis konnte nicht gelesen werden.',
+      failedStep: 'getLatestInitiatorResult.read',
+      collection: firestoreCollections.userResults,
+      path: resultPath,
+      cause: error,
+    });
+  }
+  logSignupInfo('initiator_result.read.success', {
+    step: 'getLatestInitiatorResult',
+    path: resultPath,
+    uid: userId,
+    extra: { exists: snapshot.exists() },
+  });
   if (!snapshot.exists()) return null;
   return snapshot.data() as StoredUserResult;
 }
@@ -766,13 +848,47 @@ export async function resolveInvitationByToken(token: string): Promise<Invitatio
       return { status: 'expired', reason: 'invite_expired', invitation };
     }
 
-    const familySnapshot = await getDoc(doc(db, firestoreCollections.families, invitation.familyId));
-    if (familySnapshot.exists()) {
-      const family = familySnapshot.data() as FamilyDocument;
-      if (family.partnerRegistered || family.partnerUserId) {
-        console.info('invite.lookup.status', { invitationId: invitation.id, reason: 'invite_already_completed' });
-        return { status: 'accepted', reason: 'invite_already_completed', invitation };
+    const followupReadContext = {
+      invitationId: invitation.id,
+      step: 'post_invite_lookup.family_read',
+      path: `${firestoreCollections.families}/${invitation.familyId}`,
+      operation: 'getDoc',
+    } as const;
+    console.info('invite.lookup.followup.marker', followupReadContext);
+
+    if (auth.currentUser) {
+      console.info('invite.lookup.followup.read.before', followupReadContext);
+      try {
+        const familySnapshot = await getDoc(doc(db, firestoreCollections.families, invitation.familyId));
+        console.info('invite.lookup.followup.read.after', {
+          ...followupReadContext,
+          found: familySnapshot.exists(),
+          error: null,
+        });
+
+        if (familySnapshot.exists()) {
+          const family = familySnapshot.data() as FamilyDocument;
+          if (family.partnerRegistered || family.partnerUserId) {
+            console.info('invite.lookup.status', { invitationId: invitation.id, reason: 'invite_already_completed' });
+            return { status: 'accepted', reason: 'invite_already_completed', invitation };
+          }
+        }
+      } catch (error) {
+        const firestoreError = error as { code?: string; message?: string };
+        console.error('invite.lookup.followup.read.after', {
+          ...followupReadContext,
+          error: {
+            code: firestoreError.code ?? 'unknown',
+            message: firestoreError.message ?? String(error),
+          },
+        });
+        throw error;
       }
+    } else {
+      console.info('invite.lookup.followup.read.skipped', {
+        ...followupReadContext,
+        reason: 'missing_auth_for_family_read',
+      });
     }
 
     if (invitation.expiresAt) {
@@ -1105,13 +1221,71 @@ export async function ensureInitiatorFamilySetup(userId: string, options?: { inv
     throw error;
   }
 
-  await setDoc(doc(db, firestoreCollections.users, userId), {
-    familyId,
-    role: 'initiator',
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
+  const userPath = `${firestoreCollections.users}/${userId}`;
+  logSignupInfo('family_link_user_doc.update.start', {
+    step: 'ensureInitiatorFamilySetup',
+    path: userPath,
+    uid: userId,
+    inviteContextPresent,
+  });
+  try {
+    await setDoc(doc(db, firestoreCollections.users, userId), {
+      familyId,
+      role: 'initiator',
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    logSignupInfo('family_link_user_doc.update.success', {
+      step: 'ensureInitiatorFamilySetup',
+      path: userPath,
+      uid: userId,
+      inviteContextPresent,
+    });
+  } catch (error) {
+    logSignupError('family_link_user_doc.update.failed', error, {
+      step: 'ensureInitiatorFamilySetup',
+      path: userPath,
+      uid: userId,
+      inviteContextPresent,
+    });
+    throw wrapSignupFlowError({
+      message: 'Nutzerprofil konnte nicht mit Familie verknüpft werden.',
+      failedStep: 'ensureInitiatorFamilySetup.userLink',
+      collection: firestoreCollections.users,
+      path: userPath,
+      cause: error,
+    });
+  }
 
-  await buildOrUpdateInitiatorResult(userId);
+  logSignupInfo('initiator_result.bootstrap.start', {
+    step: 'ensureInitiatorFamilySetup',
+    path: `${firestoreCollections.quizResults}`,
+    uid: userId,
+    inviteContextPresent,
+  });
+  try {
+    await buildOrUpdateInitiatorResult(userId);
+    logSignupInfo('initiator_result.bootstrap.success', {
+      step: 'ensureInitiatorFamilySetup',
+      path: `${firestoreCollections.quizResults}`,
+      uid: userId,
+      inviteContextPresent,
+    });
+  } catch (error) {
+    logSignupError('initiator_result.bootstrap.failed', error, {
+      step: 'ensureInitiatorFamilySetup',
+      path: `${firestoreCollections.quizResults}`,
+      uid: userId,
+      inviteContextPresent,
+    });
+    throw wrapSignupFlowError({
+      message: 'Initiator-Ergebnis konnte nicht aufgebaut werden.',
+      failedStep: 'ensureInitiatorFamilySetup.buildOrUpdateInitiatorResult',
+      collection: firestoreCollections.quizResults,
+      queryName: 'buildOrUpdateInitiatorResult',
+      path: `${firestoreCollections.quizResults}`,
+      cause: error,
+    });
+  }
   return familyId;
 }
 
@@ -1258,8 +1432,54 @@ export async function openSharedResultsView(userId: string) {
 }
 
 export async function fetchDashboardBundle(userId: string) {
-  const profile = await fetchAppUserProfile(userId);
-  if (!profile) return { profile: null };
+  logSignupInfo('fetchDashboardBundle.start', {
+    step: 'fetchDashboardBundle',
+    path: `${firestoreCollections.users}/${userId}`,
+    uid: userId,
+  });
+  try {
+    logSignupInfo('partner_personal_area.profile_read.start', {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.users}/${userId}`,
+      uid: userId,
+    });
+    let profile: AppUserProfile | null = null;
+    try {
+      profile = await fetchAppUserProfile(userId);
+      logSignupInfo('partner_personal_area.profile_read.success', {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+        extra: { profilePresent: Boolean(profile) },
+      });
+    } catch (error) {
+      logSignupError('partner_personal_area.profile_read.failed', error, {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+      });
+      throw error;
+    }
+    if (!profile) {
+      logSignupInfo('fetchDashboardBundle.success', {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+        extra: { profilePresent: false },
+      });
+      return {
+        profile: null,
+        ownResult: null,
+        family: null,
+        joint: null,
+        initiatorResult: null,
+        partnerResult: null,
+        initiatorDisplayName: null,
+        partnerDisplayName: null,
+        invitationPartnerEmail: null,
+        ageGroupForOwnership: null,
+      };
+    }
 
   const familyId = profile.familyId ?? null;
   const ownRole = profile.role === 'partner' ? 'partner' : 'initiator';
@@ -1273,11 +1493,33 @@ export async function fetchDashboardBundle(userId: string) {
     return latestInitiatorResultPromise;
   };
 
-  const [ownResultInitial, familySnapshot] = await Promise.all([
-    fetchOwnResultByRole(userId, ownRole, familyId),
-    familyId ? getDoc(doc(db, firestoreCollections.families, familyId)) : Promise.resolve(null),
-  ]);
+  logSignupInfo('partner_personal_area.results_read.start', {
+    step: 'fetchDashboardBundle',
+    path: `${firestoreCollections.quizResults}`,
+    uid: userId,
+    extra: { familyId, role: ownRole },
+  });
+  const ownResultPromise = fetchOwnResultByRole(userId, ownRole, familyId)
+    .then((value) => {
+      logSignupInfo('partner_personal_area.results_read.success', {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.quizResults}`,
+        uid: userId,
+        extra: { ownResultPresent: Boolean(value), familyId, role: ownRole },
+      });
+      return value;
+    })
+    .catch((error) => {
+      logSignupError('partner_personal_area.results_read.failed', error, {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.quizResults}`,
+        uid: userId,
+        extra: { familyId, role: ownRole },
+      });
+      throw error;
+    });
 
+  const ownResultInitial = await ownResultPromise;
   let ownResult = ownResultInitial;
   if (ownResult && profile.role !== 'partner' && (!ownResult.stressCategories || ownResult.stressCategories.length === 0)) {
     const raw = await getLatestInitiatorResultOnce();
@@ -1298,12 +1540,78 @@ export async function fetchDashboardBundle(userId: string) {
   let invitationPartnerEmail: string | null = null;
   let ageGroupForOwnership: AgeGroup | null = null;
 
-  family = familySnapshot?.exists() ? (familySnapshot.data() as FamilyDocument) : null;
+  if (familyId) {
+    const familyPath = `${firestoreCollections.families}/${familyId}`;
+    logSignupInfo('partner_personal_area.family_read.start', {
+      step: 'fetchDashboardBundle',
+      path: familyPath,
+      uid: userId,
+      extra: { role: profile.role ?? null },
+    });
+    const retries = profile.role === 'partner' ? 6 : 1;
+    let familyReadError: unknown = null;
+    for (let attempt = 1; attempt <= retries; attempt += 1) {
+      try {
+        const familySnapshot = await getDoc(doc(db, firestoreCollections.families, familyId));
+        family = familySnapshot.exists() ? (familySnapshot.data() as FamilyDocument) : null;
+        logSignupInfo('partner_personal_area.family_read.success', {
+          step: 'fetchDashboardBundle',
+          path: familyPath,
+          uid: userId,
+          extra: { exists: familySnapshot.exists(), attempt, retries, partnerUserId: family?.partnerUserId ?? null },
+        });
+        familyReadError = null;
+        break;
+      } catch (error) {
+        familyReadError = error;
+        logSignupError('partner_personal_area.family_read.failed', error, {
+          step: 'fetchDashboardBundle',
+          path: familyPath,
+          uid: userId,
+          extra: { attempt, retries, role: profile.role ?? null },
+        });
+        const errorCode = (error as { code?: string })?.code ?? '';
+        const isPermissionDenied = errorCode === 'permission-denied' || errorCode === 'firestore/permission-denied';
+        if (!isPermissionDenied || profile.role !== 'partner' || attempt >= retries) break;
+        await sleep(350);
+      }
+    }
+
+    if (familyReadError) {
+      throw wrapSignupFlowError({
+        message: 'Familie konnte noch nicht geladen werden. Partner-Verknüpfung ist wahrscheinlich noch nicht abgeschlossen.',
+        failedStep: 'fetchDashboardBundle.familyRead',
+        collection: firestoreCollections.families,
+        path: familyPath,
+        queryName: 'familyById',
+        cause: familyReadError,
+      });
+    }
+  }
 
   if (family) {
+    const loadFamilyMemberProfile = async (targetUserId?: string | null) => {
+      if (!targetUserId) return null;
+      if (targetUserId === userId) return profile;
+      try {
+        return await fetchAppUserProfile(targetUserId);
+      } catch (error) {
+        const errorCode = (error as { code?: string })?.code ?? '';
+        const isPermissionDenied = errorCode === 'permission-denied' || errorCode === 'firestore/permission-denied';
+        if (!isPermissionDenied) throw error;
+        logSignupInfo('partner_personal_area.family_profile_read.skipped_permission_denied', {
+          step: 'fetchDashboardBundle',
+          path: `${firestoreCollections.users}/${targetUserId}`,
+          uid: userId,
+          extra: { targetUserId, role: profile.role ?? null },
+        });
+        return null;
+      }
+    };
+
     const [initiatorProfile, partnerProfile, invitation] = await Promise.all([
-      family.initiatorUserId ? fetchAppUserProfile(family.initiatorUserId) : Promise.resolve(null),
-      family.partnerUserId ? fetchAppUserProfile(family.partnerUserId) : Promise.resolve(null),
+      loadFamilyMemberProfile(family.initiatorUserId),
+      loadFamilyMemberProfile(family.partnerUserId),
       family.invitationId
         ? getDoc(doc(db, firestoreCollections.invitations, family.invitationId)).then((snap) => (snap.exists() ? snap.data() as InvitationDocument : null))
         : Promise.resolve(null),
@@ -1371,18 +1679,33 @@ export async function fetchDashboardBundle(userId: string) {
     }
   }
 
-  return {
-    profile,
-    ownResult,
-    family,
-    joint,
-    initiatorResult,
-    partnerResult,
-    initiatorDisplayName,
-    partnerDisplayName,
-    invitationPartnerEmail,
-    ageGroupForOwnership,
-  };
+    const bundle = {
+      profile,
+      ownResult,
+      family,
+      joint,
+      initiatorResult,
+      partnerResult,
+      initiatorDisplayName,
+      partnerDisplayName,
+      invitationPartnerEmail,
+      ageGroupForOwnership,
+    };
+    logSignupInfo('fetchDashboardBundle.success', {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.users}/${userId}`,
+      uid: userId,
+      extra: { familyId: profile.familyId ?? null },
+    });
+    return bundle;
+  } catch (error) {
+    logSignupError('fetchDashboardBundle.failed', error, {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.users}/${userId}`,
+      uid: userId,
+    });
+    throw error;
+  }
 }
 
 export async function persistMailDebugLog(entry: Record<string, unknown>) {
