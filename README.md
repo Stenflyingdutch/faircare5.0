@@ -93,3 +93,16 @@ Damit ändert sich die sichtbare Kennung nach neuem Commit/Merge zuverlässig (b
 npm run lint
 npm run typecheck
 ```
+
+## Admin-User hochstufen (Firebase)
+Bestehenden Benutzer zur Admin-Rolle hochstufen (ohne Passwort-Reset):
+
+```bash
+npm run admin:upsert-user -- --email tenijenhuis@gmail.com --grant-only
+```
+
+Falls der Benutzer neu angelegt oder aktualisiert werden soll, zusätzlich Passwort/Vorname setzen:
+
+```bash
+npm run admin:upsert-user -- --email <email> --password <passwort> --first-name <vorname> [--last-name <nachname>]
+```
