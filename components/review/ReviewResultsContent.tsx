@@ -113,6 +113,7 @@ export function ReviewResultsContent() {
     () => questionTemplates.slice(0, 12).map((entry) => entry.questionText?.de ?? entry.id),
     [],
   );
+  const [hasLoggedFirstQuery, setHasLoggedFirstQuery] = useState(false);
 
   async function refreshDashboard(userId: string) {
     const fresh = await fetchDashboardBundle(userId);
@@ -121,6 +122,10 @@ export function ReviewResultsContent() {
   }
 
   useEffect(() => {
+    logSignupInfo('transparenz_page_loaded', {
+      step: 'ReviewResultsContent.mount',
+      path: '/app/transparenz',
+    });
     const unsubscribe = observeAuthState(async (user) => {
       if (!user) {
         router.replace('/login');
@@ -134,13 +139,47 @@ export function ReviewResultsContent() {
       try {
         setCurrentUserId(user.uid);
         await ensureUserProfile({ userId: user.uid, email: user.email ?? '', displayName: user.displayName ?? undefined });
+        if (!hasLoggedFirstQuery) {
+          logSignupInfo('transparenz_first_query.start', {
+            step: 'ReviewResultsContent.observeAuthState',
+            path: '/app/transparenz',
+            uid: user.uid,
+            extra: {
+              queryName: 'fetchDashboardBundle',
+              collection: 'users/families/userResults',
+            },
+          });
+        }
         await refreshDashboard(user.uid);
+        if (!hasLoggedFirstQuery) {
+          logSignupInfo('transparenz_first_query.success', {
+            step: 'ReviewResultsContent.observeAuthState',
+            path: '/app/transparenz',
+            uid: user.uid,
+            extra: {
+              queryName: 'fetchDashboardBundle',
+              collection: 'users/families/userResults',
+            },
+          });
+          setHasLoggedFirstQuery(true);
+        }
         logSignupInfo('review_results_loaded', {
           step: 'ReviewResultsContent.observeAuthState',
           path: '/app/transparenz',
           uid: user.uid,
         });
       } catch (error) {
+        if (!hasLoggedFirstQuery) {
+          logSignupError('transparenz_first_query.failed', error, {
+            step: 'ReviewResultsContent.observeAuthState',
+            path: '/app/transparenz',
+            uid: user.uid,
+            extra: {
+              queryName: 'fetchDashboardBundle',
+              collection: 'users/families/userResults',
+            },
+          });
+        }
         logSignupError('target_page.load.failed', error, {
           step: 'ReviewResultsContent.observeAuthState',
           path: '/app/transparenz',
@@ -150,7 +189,7 @@ export function ReviewResultsContent() {
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, [hasLoggedFirstQuery, router]);
 
   useEffect(() => {
     if (!bundle?.profile?.familyId) return;

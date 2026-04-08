@@ -24,8 +24,13 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const [showTeamCheckDot, setShowTeamCheckDot] = useState(false);
   const [partnerCompleted, setPartnerCompleted] = useState(false);
+  const [hasLoggedFirstQuery, setHasLoggedFirstQuery] = useState(false);
 
   useEffect(() => {
+    logSignupInfo('personal_shell_mount', {
+      step: 'PersonalAreaShell.mount',
+      path: pathname,
+    });
     const unsubscribe = observeAuthState(async (user) => {
       if (!user) {
         router.replace('/login');
@@ -42,7 +47,24 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           email: user.email ?? '',
           displayName: user.displayName ?? undefined,
         });
+        if (!hasLoggedFirstQuery) {
+          logSignupInfo('personal_shell_first_query.start', {
+            step: 'PersonalAreaShell.observeAuthState',
+            path: pathname,
+            uid: user.uid,
+            extra: { queryName: 'fetchDashboardBundle', collection: 'users/families/userResults' },
+          });
+        }
         const bundle = await fetchDashboardBundle(user.uid);
+        if (!hasLoggedFirstQuery) {
+          logSignupInfo('personal_shell_first_query.success', {
+            step: 'PersonalAreaShell.observeAuthState',
+            path: pathname,
+            uid: user.uid,
+            extra: { queryName: 'fetchDashboardBundle', collection: 'users/families/userResults' },
+          });
+          setHasLoggedFirstQuery(true);
+        }
         setShowTeamCheckDot(isTeamCheckBadgeVisible({
           nextCheckInAt: bundle.family?.teamCheckPlan?.nextCheckInAt,
           reminderActiveAt: bundle.family?.teamCheckPlan?.reminderActiveAt,
@@ -55,6 +77,14 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           uid: user.uid,
         });
       } catch (error) {
+        if (!hasLoggedFirstQuery) {
+          logSignupError('personal_shell_first_query.failed', error, {
+            step: 'PersonalAreaShell.observeAuthState',
+            path: pathname,
+            uid: user.uid,
+            extra: { queryName: 'fetchDashboardBundle', collection: 'users/families/userResults' },
+          });
+        }
         logSignupError('target_page.load.failed', error, {
           step: 'PersonalAreaShell.observeAuthState',
           path: pathname,
@@ -64,7 +94,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [pathname, router]);
+  }, [hasLoggedFirstQuery, pathname, router]);
 
   if (!isReady) {
     return (
