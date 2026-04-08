@@ -97,11 +97,39 @@ export default function RegisterPage() {
       failedStep = 'family_doc.create';
       await ensureInitiatorFamilySetup(credential.user.uid, { inviteContextPresent });
       lastSuccessfulStep = 'family_doc.create.success';
+      logSignupInfo('after_bootstrap_reached', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      failedStep = 'post_bootstrap.next_step';
+      logSignupInfo('post_bootstrap.next_step', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+        extra: { nextStep: 'anonymous_session.link' },
+      });
       failedStep = 'anonymous_session.link';
       const session = loadSessionFromStorage();
       if (session) {
-        await linkAnonymousSessionToUser(credential.user, session);
-        lastSuccessfulStep = 'anonymous_session.link.success';
+        try {
+          await linkAnonymousSessionToUser(credential.user, session);
+          lastSuccessfulStep = 'anonymous_session.link.success';
+        } catch (linkError) {
+          logSignupError('anonymous_session.link.failed', linkError, {
+            step: 'register.handleSubmit',
+            path: '/register',
+            uid: credential.user.uid,
+            inviteContextPresent,
+            extra: {
+              failedStep: 'anonymous_session.link',
+              lastSuccessfulStep,
+              targetRoute,
+            },
+          });
+        }
       }
       logSignupInfo('bootstrap.complete', {
         step: 'register.handleSubmit',
@@ -115,14 +143,15 @@ export default function RegisterPage() {
         uid: credential.user.uid,
         inviteContextPresent,
       });
-      logSignupInfo('signup.redirect.start', {
+      failedStep = 'redirect.start';
+      logSignupInfo('redirect.start', {
         step: 'register.handleSubmit',
         path: '/register',
         uid: credential.user.uid,
         inviteContextPresent,
+        extra: { targetRoute },
       });
-      failedStep = 'redirect.start';
-      logSignupInfo('redirect.start', {
+      logSignupInfo('redirect.called', {
         step: 'register.handleSubmit',
         path: '/register',
         uid: credential.user.uid,
@@ -177,9 +206,10 @@ export default function RegisterPage() {
         collection?: string;
         queryName?: string;
         targetRoute?: string;
-        cause?: { code?: string; message?: string } | unknown;
+        cause?: { code?: string; message?: string; stack?: string } | unknown;
+        stack?: string;
       };
-      const cause = error.cause as { code?: string; message?: string } | undefined;
+      const cause = error.cause as { code?: string; message?: string; stack?: string } | undefined;
       logSignupError('signup.flow.failed', registrationError, {
         step: 'register.handleSubmit',
         path: '/register',
@@ -189,18 +219,21 @@ export default function RegisterPage() {
           failedStep: error.failedStep ?? failedStep,
           lastSuccessfulStep,
           collection: error.collection ?? null,
-          queryName: error.queryName ?? null,
-          targetRoute: error.targetRoute ?? targetRoute,
-          errorPath: error.path ?? null,
-          error: {
-            code: error.code ?? null,
-            message: error.message ?? null,
-            cause: {
-              code: cause?.code ?? null,
-              message: cause?.message ?? null,
+            queryName: error.queryName ?? null,
+            targetRoute: error.targetRoute ?? targetRoute,
+            errorPath: error.path ?? null,
+            stack: error.stack ?? (registrationError instanceof Error ? registrationError.stack ?? null : null),
+            error: {
+              code: error.code ?? null,
+              message: error.message ?? null,
+              stack: error.stack ?? null,
+              cause: {
+                code: cause?.code ?? null,
+                message: cause?.message ?? null,
+                stack: cause?.stack ?? null,
+              },
             },
           },
-        },
       });
       if (finalizeStarted) {
         logSignupError('signup.finalize.failed', registrationError, {
@@ -217,8 +250,10 @@ export default function RegisterPage() {
             errorPath: error.path ?? null,
             errorCode: error.code ?? null,
             errorMessage: error.message ?? null,
+            errorStack: error.stack ?? (registrationError instanceof Error ? registrationError.stack ?? null : null),
             errorCauseCode: cause?.code ?? null,
             errorCauseMessage: cause?.message ?? null,
+            errorCauseStack: cause?.stack ?? null,
           },
         });
       }
