@@ -223,6 +223,12 @@ export async function ensureUserProfile(params: {
   const userPath = `${firestoreCollections.users}/${params.userId}`;
   const inviteContextPresent = params.inviteContextPresent ?? false;
 
+  logSignupInfo('signup.next_read.start', {
+    step: 'ensureUserProfile',
+    path: userPath,
+    uid: params.userId,
+    inviteContextPresent,
+  });
   logSignupInfo('user_doc.read.start', {
     step: 'ensureUserProfile',
     path: userPath,
@@ -234,6 +240,13 @@ export async function ensureUserProfile(params: {
 
   try {
     existingSnapshot = await getDoc(userRef);
+    logSignupInfo('signup.next_read.success', {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+      extra: { exists: existingSnapshot.exists() },
+    });
     logSignupInfo('user_doc.read.success', {
       step: 'ensureUserProfile',
       path: userPath,
@@ -242,16 +255,27 @@ export async function ensureUserProfile(params: {
       extra: { exists: existingSnapshot.exists() },
     });
   } catch (error) {
+    logSignupError('signup.next_read.failed', error, {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+    });
     logSignupError('user_doc.read.failed', error, {
       step: 'ensureUserProfile',
       path: userPath,
       uid: params.userId,
       inviteContextPresent,
     });
-    throw error;
+    const code = (error as { code?: string })?.code ?? '';
+    if (code === 'permission-denied' || code === 'firestore/permission-denied') {
+      existingSnapshot = null;
+    } else {
+      throw error;
+    }
   }
 
-  const existingProfile = existingSnapshot.exists() ? existingSnapshot.data() as AppUserProfile : null;
+  const existingProfile = existingSnapshot?.exists() ? existingSnapshot.data() as AppUserProfile : null;
   const normalizedDisplayName = params.displayName?.trim();
   const firstName = normalizedDisplayName?.split(' ')[0] ?? existingProfile?.firstName ?? '';
   const lastName = normalizedDisplayName?.split(' ').slice(1).join(' ') ?? existingProfile?.lastName ?? '';
@@ -270,6 +294,12 @@ export async function ensureUserProfile(params: {
     payload.role = params.role;
   }
 
+  logSignupInfo('user_profile.create.start', {
+    step: 'ensureUserProfile',
+    path: userPath,
+    uid: params.userId,
+    inviteContextPresent,
+  });
   logSignupInfo('user_doc.create.start', {
     step: 'ensureUserProfile',
     path: userPath,
@@ -279,6 +309,12 @@ export async function ensureUserProfile(params: {
 
   try {
     await setDoc(userRef, payload, { merge: true });
+    logSignupInfo('user_profile.create.success', {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+    });
     logSignupInfo('user_doc.create.success', {
       step: 'ensureUserProfile',
       path: userPath,
@@ -286,6 +322,12 @@ export async function ensureUserProfile(params: {
       inviteContextPresent,
     });
   } catch (error) {
+    logSignupError('user_profile.create.failed', error, {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+    });
     logSignupError('user_doc.create.failed', error, {
       step: 'ensureUserProfile',
       path: userPath,

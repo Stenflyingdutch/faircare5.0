@@ -95,8 +95,26 @@ export default function RegisterPage() {
         uid: credential.user.uid,
         inviteContextPresent,
       });
+      logSignupInfo('signup.redirect.start', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('signup.redirect.target', {
+        step: 'register.handleSubmit',
+        path: '/app/transparenz',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
       router.push('/app/transparenz');
     } catch (registrationError) {
+      logSignupError('signup.flow.failed', registrationError, {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: userId,
+        inviteContextPresent,
+      });
       if (finalizeStarted) {
         logSignupError('signup.finalize.failed', registrationError, {
           step: 'register.handleSubmit',
