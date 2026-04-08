@@ -18,12 +18,14 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [passwordRepeat, setPasswordRepeat] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
+    setErrorCode(null);
     const inviteContextPresent = false;
     let userId: string | null = null;
     let finalizeStarted = false;
@@ -41,6 +43,7 @@ export default function RegisterPage() {
 
     if (password !== passwordRepeat) {
       setError('Die Passwörter stimmen nicht überein.');
+      setErrorCode(null);
       setIsSubmitting(false);
       return;
     }
@@ -103,7 +106,9 @@ export default function RegisterPage() {
           inviteContextPresent,
         });
       }
+      const code = (registrationError as { code?: string })?.code;
       setError(resolveRegistrationErrorMessage(registrationError));
+      setErrorCode(typeof code === 'string' && code.trim().length > 0 ? code : null);
       setIsSubmitting(false);
     }
   }
@@ -117,7 +122,12 @@ export default function RegisterPage() {
           <input required type="email" placeholder="E-Mail" className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input required minLength={6} type="password" placeholder="Passwort (mind. 6 Zeichen)" className="input" value={password} onChange={(e) => setPassword(e.target.value)} />
           <input required minLength={6} type="password" placeholder="Passwort wiederholen" className="input" value={passwordRepeat} onChange={(e) => setPasswordRepeat(e.target.value)} />
-          {error && <p className="inline-error">{error}</p>}
+          {error && (
+            <p className="inline-error">
+              {error}
+              {errorCode ? ` Fehlercode: ${errorCode}` : ''}
+            </p>
+          )}
           <button type="submit" className="button primary" disabled={isSubmitting}>{isSubmitting ? 'Registriert …' : 'Registrieren'}</button>
         </form>
       </div>
