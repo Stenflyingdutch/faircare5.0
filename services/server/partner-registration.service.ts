@@ -93,6 +93,8 @@ function isInvitationRevoked(status?: string | null) {
   return ['revoked', 'cancelled', 'canceled'].includes((status ?? '').toLowerCase());
 }
 
+const MENTAL_FAIRCARE_PUBLIC_URL = 'https://mental-faircare.de';
+
 function resolveAppBaseUrl() {
   const explicitUrl = process.env.APP_BASE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (explicitUrl) return explicitUrl.replace(/\/+$/, '');
@@ -108,6 +110,28 @@ function resolveAppBaseUrl() {
   }
 
   return 'http://localhost:3000';
+}
+
+function resolveMentalFaircareLoginUrl() {
+  const baseUrl = resolveAppBaseUrl();
+
+  try {
+    const parsed = new URL(baseUrl);
+    const hostname = parsed.hostname.toLowerCase();
+    const shouldKeepResolvedBaseUrl = hostname === 'localhost'
+      || hostname === '127.0.0.1'
+      || hostname.endsWith('.vercel.app')
+      || hostname === 'mental-faircare.de'
+      || hostname.endsWith('.mental-faircare.de');
+
+    if (shouldKeepResolvedBaseUrl) {
+      return `${baseUrl}/login`;
+    }
+  } catch {
+    // Fall back to the canonical production login if the configured base URL cannot be parsed.
+  }
+
+  return `${MENTAL_FAIRCARE_PUBLIC_URL}/login`;
 }
 
 async function queryInvitationByField(field: string, value: string) {
@@ -243,7 +267,7 @@ async function notifyInitiatorIfPossible(familyId: string, invitationId: string)
   if (!initiatorProfile?.email) return;
 
   const baseUrl = resolveAppBaseUrl();
-  const loginUrl = `${baseUrl}/login`;
+  const loginUrl = resolveMentalFaircareLoginUrl();
   const recipientMasked = maskEmailForLog(initiatorProfile.email);
 
   try {

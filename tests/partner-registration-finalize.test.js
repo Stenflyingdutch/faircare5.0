@@ -49,6 +49,13 @@ test('initiator unlock mails emit structured trigger and send diagnostics', () =
   assert.match(finalizeServiceSrc, /resolveRecipient\(initiatorProfile\.email\)/);
 });
 
+test('partner completion login mail prefers the mental-faircare login url', () => {
+  assert.match(finalizeServiceSrc, /const MENTAL_FAIRCARE_PUBLIC_URL = 'https:\/\/mental-faircare\.de';/);
+  assert.match(finalizeServiceSrc, /function resolveMentalFaircareLoginUrl\(\)/);
+  assert.match(finalizeServiceSrc, /const loginUrl = resolveMentalFaircareLoginUrl\(\);/);
+  assert.match(finalizeServiceSrc, /return `\$\{MENTAL_FAIRCARE_PUBLIC_URL\}\/login`;/);
+});
+
 test('registration error handling exposes partner finalization and session sync failures', () => {
   assert.match(authServiceSrc, /auth\/session-sync-failed/);
   assert.match(authServiceSrc, /code\?\.startsWith\('partner_registration\/'\)/);
