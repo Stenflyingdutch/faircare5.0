@@ -826,13 +826,47 @@ export async function resolveInvitationByToken(token: string): Promise<Invitatio
       return { status: 'expired', reason: 'invite_expired', invitation };
     }
 
-    const familySnapshot = await getDoc(doc(db, firestoreCollections.families, invitation.familyId));
-    if (familySnapshot.exists()) {
-      const family = familySnapshot.data() as FamilyDocument;
-      if (family.partnerRegistered || family.partnerUserId) {
-        console.info('invite.lookup.status', { invitationId: invitation.id, reason: 'invite_already_completed' });
-        return { status: 'accepted', reason: 'invite_already_completed', invitation };
+    const followupReadContext = {
+      invitationId: invitation.id,
+      step: 'post_invite_lookup.family_read',
+      path: `${firestoreCollections.families}/${invitation.familyId}`,
+      operation: 'getDoc',
+    } as const;
+    console.info('invite.lookup.followup.marker', followupReadContext);
+
+    if (auth.currentUser) {
+      console.info('invite.lookup.followup.read.before', followupReadContext);
+      try {
+        const familySnapshot = await getDoc(doc(db, firestoreCollections.families, invitation.familyId));
+        console.info('invite.lookup.followup.read.after', {
+          ...followupReadContext,
+          found: familySnapshot.exists(),
+          error: null,
+        });
+
+        if (familySnapshot.exists()) {
+          const family = familySnapshot.data() as FamilyDocument;
+          if (family.partnerRegistered || family.partnerUserId) {
+            console.info('invite.lookup.status', { invitationId: invitation.id, reason: 'invite_already_completed' });
+            return { status: 'accepted', reason: 'invite_already_completed', invitation };
+          }
+        }
+      } catch (error) {
+        const firestoreError = error as { code?: string; message?: string };
+        console.error('invite.lookup.followup.read.after', {
+          ...followupReadContext,
+          error: {
+            code: firestoreError.code ?? 'unknown',
+            message: firestoreError.message ?? String(error),
+          },
+        });
+        throw error;
       }
+    } else {
+      console.info('invite.lookup.followup.read.skipped', {
+        ...followupReadContext,
+        reason: 'missing_auth_for_family_read',
+      });
     }
 
     if (invitation.expiresAt) {
