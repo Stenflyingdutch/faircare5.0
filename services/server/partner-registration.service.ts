@@ -4,7 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
-import { dispatchMail } from '@/services/server/mail.service';
+import { MailDispatchError, dispatchMail, resolveRecipient, validateMailConfig } from '@/services/server/mail.service';
 import { buildDisplayName, normalizeEmailAddress, normalizePersonName } from '@/services/user-profile.service';
 import { firestoreCollections } from '@/types/domain';
 import type { AppUserProfile, FamilyDocument, InvitationDocument, JointResultDocument, QuizResultDocument, QuizSessionDocument } from '@/types/partner-flow';
@@ -23,6 +23,27 @@ function deriveNameFromEmail(email?: string | null) {
   if (!email) return null;
   const local = email.split('@')[0]?.trim();
   return normalizeName(local);
+}
+
+function maskEmailForLog(email?: string | null) {
+  if (!email) return null;
+  const [localPart, domainPart] = email.split('@');
+  if (!localPart || !domainPart) return '***';
+  if (localPart.length <= 2) return `**@${domainPart}`;
+  return `${localPart.slice(0, 2)}***@${domainPart}`;
+}
+
+function extractErrorCode(error: unknown) {
+  if (error instanceof MailDispatchError) return error.code;
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return String((error as { code?: unknown }).code ?? 'unknown');
+  }
+  return 'unknown';
+}
+
+function extractErrorProvider(error: unknown) {
+  if (error instanceof MailDispatchError) return error.provider ?? null;
+  return null;
 }
 
 function sanitizeInvitationToken(rawToken?: string | null) {
@@ -132,9 +153,13 @@ async function fetchUserProfile(userId: string) {
 }
 
 async function fetchPartnerResultByFamily(familyId: string) {
+  return fetchResultByFamilyAndRole(familyId, 'partner');
+}
+
+async function fetchResultByFamilyAndRole(familyId: string, role: 'initiator' | 'partner') {
   const snapshot = await adminDb.collection(firestoreCollections.quizResults)
     .where('familyId', '==', familyId)
-    .where('role', '==', 'partner')
+    .where('role', '==', role)
     .limit(1)
     .get();
 
@@ -152,6 +177,12 @@ async function fetchJointResultByFamily(familyId: string) {
   return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as JointResultDocument;
 }
 
+async function fetchInvitationById(invitationId?: string | null) {
+  if (!invitationId) return null;
+  const snapshot = await adminDb.collection(firestoreCollections.invitations).doc(invitationId).get();
+  return snapshot.exists ? ({ id: snapshot.id, ...snapshot.data() } as InvitationDocument) : null;
+}
+
 async function upsertJointResult(familyId: string, initiatorResult: QuizResultDocument, partnerResult: QuizResultDocument) {
   const existing = await fetchJointResultByFamily(familyId);
   const jointResultId = existing?.id ?? adminDb.collection(firestoreCollections.jointResults).doc().id;
@@ -161,7 +192,11 @@ async function upsertJointResult(familyId: string, initiatorResult: QuizResultDo
     partnerTotal: partnerResult.totalScore,
     averageDifference: Math.round((Math.abs(initiatorResult.totalScore - partnerResult.totalScore) / 2) * 10) / 10,
   };
-  const insights = buildJointInsights(initiatorResult.categoryScores, partnerResult.categoryScores);
+  const insights = buildJointInsights(
+    initiatorResult.categoryScores,
+    partnerResult.categoryScores,
+    initiatorResult.questionSetSnapshot[0]?.ageGroup,
+  );
   const categoryDifferences = Object.fromEntries(
     Object.entries(initiatorResult.categoryScores).map(([category, score]) => [
       category,
@@ -187,16 +222,67 @@ async function upsertJointResult(familyId: string, initiatorResult: QuizResultDo
 
 async function notifyInitiatorIfPossible(familyId: string, invitationId: string) {
   const familySnapshot = await adminDb.collection(firestoreCollections.families).doc(familyId).get();
+  console.info('invite.unlock_mail.trigger_check', {
+    familyId,
+    invitationId,
+    mailType: 'partner_completed_notify_initiator',
+    familyExists: familySnapshot.exists,
+  });
   if (!familySnapshot.exists) return;
 
   const family = familySnapshot.data() as FamilyDocument;
   const initiatorProfile = await fetchUserProfile(family.initiatorUserId);
+  console.info('invite.unlock_mail.trigger_check', {
+    familyId,
+    invitationId,
+    mailType: 'partner_completed_notify_initiator',
+    initiatorId: family.initiatorUserId,
+    partnerId: family.partnerUserId ?? null,
+    hasInitiatorEmail: Boolean(initiatorProfile?.email),
+  });
   if (!initiatorProfile?.email) return;
 
-  const loginUrl = `${resolveAppBaseUrl()}/login`;
+  const baseUrl = resolveAppBaseUrl();
+  const loginUrl = `${baseUrl}/login`;
+  const recipientMasked = maskEmailForLog(initiatorProfile.email);
 
   try {
-    console.info('invite.unlock_mail.start', { familyId, invitationId });
+    console.info('invite.unlock_mail.trigger_reached', {
+      familyId,
+      invitationId,
+      mailType: 'partner_completed_notify_initiator',
+      initiatorId: family.initiatorUserId,
+      partnerId: family.partnerUserId ?? null,
+      recipientMasked,
+    });
+    console.info('invite.unlock_mail.prepare.start', {
+      familyId,
+      invitationId,
+      mailType: 'partner_completed_notify_initiator',
+      recipientMasked,
+      hasTestEmailOverride: Boolean(process.env.TEST_EMAIL_OVERRIDE),
+      baseUrl,
+    });
+    const config = validateMailConfig();
+    const recipient = resolveRecipient(initiatorProfile.email);
+    console.info('invite.unlock_mail.prepare.success', {
+      familyId,
+      invitationId,
+      mailType: 'partner_completed_notify_initiator',
+      recipientMasked,
+      provider: config.provider,
+      overrideApplied: recipient.overrideApplied,
+      baseUrl,
+    });
+    console.info('invite.unlock_mail.send.start', {
+      familyId,
+      invitationId,
+      mailType: 'partner_completed_notify_initiator',
+      recipientMasked,
+      provider: config.provider,
+      overrideApplied: recipient.overrideApplied,
+      baseUrl,
+    });
     const outcome = await dispatchMail({
       type: 'partner_completed_notify_initiator',
       to: initiatorProfile.email,
@@ -213,17 +299,122 @@ async function notifyInitiatorIfPossible(familyId: string, invitationId: string)
     });
 
     await adminDb.collection(outcome.collection).add(outcome.payload);
-    console.info('invite.unlock_mail.success', { familyId, invitationId });
-  } catch (error) {
-    console.error('invite.unlock_mail.failed', {
+    console.info('invite.unlock_mail.send.success', {
       familyId,
       invitationId,
+      mailType: 'partner_completed_notify_initiator',
+      recipientMasked,
+      provider: outcome.result.provider,
+      overrideApplied: Boolean(outcome.payload.overrideApplied),
+      baseUrl,
+    });
+  } catch (error) {
+    console.error('invite.unlock_mail.send.failed', {
+      familyId,
+      invitationId,
+      mailType: 'partner_completed_notify_initiator',
+      recipientMasked,
+      errorCode: extractErrorCode(error),
+      provider: extractErrorProvider(error),
+      hasTestEmailOverride: Boolean(process.env.TEST_EMAIL_OVERRIDE),
+      baseUrl,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function notifyPartnerUnlockIfPossible(params: { family: FamilyDocument; jointId: string }) {
+  const invitation = await fetchInvitationById(params.family.invitationId);
+  const partnerProfile = params.family.partnerUserId ? await fetchUserProfile(params.family.partnerUserId) : null;
+  const partnerEmail = normalizeEmailAddress(partnerProfile?.email || invitation?.partnerEmail || '');
+  if (!partnerEmail) return;
+
+  const baseUrl = resolveAppBaseUrl();
+  const loginUrl = `${baseUrl}/login`;
+  const recipientMasked = maskEmailForLog(partnerEmail);
+
+  try {
+    console.info('invite.partner_unlock_mail.prepare.start', {
+      familyId: params.family.id,
+      invitationId: params.family.invitationId ?? null,
+      mailType: 'results_unlocked_notify_partner',
+      recipientMasked,
+      hasTestEmailOverride: Boolean(process.env.TEST_EMAIL_OVERRIDE),
+      baseUrl,
+    });
+    const config = validateMailConfig();
+    const recipient = resolveRecipient(partnerEmail);
+    console.info('invite.partner_unlock_mail.prepare.success', {
+      familyId: params.family.id,
+      invitationId: params.family.invitationId ?? null,
+      mailType: 'results_unlocked_notify_partner',
+      recipientMasked,
+      provider: config.provider,
+      overrideApplied: recipient.overrideApplied,
+      baseUrl,
+    });
+    console.info('invite.partner_unlock_mail.send.start', {
+      familyId: params.family.id,
+      invitationId: params.family.invitationId ?? null,
+      mailType: 'results_unlocked_notify_partner',
+      recipientMasked,
+      provider: config.provider,
+      overrideApplied: recipient.overrideApplied,
+      baseUrl,
+    });
+    const outcome = await dispatchMail({
+      type: 'results_unlocked_notify_partner',
+      to: partnerEmail,
+      originalRecipient: partnerEmail,
+      subject: 'Euer gemeinsames FairCare-Ergebnis ist bereit',
+      familyId: params.family.id,
+      invitationId: params.family.invitationId ?? undefined,
+      html: `
+        <h2>Euer gemeinsames FairCare-Ergebnis ist bereit</h2>
+        <p>Das gemeinsame Ergebnis wurde freigeschaltet.</p>
+        <p>Melde dich an, um eure individuellen Ergebnisse und das Gesamtergebnis anzusehen.</p>
+        <p><a href="${loginUrl}">Zum Login</a></p>
+      `,
+    });
+    await adminDb.collection(outcome.collection).add(outcome.payload);
+    console.info('invite.partner_unlock_mail.send.success', {
+      familyId: params.family.id,
+      invitationId: params.family.invitationId ?? null,
+      mailType: 'results_unlocked_notify_partner',
+      recipientMasked,
+      provider: outcome.result.provider,
+      overrideApplied: Boolean(outcome.payload.overrideApplied),
+      baseUrl,
+      resultId: params.jointId,
+    });
+  } catch (error) {
+    console.error('invite.partner_unlock_mail.send.failed', {
+      familyId: params.family.id,
+      invitationId: params.family.invitationId ?? null,
+      mailType: 'results_unlocked_notify_partner',
+      recipientMasked,
+      provider: extractErrorProvider(error),
+      errorCode: extractErrorCode(error),
+      hasTestEmailOverride: Boolean(process.env.TEST_EMAIL_OVERRIDE),
+      baseUrl,
+      resultId: params.jointId,
       message: error instanceof Error ? error.message : String(error),
     });
   }
 }
 
 export class PartnerRegistrationFinalizeError extends Error {
+  status: number;
+  code: string;
+
+  constructor(message: string, status: number, code: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export class PartnerFlowAdminError extends Error {
   status: number;
   code: string;
 
@@ -344,6 +535,7 @@ export async function finalizePartnerRegistrationWithAdmin(params: {
 
     transaction.set(familyRef, {
       partnerUserId: params.userId,
+      partnerDisplayName: buildDisplayName(firstName, lastName) || normalizeName(normalizedDisplayName) || null,
       status: 'partner_completed',
       initiatorRegistered: true,
       initiatorCompleted: true,
@@ -390,4 +582,176 @@ export async function finalizePartnerRegistrationWithAdmin(params: {
     alreadyCompleted: false,
   });
   return { familyId: invitation.familyId, alreadyCompleted: false };
+}
+
+export async function unlockJointResultsWithAdmin(userId: string) {
+  const profile = await fetchUserProfile(userId);
+  const familyId = profile?.familyId ?? null;
+
+  console.info('initiator.results.generate.start', {
+    authUid: userId,
+    familyId,
+    initiatorId: userId,
+    partnerId: null,
+    resultId: null,
+    collection: firestoreCollections.families,
+    path: familyId ? `${firestoreCollections.families}/${familyId}` : null,
+  });
+
+  try {
+    if (!familyId) {
+      const error = new PartnerFlowAdminError('Keine Familie verknüpft.', 409, 'partner_unlock/family_missing');
+      console.error('initiator.results.generate.failed', {
+        authUid: userId,
+        familyId: null,
+        initiatorId: userId,
+        partnerId: null,
+        resultId: null,
+        collection: firestoreCollections.families,
+        path: null,
+        errorCode: error.code,
+        message: error.message,
+      });
+      throw error;
+    }
+
+    const familyRef = adminDb.collection(firestoreCollections.families).doc(familyId);
+    const familySnapshot = await familyRef.get();
+    if (!familySnapshot.exists) {
+      const error = new PartnerFlowAdminError('Familie nicht gefunden.', 404, 'partner_unlock/family_not_found');
+      console.error('initiator.results.generate.failed', {
+        authUid: userId,
+        familyId,
+        initiatorId: userId,
+        partnerId: null,
+        resultId: null,
+        collection: firestoreCollections.families,
+        path: `${firestoreCollections.families}/${familyId}`,
+        errorCode: error.code,
+        message: error.message,
+      });
+      throw error;
+    }
+
+    const family = familySnapshot.data() as FamilyDocument;
+    const baseLog = {
+      authUid: userId,
+      familyId,
+      initiatorId: family.initiatorUserId,
+      partnerId: family.partnerUserId ?? null,
+      resultId: null,
+    };
+
+    if (family.initiatorUserId !== userId) {
+      const error = new PartnerFlowAdminError('Nur der Initiator darf freischalten.', 403, 'partner_unlock/forbidden');
+      console.error('initiator.results.generate.failed', {
+        ...baseLog,
+        collection: firestoreCollections.families,
+        path: `${firestoreCollections.families}/${familyId}`,
+        errorCode: error.code,
+        message: error.message,
+      });
+      throw error;
+    }
+
+    if (!family.partnerUserId || !family.partnerRegistered || !family.partnerCompleted) {
+      const error = new PartnerFlowAdminError('Der Partner ist noch nicht vollständig registriert.', 409, 'partner_unlock/partner_incomplete');
+      console.error('initiator.results.generate.failed', {
+        ...baseLog,
+        collection: firestoreCollections.families,
+        path: `${firestoreCollections.families}/${familyId}`,
+        errorCode: error.code,
+        message: error.message,
+      });
+      throw error;
+    }
+
+    const initiatorResult = await fetchResultByFamilyAndRole(familyId, 'initiator');
+    if (!initiatorResult) {
+      const error = new PartnerFlowAdminError('Initiator-Ergebnis fehlt.', 409, 'partner_unlock/initiator_result_missing');
+      console.error('initiator.results.generate.failed', {
+        ...baseLog,
+        collection: firestoreCollections.quizResults,
+        path: `${firestoreCollections.quizResults}/(initiator:${familyId})`,
+        errorCode: error.code,
+        message: error.message,
+      });
+      throw error;
+    }
+
+    const partnerResult = await fetchResultByFamilyAndRole(familyId, 'partner');
+    if (!partnerResult) {
+      const error = new PartnerFlowAdminError('Partner-Ergebnis fehlt.', 409, 'partner_unlock/partner_result_missing');
+      console.error('initiator.results.generate.failed', {
+        ...baseLog,
+        collection: firestoreCollections.quizResults,
+        path: `${firestoreCollections.quizResults}/(partner:${familyId})`,
+        errorCode: error.code,
+        message: error.message,
+      });
+      throw error;
+    }
+
+    const jointId = await upsertJointResult(familyId, initiatorResult, partnerResult);
+    if (family.resultsUnlocked) {
+      console.info('initiator.results.generate.success', {
+        ...baseLog,
+        collection: firestoreCollections.jointResults,
+        path: `${firestoreCollections.jointResults}/${jointId}`,
+        resultId: jointId,
+        alreadyActive: true,
+      });
+      return { alreadyActive: true, familyId, jointId };
+    }
+
+    const jointRef = adminDb.collection(firestoreCollections.jointResults).doc(jointId);
+    const activatedAt = nowIso();
+    await adminDb.runTransaction(async (transaction) => {
+      transaction.set(jointRef, {
+        status: 'active',
+        activatedAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      transaction.set(familyRef, {
+        status: 'joint_pending',
+        resultsUnlocked: true,
+        sharedResultsOpened: false,
+        unlockedAt: activatedAt,
+        unlockedBy: userId,
+        sharedResultsOpenedAt: null,
+        sharedResultsOpenedBy: null,
+        resultsDiscussedAt: null,
+        resultsDiscussedBy: null,
+        activatedAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+
+    await notifyPartnerUnlockIfPossible({ family: { ...family, id: familyId }, jointId });
+
+    console.info('initiator.results.generate.success', {
+      ...baseLog,
+      collection: firestoreCollections.jointResults,
+      path: `${firestoreCollections.jointResults}/${jointId}`,
+      resultId: jointId,
+      alreadyActive: false,
+    });
+    return { alreadyActive: false, familyId, jointId };
+  } catch (error) {
+    if (!(error instanceof PartnerFlowAdminError)) {
+      console.error('initiator.results.generate.failed', {
+        authUid: userId,
+        familyId,
+        initiatorId: userId,
+        partnerId: null,
+        resultId: null,
+        collection: firestoreCollections.jointResults,
+        path: familyId ? `${firestoreCollections.jointResults}/(family:${familyId})` : null,
+        errorCode: extractErrorCode(error),
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+    throw error;
+  }
 }

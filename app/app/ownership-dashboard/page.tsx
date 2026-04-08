@@ -171,6 +171,7 @@ function OwnershipDashboardPageContent() {
         ownerOptions={ownerOptions}
         categoryKeys={allCategoryKeys}
         preselectedCategoryKeys={preselectedCategoryKeys}
+        ageGroup={ageGroup}
         isFocusedEntry={isRecommendationEntry}
       />
       {loadError && <p className="inline-error">{loadError}</p>}

@@ -21,7 +21,7 @@ import {
 import { buildOwnershipRecommendations, computeOwnershipSignals, initializeFamilyOwnership, observeOwnershipCards } from '@/services/ownership.service';
 import { getCurrentLocale } from '@/lib/i18n';
 import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
-import type { QuizCategory, StressSelection } from '@/types/quiz';
+import type { AgeGroup, QuizCategory, StressSelection } from '@/types/quiz';
 import type { OwnershipCardDocument, OwnershipRecommendation } from '@/types/ownership';
 
 function sortCategoriesByOwnShareAscending(categories: Array<[QuizCategory, number]>) {
@@ -58,18 +58,18 @@ function buildNeutralDistributionStatement(selfPercent: number, partnerName: str
   return 'Aus deiner Sicht ist die Mental Load aktuell eher gleich verteilt.';
 }
 
-function resolvePerceivedStressLabel(stressCategories?: StressSelection[]) {
+function resolvePerceivedStressLabel(stressCategories?: StressSelection[], ageGroup?: AgeGroup) {
   if (!stressCategories || stressCategories.length === 0) return 'In keiner der genannten Bereiche';
   const [topStress] = stressCategories;
   if (!topStress || topStress === 'keiner_genannten_bereiche') return 'In keiner der genannten Bereiche';
-  return resolveCategoryLabel(topStress);
+  return resolveCategoryLabel(topStress, ageGroup);
 }
 
-function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>) {
+function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>, ageGroup?: AgeGroup) {
   const maxScore = Math.max(...categories.map(([, value]) => value));
   const highestCategories = categories
     .filter(([, value]) => value === maxScore)
-    .map(([category]) => resolveCategoryLabel(category));
+    .map(([category]) => resolveCategoryLabel(category, ageGroup));
 
   if (highestCategories.length === 1) {
     return `${highestCategories[0]} (${maxScore} %).`;
@@ -288,6 +288,10 @@ export function ReviewResultsContent() {
   const firstName = resolveFirstName(bundle?.profile?.firstName)
     || resolveFirstName(bundle?.profile?.displayName)
     || 'Du';
+  const activeAgeGroup = bundle?.ownResult?.questionSetSnapshot?.[0]?.ageGroup
+    ?? bundle?.partnerResult?.questionSetSnapshot?.[0]?.ageGroup
+    ?? bundle?.ageGroupForOwnership
+    ?? null;
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
     return {
@@ -296,9 +300,9 @@ export function ReviewResultsContent() {
       categories: sortCategoriesByOwnShareAscending(
         Object.entries(bundle.ownResult.categoryScores) as Array<[QuizCategory, number]>,
       ),
-      perceivedStressLabel: resolvePerceivedStressLabel(bundle.ownResult.stressCategories),
+      perceivedStressLabel: resolvePerceivedStressLabel(bundle.ownResult.stressCategories, activeAgeGroup ?? undefined),
     };
-  }, [bundle?.ownResult, partnerLabel]);
+  }, [bundle?.ownResult, partnerLabel, activeAgeGroup]);
 
   const hasUnlockedResults = Boolean(
     bundle?.family?.resultsUnlocked
@@ -388,6 +392,7 @@ export function ReviewResultsContent() {
                 <ResultBreakdown
                   title={resolveDisplayName(bundle?.profile?.displayName, 'Du')}
                   partnerName={partnerLabel}
+                  ageGroup={activeAgeGroup}
                   result={ownResultText}
                 />
                 <p className="helper" style={{ margin: 0 }}>Diese Auswertung bleibt als Referenz für spätere Team-Checks erhalten.</p>
@@ -439,7 +444,7 @@ export function ReviewResultsContent() {
                   <p className="helper">Partner-Ergebnis wird nach Freischaltung hier ergänzt.</p>
                   {(ownResultText?.categories ?? []).map(([category]) => (
                     <div key={`ghost-${category}`} className="report-block" style={{ opacity: 0.5 }}>
-                      <strong>{resolveCategoryLabel(category)}</strong>
+                      <strong>{resolveCategoryLabel(category, activeAgeGroup ?? undefined)}</strong>
                       <div className="result-bar" />
                     </div>
                   ))}
@@ -492,7 +497,7 @@ export function ReviewResultsContent() {
         )}
 
         {bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened && (
-          <JointResultPanel bundle={bundle} />
+          <JointResultPanel bundle={bundle} ageGroup={activeAgeGroup} />
         )}
 
         {bundle?.family?.resultsUnlocked
@@ -508,7 +513,7 @@ export function ReviewResultsContent() {
             <div className="stack">
               {ownershipRecommendations.slice(0, 2).map((recommendation) => (
                 <div key={recommendation.categoryKey} className="report-block stack">
-                  <strong>{resolveCategoryLabel(recommendation.categoryKey)}</strong>
+                  <strong>{resolveCategoryLabel(recommendation.categoryKey, activeAgeGroup ?? undefined)}</strong>
                   <p className="helper" style={{ margin: 0 }}>{recommendation.reasonText}</p>
                 </div>
               ))}
@@ -539,13 +544,19 @@ export function ReviewResultsContent() {
   );
 }
 
-function JointResultPanel({ bundle }: {
+function JointResultPanel({ bundle, ageGroup }: {
   bundle: Awaited<ReturnType<typeof fetchDashboardBundle>>;
+  ageGroup?: AgeGroup | null;
 }) {
   if (!bundle.initiatorResult || !bundle.partnerResult) return null;
 
-  const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, deriveNameFromEmail(bundle.profile?.email) ?? 'Initiator');
-  const partnerName = resolveDisplayName(bundle.partnerDisplayName, deriveNameFromEmail(bundle.invitationPartnerEmail) ?? 'Partner');
+  const ownDisplayName = deriveNameFromEmail(bundle.profile?.email);
+  const initiatorFallback = bundle.profile?.role === 'initiator' ? ownDisplayName ?? 'Initiator' : 'Initiator';
+  const partnerFallback = bundle.profile?.role === 'partner'
+    ? ownDisplayName ?? 'Partner'
+    : deriveNameFromEmail(bundle.invitationPartnerEmail) ?? 'Partner';
+  const initiatorName = resolveDisplayName(bundle.initiatorDisplayName, initiatorFallback);
+  const partnerName = resolveDisplayName(bundle.partnerDisplayName, partnerFallback);
 
   const initiatorScores = bundle.initiatorResult.categoryScores;
   const partnerScores = bundle.partnerResult.categoryScores;
@@ -572,7 +583,7 @@ function JointResultPanel({ bundle }: {
           return (
             <div className="report-block" key={`cmp-${entry.category}`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <strong>{resolveCategoryLabel(entry.category)}</strong>
+                <strong>{resolveCategoryLabel(entry.category, ageGroup ?? undefined)}</strong>
                 <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>
                   {hasGap ? 'Abweichung sichtbar' : 'Stimmig'}
                 </span>
@@ -605,8 +616,8 @@ function JointResultPanel({ bundle }: {
           <strong>Größte wahrgenommene Belastung</strong>
           <p className="helper" style={{ margin: '8px 0 0' }}>
             {sharedHighestCategory
-              ? `${initiatorName} und ${partnerName} spüren die größte Belastung bei ${resolveCategoryLabel(highestInitiator.category)}.`
-              : `${initiatorName} spürt die größte Belastung bei ${resolveCategoryLabel(highestInitiator.category)}, ${partnerName} bei ${resolveCategoryLabel(highestPartner.category)}.`}
+              ? `${initiatorName} und ${partnerName} spüren die größte Belastung bei ${resolveCategoryLabel(highestInitiator.category, ageGroup ?? undefined)}.`
+              : `${initiatorName} spürt die größte Belastung bei ${resolveCategoryLabel(highestInitiator.category, ageGroup ?? undefined)}, ${partnerName} bei ${resolveCategoryLabel(highestPartner.category, ageGroup ?? undefined)}.`}
           </p>
         </div>
       </div>
@@ -618,9 +629,11 @@ function ResultBreakdown({
   title,
   partnerName,
   result,
+  ageGroup,
 }: {
   title: string;
   partnerName: string;
+  ageGroup?: AgeGroup | null;
   result: {
     selfPercent: number;
     statement: string;
@@ -631,7 +644,7 @@ function ResultBreakdown({
   const displayName = resolveDisplayName(title, 'Nicole');
   const sortedCategories = [...result.categories].sort((a, b) => b[1] - a[1]);
   const highestLoad = Math.max(...result.categories.map(([, value]) => value));
-  const highestLoadSummary = buildHighestLoadSummary(result.categories);
+  const highestLoadSummary = buildHighestLoadSummary(result.categories, ageGroup ?? undefined);
   const hasNoCategoryAboveHalf = highestLoad < 50;
 
   return (
@@ -682,7 +695,7 @@ function ResultBreakdown({
       <div className="stack category-list individual-result-categories">
         {sortedCategories.map(([category, value]) => (
           <div key={category} className="category-progress-row">
-            <strong>{resolveCategoryLabel(category)}</strong>
+            <strong>{resolveCategoryLabel(category, ageGroup ?? undefined)}</strong>
             <div className="category-progress-track">
               <div className="category-progress-self" style={{ width: `${value}%` }} />
               <div className="category-progress-partner" style={{ width: `${100 - value}%` }} />

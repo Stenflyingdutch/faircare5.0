@@ -60,6 +60,17 @@ function deriveNameFromEmail(email?: string | null) {
   return normalizeName(local);
 }
 
+function extractErrorCode(error: unknown) {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return String((error as { code?: unknown }).code ?? 'unknown');
+  }
+  return 'unknown';
+}
+
+function extractErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function shouldUseCallableInviteFallback(error: { code?: string; message?: string } | null | undefined) {
   const normalizedCode = (error?.code ?? '').toLowerCase();
   const normalizedMessage = (error?.message ?? '').toLowerCase();
@@ -583,6 +594,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
 
   try {
     const userProfile = await fetchAppUserProfile(userId);
+    const initiatorDisplayName = normalizeName(userProfile?.displayName) || deriveNameFromEmail(userProfile?.email);
     console.info('[sendPartnerInvite:fallback] User geladen', { userId, hasUserProfile: Boolean(userProfile) });
 
     const latestResult = await getLatestInitiatorResult(userId);
@@ -613,6 +625,8 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
         id: familyId,
         initiatorUserId: userId,
         partnerUserId: null,
+        initiatorDisplayName,
+        partnerDisplayName: null,
         status: 'invited',
         initiatorCompleted: true,
         partnerCompleted: false,
@@ -647,6 +661,7 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
       id: invitationRef.id,
       familyId,
       initiatorUserId: userId,
+      initiatorDisplayName,
       partnerEmail,
       personalMessage: personalMessage?.trim() || null,
       tokenHash,
@@ -663,6 +678,8 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
 
     await setDoc(doc(db, firestoreCollections.families, familyId), {
       invitationId: invitationRef.id,
+      initiatorDisplayName,
+      partnerDisplayName: null,
       status: 'invited',
       initiatorCompleted: true,
       initiatorRegistered: true,
@@ -1106,7 +1123,11 @@ async function upsertJointResult(familyId: string, initiatorResult: QuizResultDo
     limit(1),
   ));
   const jointId = jointSnap.empty ? doc(collection(db, firestoreCollections.jointResults)).id : jointSnap.docs[0].id;
-  const comparison = buildJointInsights(initiatorResult.categoryScores, partnerResult.categoryScores);
+  const comparison = buildJointInsights(
+    initiatorResult.categoryScores,
+    partnerResult.categoryScores,
+    initiatorResult.questionSetSnapshot[0]?.ageGroup,
+  );
 
   await setDoc(doc(db, firestoreCollections.jointResults, jointId), {
     id: jointId,
@@ -1167,6 +1188,7 @@ export async function ensureInitiatorFamilySetup(userId: string, options?: { inv
   const profile = await fetchAppUserProfile(userId);
   const inviteContextPresent = options?.inviteContextPresent ?? false;
   if (!profile || profile.role === 'partner') return null;
+  const initiatorDisplayName = normalizeName(profile.displayName) || deriveNameFromEmail(profile.email);
 
   if (profile.familyId) {
     await buildOrUpdateInitiatorResult(userId);
@@ -1188,6 +1210,8 @@ export async function ensureInitiatorFamilySetup(userId: string, options?: { inv
       id: familyId,
       initiatorUserId: userId,
       partnerUserId: null,
+      initiatorDisplayName,
+      partnerDisplayName: null,
       status: 'invited',
       initiatorCompleted: true,
       partnerCompleted: false,
@@ -1297,28 +1321,7 @@ export async function triggerJointPreparationByPartner(userId: string) {
   const familySnapshot = await getDoc(familyRef);
   if (!familySnapshot.exists()) throw new Error('Familie nicht gefunden.');
   const family = familySnapshot.data() as FamilyDocument;
-
-  const initiatorProfile = await fetchAppUserProfile(family.initiatorUserId);
-  const baseUrl = resolveAppBaseUrl();
-  const loginUrl = `${baseUrl}/login`;
-
-  if (initiatorProfile?.email) {
-    const recipient = initiatorProfile.email;
-    await sendAppMail({
-      type: 'partner_completed_notify_initiator',
-      to: recipient,
-      subject: 'Dein Partner hat FairCare abgeschlossen',
-      familyId: family.id,
-      html: `
-        <h2>Dein Partner hat FairCare abgeschlossen</h2>
-        <p>Dein Partner hat den Test und die Registrierung erfolgreich abgeschlossen.</p>
-        <p>Melde dich jetzt an, um die Partner- und Gesamtergebnisse freizuschalten.</p>
-        <p><a href="${loginUrl}">Zum Login</a></p>
-      `,
-    });
-  }
-
-  return { initiatorName: initiatorProfile?.displayName || initiatorProfile?.email || null };
+  return { initiatorName: family.initiatorDisplayName || 'Initiator' };
 }
 
 export async function activateJointResult(jointResultId: string, userId: string) {
@@ -1363,21 +1366,39 @@ export async function activateJointResult(jointResultId: string, userId: string)
     }, { merge: true });
   });
 
-  const partnerProfile = family.partnerUserId ? await fetchAppUserProfile(family.partnerUserId) : null;
-  if (partnerProfile?.email) {
-    const baseUrl = resolveAppBaseUrl();
-    const loginUrl = `${baseUrl}/login`;
-    await sendAppMail({
-      type: 'results_unlocked_notify_partner',
-      to: partnerProfile.email,
-      subject: 'Euer gemeinsames FairCare-Ergebnis ist bereit',
+  try {
+    const invitation = family.invitationId
+      ? await getDoc(doc(db, firestoreCollections.invitations, family.invitationId)).then((snapshot) => (snapshot.exists() ? snapshot.data() as InvitationDocument : null))
+      : null;
+    const recipient = invitation?.partnerEmail ?? null;
+
+    if (recipient) {
+      const baseUrl = resolveAppBaseUrl();
+      const loginUrl = `${baseUrl}/login`;
+      await sendAppMail({
+        type: 'results_unlocked_notify_partner',
+        to: recipient,
+        subject: 'Euer gemeinsames FairCare-Ergebnis ist bereit',
+        familyId: family.id,
+        html: `
+          <h2>Euer gemeinsames FairCare-Ergebnis ist bereit</h2>
+          <p>Das gemeinsame Ergebnis wurde freigeschaltet.</p>
+          <p>Melde dich an, um eure individuellen Ergebnisse und das Gesamtergebnis anzusehen.</p>
+          <p><a href="${loginUrl}">Zum Login</a></p>
+        `,
+      });
+    }
+  } catch (error) {
+    console.error('results_unlocked_notify_partner.failed', {
+      authUid: userId,
       familyId: family.id,
-      html: `
-        <h2>Euer gemeinsames FairCare-Ergebnis ist bereit</h2>
-        <p>Das gemeinsame Ergebnis wurde freigeschaltet.</p>
-        <p>Melde dich an, um eure individuellen Ergebnisse und das Gesamtergebnis anzusehen.</p>
-        <p><a href="${loginUrl}">Zum Login</a></p>
-      `,
+      initiatorId: family.initiatorUserId,
+      partnerId: family.partnerUserId ?? null,
+      resultId: jointResultId,
+      collection: firestoreCollections.invitations,
+      path: family.invitationId ? `${firestoreCollections.invitations}/${family.invitationId}` : null,
+      errorCode: extractErrorCode(error),
+      errorMessage: extractErrorMessage(error),
     });
   }
 
@@ -1388,24 +1409,30 @@ export async function unlockPartnerAndJointResults(userId: string) {
   const profile = await fetchAppUserProfile(userId);
   if (!profile?.familyId) throw new Error('Keine Familie verknüpft.');
 
-  const familyRef = doc(db, firestoreCollections.families, profile.familyId);
-  const familySnapshot = await getDoc(familyRef);
-  if (!familySnapshot.exists()) throw new Error('Familie nicht gefunden.');
-  const family = familySnapshot.data() as FamilyDocument;
-  if (family.initiatorUserId !== userId) throw new Error('Nur der Initiator darf freischalten.');
-  if (!family.partnerUserId || !family.partnerRegistered || !family.partnerCompleted) {
-    throw new Error('Der Partner ist noch nicht vollständig registriert.');
-  }
-  if (family.resultsUnlocked) return { alreadyActive: true };
-
   const initiatorResultId = await buildOrUpdateInitiatorResult(userId);
   if (!initiatorResultId) throw new Error('Initiator-Ergebnis fehlt.');
-  const initiatorResult = await fetchResultByRole(profile.familyId, 'initiator');
-  const partnerResult = await fetchResultByRole(profile.familyId, 'partner');
-  if (!initiatorResult || !partnerResult) throw new Error('Ergebnisse sind noch nicht vollständig.');
-  const jointId = await upsertJointResult(profile.familyId, initiatorResult, partnerResult);
 
-  return activateJointResult(jointId, userId);
+  let response: Response;
+  try {
+    response = await fetch('/api/partner/unlock-results', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+    });
+  } catch {
+    const error = new Error('Die Verbindung zum Server ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.') as Error & { code?: string };
+    error.code = 'partner_unlock/network_failed';
+    throw error;
+  }
+
+  const payload = await response.json().catch(() => null) as { error?: string; code?: string; alreadyActive?: boolean } | null;
+  if (!response.ok) {
+    const error = new Error(payload?.error ?? 'Gemeinsame Ergebnisse konnten nicht freigeschaltet werden.') as Error & { code?: string };
+    error.code = payload?.code ?? 'partner_unlock/unexpected';
+    throw error;
+  }
+
+  return { alreadyActive: Boolean(payload?.alreadyActive) };
 }
 
 export async function openSharedResultsView(userId: string) {
@@ -1483,6 +1510,18 @@ export async function fetchDashboardBundle(userId: string) {
 
   const familyId = profile.familyId ?? null;
   const ownRole = profile.role === 'partner' ? 'partner' : 'initiator';
+  const isInitiatorContext = profile.role !== 'partner';
+  const ownDisplayName = normalizeName(profile.displayName) || deriveNameFromEmail(profile.email);
+
+  if (isInitiatorContext) {
+    console.info('initiator.dashboard.load.start', {
+      authUid: userId,
+      familyId,
+      initiatorId: userId,
+      partnerId: null,
+      resultId: null,
+    });
+  }
 
   let latestInitiatorResultPromise: Promise<Awaited<ReturnType<typeof getLatestInitiatorResult>> | null> | null = null;
   const getLatestInitiatorResultOnce = async () => {
@@ -1492,6 +1531,46 @@ export async function fetchDashboardBundle(userId: string) {
     }
     return latestInitiatorResultPromise;
   };
+
+  if (familyId && isInitiatorContext) {
+    const familyPath = `${firestoreCollections.families}/${familyId}`;
+    console.info('initiator.dashboard.first_read.start', {
+      authUid: userId,
+      familyId,
+      initiatorId: userId,
+      partnerId: null,
+      resultId: null,
+      collection: firestoreCollections.families,
+      path: familyPath,
+    });
+    try {
+      const firstFamilySnapshot = await getDoc(doc(db, firestoreCollections.families, familyId));
+      const familyData = firstFamilySnapshot.exists() ? firstFamilySnapshot.data() as FamilyDocument : null;
+      console.info('initiator.dashboard.first_read.success', {
+        authUid: userId,
+        familyId,
+        initiatorId: familyData?.initiatorUserId ?? userId,
+        partnerId: familyData?.partnerUserId ?? null,
+        resultId: null,
+        collection: firestoreCollections.families,
+        path: familyPath,
+      });
+    } catch (error) {
+      console.error('initiator.dashboard.first_read.failed', {
+        reason: 'first_read_failed',
+        authUid: userId,
+        familyId,
+        initiatorId: userId,
+        partnerId: null,
+        resultId: null,
+        collection: firestoreCollections.families,
+        path: familyPath,
+        errorCode: extractErrorCode(error),
+        errorMessage: extractErrorMessage(error),
+      });
+      throw error;
+    }
+  }
 
   logSignupInfo('partner_personal_area.results_read.start', {
     step: 'fetchDashboardBundle',
@@ -1617,9 +1696,16 @@ export async function fetchDashboardBundle(userId: string) {
         : Promise.resolve(null),
     ]);
 
-    initiatorDisplayName = initiatorProfile?.displayName || deriveNameFromEmail(initiatorProfile?.email) || 'Initiator';
-    partnerDisplayName = partnerProfile?.displayName || deriveNameFromEmail(partnerProfile?.email) || null;
-
+    initiatorDisplayName = family.initiatorDisplayName
+      || initiatorProfile?.displayName
+      || (family.initiatorUserId === userId ? ownDisplayName : null)
+      || deriveNameFromEmail(initiatorProfile?.email)
+      || 'Initiator';
+    partnerDisplayName = family.partnerDisplayName
+      || partnerProfile?.displayName
+      || (family.partnerUserId === userId ? ownDisplayName : null)
+      || deriveNameFromEmail(partnerProfile?.email)
+      || null;
     invitationPartnerEmail = invitation?.partnerEmail ?? null;
     if (!partnerDisplayName) {
       partnerDisplayName = deriveNameFromEmail(invitationPartnerEmail);

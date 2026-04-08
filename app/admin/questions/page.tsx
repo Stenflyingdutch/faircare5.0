@@ -1,6 +1,7 @@
 'use client';
 
 import { LoginBackButton } from '@/components/personal/LoginBackButton';
+import { resolveAgeGroupLabel } from '@/components/test/test-config';
 
 import { useEffect, useMemo, useState } from 'react';
 
@@ -70,7 +71,7 @@ export default function AdminQuestionsPage() {
         <div className="chip-row">
           {ageGroups.map((group) => (
             <button key={group} type="button" className={`option-chip ${activeAge === group ? 'selected' : ''}`} onClick={() => setActiveAge(group)}>
-              {group.replace('_', '–').replace('plus', '+')}
+              {resolveAgeGroupLabel(group)}
             </button>
           ))}
         </div>

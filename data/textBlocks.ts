@@ -102,11 +102,11 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     key: 'quiz.error.ageUnsupported',
     group: 'system',
     label: 'Fehler Altersgruppe',
-    description: 'Fehlermeldung bei aktuell nicht unterstützt Altersgruppe.',
+    description: 'Fehlermeldung, wenn für die ausgewählte Altersgruppe gerade keine Fragen geladen werden konnten.',
     text: {
-      de: 'Aktuell wird nur die Altersgruppe 0–1 Jahre unterstützt.',
-      en: 'Currently only age group 0–1 years is supported.',
-      nl: 'Momenteel wordt alleen de leeftijdsgroep 0–1 jaar ondersteund.',
+      de: 'Für diese Altersgruppe konnten gerade keine passenden Fragen geladen werden.',
+      en: 'No matching questions could be loaded for this age group right now.',
+      nl: 'Voor deze leeftijdsgroep konden op dit moment geen passende vragen worden geladen.',
     },
   },
   {
