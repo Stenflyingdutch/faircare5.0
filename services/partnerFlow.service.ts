@@ -372,7 +372,23 @@ export async function ensureUserProfile(params: {
 }
 
 export async function fetchAppUserProfile(userId: string) {
-  const snapshot = await getDoc(doc(db, firestoreCollections.users, userId));
+  const userPath = `${firestoreCollections.users}/${userId}`;
+  logSignupInfo('dashboard.first_read.start', {
+    step: 'fetchAppUserProfile',
+    path: userPath,
+    uid: userId,
+  });
+  let snapshot;
+  try {
+    snapshot = await getDoc(doc(db, firestoreCollections.users, userId));
+  } catch (error) {
+    logSignupError('dashboard.first_read.failed', error, {
+      step: 'fetchAppUserProfile',
+      path: userPath,
+      uid: userId,
+    });
+    throw error;
+  }
   if (!snapshot.exists()) return null;
   return snapshot.data() as AppUserProfile;
 }
@@ -941,10 +957,28 @@ async function fetchOwnResultByRole(userId: string, role: FamilyRole, familyId?:
     constraints.splice(1, 0, where('familyId', '==', familyId));
   }
 
-  const snap = await getDocs(query(
-    collection(db, firestoreCollections.quizResults),
-    ...constraints,
-  ));
+  const queryPath = familyId
+    ? `${firestoreCollections.quizResults}?userId=${userId}&role=${role}&familyId=${familyId}`
+    : `${firestoreCollections.quizResults}?userId=${userId}&role=${role}`;
+  logSignupInfo('dashboard.followup_read.start', {
+    step: 'fetchOwnResultByRole',
+    path: queryPath,
+    uid: userId,
+  });
+  let snap;
+  try {
+    snap = await getDocs(query(
+      collection(db, firestoreCollections.quizResults),
+      ...constraints,
+    ));
+  } catch (error) {
+    logSignupError('dashboard.followup_read.failed', error, {
+      step: 'fetchOwnResultByRole',
+      path: queryPath,
+      uid: userId,
+    });
+    throw error;
+  }
 
   return snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as QuizResultDocument);
 }

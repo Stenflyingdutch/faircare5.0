@@ -5,7 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
 
 import { observeAuthState } from '@/services/auth.service';
-import { fetchDashboardBundle } from '@/services/partnerFlow.service';
+import { ensureUserProfile, fetchDashboardBundle } from '@/services/partnerFlow.service';
+import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
 import { isTeamCheckBadgeVisible } from '@/services/teamCheck.logic';
 
 const personalNavItems = [
@@ -30,17 +31,35 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         router.replace('/login');
         return;
       }
-      const bundle = await fetchDashboardBundle(user.uid);
-      setShowTeamCheckDot(isTeamCheckBadgeVisible({
-        nextCheckInAt: bundle.family?.teamCheckPlan?.nextCheckInAt,
-        reminderActiveAt: bundle.family?.teamCheckPlan?.reminderActiveAt,
-      }));
-      setPartnerCompleted(Boolean(bundle.family?.partnerCompleted));
-      setIsReady(true);
+      logSignupInfo('target_page.load.start', {
+        step: 'PersonalAreaShell.observeAuthState',
+        path: pathname,
+        uid: user.uid,
+      });
+      try {
+        await ensureUserProfile({
+          userId: user.uid,
+          email: user.email ?? '',
+          displayName: user.displayName ?? undefined,
+        });
+        const bundle = await fetchDashboardBundle(user.uid);
+        setShowTeamCheckDot(isTeamCheckBadgeVisible({
+          nextCheckInAt: bundle.family?.teamCheckPlan?.nextCheckInAt,
+          reminderActiveAt: bundle.family?.teamCheckPlan?.reminderActiveAt,
+        }));
+        setPartnerCompleted(Boolean(bundle.family?.partnerCompleted));
+        setIsReady(true);
+      } catch (error) {
+        logSignupError('target_page.load.failed', error, {
+          step: 'PersonalAreaShell.observeAuthState',
+          path: pathname,
+          uid: user.uid,
+        });
+      }
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, [pathname, router]);
 
   if (!isReady) {
     return (

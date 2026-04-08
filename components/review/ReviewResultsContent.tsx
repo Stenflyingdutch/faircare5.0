@@ -20,6 +20,7 @@ import {
 } from '@/services/partnerFlow.service';
 import { buildOwnershipRecommendations, computeOwnershipSignals, initializeFamilyOwnership, observeOwnershipCards } from '@/services/ownership.service';
 import { getCurrentLocale } from '@/lib/i18n';
+import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
 import type { QuizCategory, StressSelection } from '@/types/quiz';
 import type { OwnershipCardDocument, OwnershipRecommendation } from '@/types/ownership';
 
@@ -125,9 +126,22 @@ export function ReviewResultsContent() {
         router.replace('/login');
         return;
       }
-      setCurrentUserId(user.uid);
-      await ensureUserProfile({ userId: user.uid, email: user.email ?? '', displayName: user.displayName ?? undefined });
-      await refreshDashboard(user.uid);
+      logSignupInfo('target_page.load.start', {
+        step: 'ReviewResultsContent.observeAuthState',
+        path: '/app/transparenz',
+        uid: user.uid,
+      });
+      try {
+        setCurrentUserId(user.uid);
+        await ensureUserProfile({ userId: user.uid, email: user.email ?? '', displayName: user.displayName ?? undefined });
+        await refreshDashboard(user.uid);
+      } catch (error) {
+        logSignupError('target_page.load.failed', error, {
+          step: 'ReviewResultsContent.observeAuthState',
+          path: '/app/transparenz',
+          uid: user.uid,
+        });
+      }
     });
 
     return () => unsubscribe();
