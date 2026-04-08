@@ -151,6 +151,13 @@ export default function RegisterPage() {
         inviteContextPresent,
         extra: { targetRoute },
       });
+      logSignupInfo('signup.redirect.start', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+        extra: { targetRoute },
+      });
       logSignupInfo('redirect.called', {
         step: 'register.handleSubmit',
         path: '/register',
