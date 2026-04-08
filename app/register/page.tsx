@@ -30,6 +30,8 @@ export default function RegisterPage() {
     let userId: string | null = null;
     let finalizeStarted = false;
     let lastSuccessfulStep = 'signup.submit.start';
+    let failedStep = 'signup.submit.start';
+    const targetRoute = '/app/transparenz';
 
     logSignupInfo('signup.submit.start', {
       step: 'register.handleSubmit',
@@ -52,6 +54,7 @@ export default function RegisterPage() {
       const credential = await registerUser(email, password, { inviteContextPresent });
       userId = credential.user.uid;
       lastSuccessfulStep = 'auth.create_user.success';
+      failedStep = 'auth.create_user';
 
       if (auth.currentUser?.uid === credential.user.uid) {
         logSignupInfo('signup.auth_state.available', {
@@ -79,8 +82,10 @@ export default function RegisterPage() {
       const normalizedDisplayName = displayName.trim();
       await updateProfile(credential.user, { displayName: normalizedDisplayName });
       lastSuccessfulStep = 'auth.profile.update.success';
+      failedStep = 'auth.session.sync';
       await syncAuthSession(credential.user);
       lastSuccessfulStep = 'auth.session.sync.success';
+      failedStep = 'user_profile.create';
       await ensureUserProfile({
         userId: credential.user.uid,
         email,
@@ -89,8 +94,10 @@ export default function RegisterPage() {
         inviteContextPresent,
       });
       lastSuccessfulStep = 'user_profile.create.success';
+      failedStep = 'family_doc.create';
       await ensureInitiatorFamilySetup(credential.user.uid, { inviteContextPresent });
       lastSuccessfulStep = 'family_doc.create.success';
+      failedStep = 'anonymous_session.link';
       const session = loadSessionFromStorage();
       if (session) {
         await linkAnonymousSessionToUser(credential.user, session);
@@ -114,27 +121,38 @@ export default function RegisterPage() {
         uid: credential.user.uid,
         inviteContextPresent,
       });
+      failedStep = 'redirect.start';
       logSignupInfo('redirect.start', {
         step: 'register.handleSubmit',
         path: '/register',
         uid: credential.user.uid,
         inviteContextPresent,
-        extra: { targetRoute: '/app/transparenz' },
+        extra: { targetRoute },
       });
+      failedStep = 'redirect.target';
       logSignupInfo('signup.redirect.target', {
         step: 'register.handleSubmit',
-        path: '/app/transparenz',
+        path: targetRoute,
         uid: credential.user.uid,
         inviteContextPresent,
-        extra: { targetRoute: '/app/transparenz' },
+        extra: { targetRoute },
       });
-      router.push('/app/transparenz');
+      logSignupInfo('redirect.target', {
+        step: 'register.handleSubmit',
+        path: targetRoute,
+        uid: credential.user.uid,
+        inviteContextPresent,
+        extra: { targetRoute },
+      });
+      failedStep = 'redirect.navigate';
+      router.push(targetRoute);
+      failedStep = 'redirect.success';
       logSignupInfo('redirect.success', {
         step: 'register.handleSubmit',
         path: '/register',
         uid: credential.user.uid,
         inviteContextPresent,
-        extra: { targetRoute: '/app/transparenz' },
+        extra: { targetRoute },
       });
     } catch (registrationError) {
       const error = registrationError as {
@@ -154,12 +172,14 @@ export default function RegisterPage() {
         uid: userId,
         inviteContextPresent,
         extra: {
-          failedStep: error.failedStep ?? null,
+          failedStep: error.failedStep ?? failedStep,
           lastSuccessfulStep,
           collection: error.collection ?? null,
           queryName: error.queryName ?? null,
-          targetRoute: error.targetRoute ?? '/app/transparenz',
+          targetRoute: error.targetRoute ?? targetRoute,
           errorPath: error.path ?? null,
+          errorCode: error.code ?? null,
+          errorMessage: error.message ?? null,
           errorCauseCode: cause?.code ?? null,
           errorCauseMessage: cause?.message ?? null,
         },
@@ -171,12 +191,14 @@ export default function RegisterPage() {
           uid: userId,
           inviteContextPresent,
           extra: {
-            failedStep: error.failedStep ?? null,
+            failedStep: error.failedStep ?? failedStep,
             lastSuccessfulStep,
             collection: error.collection ?? null,
             queryName: error.queryName ?? null,
-            targetRoute: error.targetRoute ?? '/app/transparenz',
+            targetRoute: error.targetRoute ?? targetRoute,
             errorPath: error.path ?? null,
+            errorCode: error.code ?? null,
+            errorMessage: error.message ?? null,
             errorCauseCode: cause?.code ?? null,
             errorCauseMessage: cause?.message ?? null,
           },
