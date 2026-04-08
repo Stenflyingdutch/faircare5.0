@@ -1,5 +1,5 @@
 import { resolveCategoryLabel } from '@/services/resultCalculator';
-import type { OwnershipAnswer, QuestionTemplate, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, OwnershipAnswer, QuestionTemplate, QuizCategory } from '@/types/quiz';
 import type { JointInsight } from '@/types/partner-flow';
 
 const scoreMap: Record<OwnershipAnswer, number> = {
@@ -46,6 +46,7 @@ export function describeTotalScore(totalScore: number) {
 export function buildJointInsights(
   initiatorScores: Record<QuizCategory, number>,
   partnerScores: Record<QuizCategory, number>,
+  ageGroup?: AgeGroup,
 ) {
   const sharedCategories = Object.keys(initiatorScores).filter((category) => partnerScores[category as QuizCategory] !== undefined) as QuizCategory[];
   const differences: Record<QuizCategory, number> = {} as Record<QuizCategory, number>;
@@ -66,7 +67,7 @@ export function buildJointInsights(
       level,
       category,
       difference: diff,
-      text: `${prefix} bei ${resolveCategoryLabel(category)}.`,
+      text: `${prefix} bei ${resolveCategoryLabel(category, ageGroup)}.`,
     });
   }
 

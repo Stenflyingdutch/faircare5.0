@@ -7,7 +7,7 @@ import { questionTemplates } from '@/data/questionTemplates';
 import { calculateSummary, resolveCategoryLabel } from '@/services/resultCalculator';
 import { saveAnonymousResult } from '@/services/sessionLinking';
 import { loadSessionFromStorage } from '@/services/sessionStorage';
-import type { OwnershipAnswer, QuizCategory, StressSelection, TempQuizSession } from '@/types/quiz';
+import type { AgeGroup, OwnershipAnswer, QuizCategory, StressSelection, TempQuizSession } from '@/types/quiz';
 
 const scoreMap: Record<OwnershipAnswer, number> = {
   ich: 4,
@@ -17,16 +17,16 @@ const scoreMap: Record<OwnershipAnswer, number> = {
   partner: 0,
 };
 
-function resolvePerceivedStressLabel(stressCategories: StressSelection[]) {
+function resolvePerceivedStressLabel(stressCategories: StressSelection[], ageGroup?: AgeGroup) {
   if (!stressCategories.length || stressCategories[0] === 'keiner_genannten_bereiche') return 'In keiner der genannten Bereiche.';
-  return `${resolveCategoryLabel(stressCategories[0])}.`;
+  return `${resolveCategoryLabel(stressCategories[0], ageGroup)}.`;
 }
 
-function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>) {
+function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>, ageGroup?: AgeGroup) {
   const maxScore = Math.max(...categories.map(([, value]) => value));
   const highestCategories = categories
     .filter(([, value]) => value === maxScore)
-    .map(([category]) => resolveCategoryLabel(category));
+    .map(([category]) => resolveCategoryLabel(category, ageGroup));
 
   if (highestCategories.length === 1) return `${highestCategories[0]} (${maxScore} %).`;
   if (highestCategories.length === 2) return `${highestCategories[0]} und ${highestCategories[1]} (je ${maxScore} %).`;
@@ -82,6 +82,8 @@ export default function QuizResultPage() {
 
   if (!session || !summary) return <section className="section"><div className="container test-shell">Lade Kurz-Auswertung …</div></section>;
 
+  const ageGroup = session.youngestAgeGroup;
+
   return (
     <section className="section">
       <div className="container test-shell stack">
@@ -104,10 +106,10 @@ export default function QuizResultPage() {
             <div className="result-highlight-grid">
               <p style={{ margin: 0 }}>
                 <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong>{' '}
-                {categoryBreakdown.length ? buildHighestLoadSummary(categoryBreakdown) : 'Noch keine ausreichenden Angaben.'}
+                {categoryBreakdown.length ? buildHighestLoadSummary(categoryBreakdown, ageGroup) : 'Noch keine ausreichenden Angaben.'}
               </p>
               <p style={{ margin: 0 }}>
-                <strong>Größte empfundene Belastung:</strong> {resolvePerceivedStressLabel(session.stressCategories)}
+                <strong>Größte empfundene Belastung:</strong> {resolvePerceivedStressLabel(session.stressCategories, ageGroup)}
               </p>
             </div>
           </div>

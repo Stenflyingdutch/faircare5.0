@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { LoginBackButton } from '@/components/personal/LoginBackButton';
+import { resolveAgeGroupLabel } from '@/components/test/test-config';
 
 import { fetchTaskPackageTemplatesForAdmin, saveTaskPackageTemplate, seedTaskPackageTemplates } from '@/services/ownership.service';
 import { quizCatalog } from '@/data/questionTemplates';
@@ -38,7 +39,7 @@ export default function AdminTaskPackagesPage() {
   const [message, setMessage] = useState('');
 
   const categories = useMemo(
-    () => quizCatalog.categories.filter((item) => item.ageGroup === activeAge).map((item) => item.key),
+    () => quizCatalog.categories.filter((item) => item.ageGroup === activeAge).sort((a, b) => a.sortOrder - b.sortOrder),
     [activeAge],
   );
 
@@ -104,7 +105,7 @@ export default function AdminTaskPackagesPage() {
           <p className="card-description">Globale Vorlagen werden hier gepflegt und bei Aktivierung in familienlokale Karten kopiert.</p>
           <div className="chip-row">
             {ageGroups.map((group) => (
-              <button type="button" key={group} className={`option-chip ${group === activeAge ? 'selected' : ''}`} onClick={() => setActiveAge(group)}>{group}</button>
+              <button type="button" key={group} className={`option-chip ${group === activeAge ? 'selected' : ''}`} onClick={() => setActiveAge(group)}>{resolveAgeGroupLabel(group)}</button>
             ))}
           </div>
           <div className="chip-row">
@@ -122,19 +123,19 @@ export default function AdminTaskPackagesPage() {
           <div className="chip-row">
             {categories.map((category) => (
               <button
-                key={category}
+                key={category.key}
                 className="button"
                 type="button"
-                onClick={() => setDraft(createTemplate(activeAge, category))}
+                onClick={() => setDraft(createTemplate(activeAge, category.key))}
               >
-                {category}
+                {category.label.de || resolveCategoryLabel(category.key, activeAge)}
               </button>
             ))}
           </div>
 
           {draft && (
             <div className="stack">
-              <p className="helper" style={{ margin: 0 }}>Kategorie: {resolveCategoryLabel(draft.categoryKey)} · Altersgruppe: {draft.ageGroup} · Sprache: {activeLocale.toUpperCase()}</p>
+              <p className="helper" style={{ margin: 0 }}>Kategorie: {resolveCategoryLabel(draft.categoryKey, draft.ageGroup)} · Altersgruppe: {resolveAgeGroupLabel(draft.ageGroup)} · Sprache: {activeLocale.toUpperCase()}</p>
               <input
                 className="input"
                 placeholder={`Titel (${activeLocale})`}
@@ -163,7 +164,7 @@ export default function AdminTaskPackagesPage() {
               <h3 className="card-title" style={{ marginBottom: 0 }}>Vorhandene Vorlagen</h3>
               {templates.map((template) => (
                 <div key={template.id} className="report-block stack">
-                  <strong>{resolveCategoryLabel(template.categoryKey)}</strong>
+                  <strong>{resolveCategoryLabel(template.categoryKey, template.ageGroup)}</strong>
                   <p className="helper" style={{ margin: 0 }}>{template.title[activeLocale] || template.title.de || template.title.en || template.title.nl || 'Ohne Titel'}</p>
                   <ul style={{ margin: 0, paddingLeft: '20px' }}>
                     {(template.details[activeLocale] || template.details.de || []).map((detail, index) => (

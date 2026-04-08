@@ -8,12 +8,20 @@ export const ownershipOptions: Array<{ value: OwnershipAnswer; label: string }> 
   { value: 'partner', label: 'Partner' },
 ];
 
+export function resolveAgeGroupLabel(ageGroup: AgeGroup) {
+  if (ageGroup === '0_1') return '0–1 Jahre';
+  if (ageGroup === '1_3') return '1–3 Jahre';
+  if (ageGroup === '3_6') return '3–6 Jahre';
+  if (ageGroup === '6_10') return '6–12 Jahre';
+  return '12–18 Jahre';
+}
+
 export const ageGroupOptions: Array<{ value: AgeGroup; label: string }> = [
-  { value: '0_1', label: '0–1 Jahre' },
-  { value: '1_3', label: '1–3 Jahre' },
-  { value: '3_6', label: '3–6 Jahre' },
-  { value: '6_10', label: '6–10 Jahre' },
-  { value: '10_plus', label: '10+ Jahre' },
+  { value: '0_1', label: resolveAgeGroupLabel('0_1') },
+  { value: '1_3', label: resolveAgeGroupLabel('1_3') },
+  { value: '3_6', label: resolveAgeGroupLabel('3_6') },
+  { value: '6_10', label: resolveAgeGroupLabel('6_10') },
+  { value: '10_plus', label: resolveAgeGroupLabel('10_plus') },
 ];
 
 export const splitClarityOptions: Array<{ value: SplitClarity; label: string }> = [
@@ -33,7 +41,7 @@ export const childcareChoices: Array<{ label: string; value: ChildcareTag }> = [
 export const stressOptions: Array<{ value: StressSelection; label: string }> = [
   { value: 'betreuung_entwicklung', label: 'Betreuung & Entwicklung' },
   { value: 'gesundheit', label: 'Gesundheit' },
-  { value: 'babyalltag_pflege', label: 'Babyalltag & Pflege' },
+  { value: 'babyalltag_pflege', label: 'Alltag & Pflege' },
   { value: 'haushalt_einkaeufe_vorraete', label: 'Haushalt, Einkäufe & Vorräte' },
   { value: 'keiner_genannten_bereiche', label: 'In keiner der genannten Bereiche' },
 ];

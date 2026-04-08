@@ -37,6 +37,8 @@ export interface FamilyDocument {
   id: string;
   initiatorUserId: string;
   partnerUserId?: string | null;
+  initiatorDisplayName?: string | null;
+  partnerDisplayName?: string | null;
   status: FamilyStatus;
   initiatorCompleted?: boolean;
   partnerCompleted?: boolean;
@@ -60,6 +62,7 @@ export interface InvitationDocument {
   id: string;
   familyId: string;
   initiatorUserId: string;
+  initiatorDisplayName?: string | null;
   partnerEmail: string;
   personalMessage?: string | null;
   token?: string | null;

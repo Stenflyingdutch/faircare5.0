@@ -1,5 +1,5 @@
 import { calculateSummary, resolveCategoryLabel } from '@/services/resultCalculator';
-import type { DetailedReport, OwnershipAnswer, QuestionTemplate, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, DetailedReport, OwnershipAnswer, QuestionTemplate, QuizCategory } from '@/types/quiz';
 
 const scoreMap: Record<OwnershipAnswer, number> = {
   ich: 4,
@@ -9,8 +9,8 @@ const scoreMap: Record<OwnershipAnswer, number> = {
   partner: 0,
 };
 
-function interpretCategory(category: QuizCategory, selfPercent: number) {
-  const label = resolveCategoryLabel(category);
+function interpretCategory(category: QuizCategory, selfPercent: number, ageGroup?: AgeGroup) {
+  const label = resolveCategoryLabel(category, ageGroup);
   if (selfPercent >= 60) return `Im Bereich ${label} liegt aus deiner Sicht deutlich mehr Verantwortung bei dir.`;
   if (selfPercent <= 40) return `Im Bereich ${label} scheint dein Partner aktuell mehr Verantwortung zu tragen.`;
   return `Im Bereich ${label} wirkt die Verantwortung aktuell eher ausgeglichen verteilt.`;
@@ -18,6 +18,7 @@ function interpretCategory(category: QuizCategory, selfPercent: number) {
 
 export function buildDetailedReport(questions: QuestionTemplate[], answers: Partial<Record<string, OwnershipAnswer>>): DetailedReport {
   const summary = calculateSummary(questions, answers);
+  const ageGroup = questions[0]?.ageGroup;
 
   const buckets = new Map<QuizCategory, { sum: number; count: number }>();
   for (const question of questions) {
@@ -35,7 +36,7 @@ export function buildDetailedReport(questions: QuestionTemplate[], answers: Part
       return {
         category,
         selfPercent,
-        text: interpretCategory(category, selfPercent),
+        text: interpretCategory(category, selfPercent, ageGroup),
       };
     })
     .sort((a, b) => b.selfPercent - a.selfPercent);
