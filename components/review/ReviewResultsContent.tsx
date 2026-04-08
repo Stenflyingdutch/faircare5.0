@@ -135,6 +135,11 @@ export function ReviewResultsContent() {
         setCurrentUserId(user.uid);
         await ensureUserProfile({ userId: user.uid, email: user.email ?? '', displayName: user.displayName ?? undefined });
         await refreshDashboard(user.uid);
+        logSignupInfo('review_results_loaded', {
+          step: 'ReviewResultsContent.observeAuthState',
+          path: '/app/transparenz',
+          uid: user.uid,
+        });
       } catch (error) {
         logSignupError('target_page.load.failed', error, {
           step: 'ReviewResultsContent.observeAuthState',

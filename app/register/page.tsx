@@ -29,6 +29,7 @@ export default function RegisterPage() {
     const inviteContextPresent = false;
     let userId: string | null = null;
     let finalizeStarted = false;
+    let lastSuccessfulStep = 'signup.submit.start';
 
     logSignupInfo('signup.submit.start', {
       step: 'register.handleSubmit',
@@ -50,6 +51,7 @@ export default function RegisterPage() {
     try {
       const credential = await registerUser(email, password, { inviteContextPresent });
       userId = credential.user.uid;
+      lastSuccessfulStep = 'auth.create_user.success';
 
       if (auth.currentUser?.uid === credential.user.uid) {
         logSignupInfo('signup.auth_state.available', {
@@ -76,7 +78,9 @@ export default function RegisterPage() {
       });
       const normalizedDisplayName = displayName.trim();
       await updateProfile(credential.user, { displayName: normalizedDisplayName });
+      lastSuccessfulStep = 'auth.profile.update.success';
       await syncAuthSession(credential.user);
+      lastSuccessfulStep = 'auth.session.sync.success';
       await ensureUserProfile({
         userId: credential.user.uid,
         email,
@@ -84,10 +88,13 @@ export default function RegisterPage() {
         role: 'initiator',
         inviteContextPresent,
       });
+      lastSuccessfulStep = 'user_profile.create.success';
       await ensureInitiatorFamilySetup(credential.user.uid, { inviteContextPresent });
+      lastSuccessfulStep = 'family_doc.create.success';
       const session = loadSessionFromStorage();
       if (session) {
         await linkAnonymousSessionToUser(credential.user, session);
+        lastSuccessfulStep = 'anonymous_session.link.success';
       }
       logSignupInfo('bootstrap.complete', {
         step: 'register.handleSubmit',
@@ -107,19 +114,55 @@ export default function RegisterPage() {
         uid: credential.user.uid,
         inviteContextPresent,
       });
+      logSignupInfo('redirect.start', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+        extra: { targetRoute: '/app/transparenz' },
+      });
       logSignupInfo('signup.redirect.target', {
         step: 'register.handleSubmit',
         path: '/app/transparenz',
         uid: credential.user.uid,
         inviteContextPresent,
+        extra: { targetRoute: '/app/transparenz' },
       });
       router.push('/app/transparenz');
+      logSignupInfo('redirect.success', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+        extra: { targetRoute: '/app/transparenz' },
+      });
     } catch (registrationError) {
+      const error = registrationError as {
+        code?: string;
+        message?: string;
+        failedStep?: string;
+        path?: string;
+        collection?: string;
+        queryName?: string;
+        targetRoute?: string;
+        cause?: { code?: string; message?: string } | unknown;
+      };
+      const cause = error.cause as { code?: string; message?: string } | undefined;
       logSignupError('signup.flow.failed', registrationError, {
         step: 'register.handleSubmit',
         path: '/register',
         uid: userId,
         inviteContextPresent,
+        extra: {
+          failedStep: error.failedStep ?? null,
+          lastSuccessfulStep,
+          collection: error.collection ?? null,
+          queryName: error.queryName ?? null,
+          targetRoute: error.targetRoute ?? '/app/transparenz',
+          errorPath: error.path ?? null,
+          errorCauseCode: cause?.code ?? null,
+          errorCauseMessage: cause?.message ?? null,
+        },
       });
       if (finalizeStarted) {
         logSignupError('signup.finalize.failed', registrationError, {
@@ -127,6 +170,16 @@ export default function RegisterPage() {
           path: '/register',
           uid: userId,
           inviteContextPresent,
+          extra: {
+            failedStep: error.failedStep ?? null,
+            lastSuccessfulStep,
+            collection: error.collection ?? null,
+            queryName: error.queryName ?? null,
+            targetRoute: error.targetRoute ?? '/app/transparenz',
+            errorPath: error.path ?? null,
+            errorCauseCode: cause?.code ?? null,
+            errorCauseMessage: cause?.message ?? null,
+          },
         });
       }
       const code = (registrationError as { code?: string })?.code;
