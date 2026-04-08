@@ -27,9 +27,10 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const [hasLoggedFirstQuery, setHasLoggedFirstQuery] = useState(false);
 
   useEffect(() => {
-    logSignupInfo('personal_shell_mount', {
+    logSignupInfo('personal_shell_loaded', {
       step: 'PersonalAreaShell.mount',
       path: pathname,
+      extra: { phase: 'mount' },
     });
     const unsubscribe = observeAuthState(async (user) => {
       if (!user) {
@@ -71,7 +72,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         }));
         setPartnerCompleted(Boolean(bundle.family?.partnerCompleted));
         setIsReady(true);
-        logSignupInfo('personal_shell_loaded', {
+        logSignupInfo('personal_shell_ready', {
           step: 'PersonalAreaShell.observeAuthState',
           path: pathname,
           uid: user.uid,
