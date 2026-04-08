@@ -40,7 +40,6 @@ export default function RegisterPage() {
       path: '/register',
       inviteContextPresent,
     });
-
     if (password !== passwordRepeat) {
       setError('Die Passwörter stimmen nicht überein.');
       setErrorCode(null);
@@ -125,7 +124,7 @@ export default function RegisterPage() {
           {error && (
             <p className="inline-error">
               {error}
-              {errorCode ? ` Fehlercode: ${errorCode}` : ''}
+              {errorCode && <><br />Fehlercode: {errorCode}</>}
             </p>
           )}
           <button type="submit" className="button primary" disabled={isSubmitting}>{isSubmitting ? 'Registriert …' : 'Registrieren'}</button>
