@@ -31,6 +31,16 @@ import type {
 } from '@/types/partner-flow';
 import type { AgeGroup, OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
 
+type StoredUserResult = {
+  questionIds: string[];
+  questionSetSnapshot?: QuestionTemplate[];
+  answers: Partial<Record<string, OwnershipAnswer>>;
+  stressCategories?: StressSelection[];
+  filter: Record<string, string>;
+  detailedReport?: { summary?: { selfPercent: number } };
+  summary?: { selfPercent: number };
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -293,16 +303,9 @@ export async function fetchAppUserProfile(userId: string) {
 }
 
 async function getLatestInitiatorResult(userId: string) {
-  const snap = await getDocs(query(collection(db, firestoreCollections.userResults), where('userId', '==', userId), limit(1)));
-  if (snap.empty) return null;
-  return snap.docs[0].data() as {
-    questionIds: string[];
-    questionSetSnapshot?: QuestionTemplate[];
-    answers: Partial<Record<string, OwnershipAnswer>>;
-    stressCategories?: StressSelection[];
-    filter: Record<string, string>;
-    detailedReport?: { summary?: { selfPercent: number } };
-  };
+  const snapshot = await getDoc(doc(db, firestoreCollections.userResults, userId));
+  if (!snapshot.exists()) return null;
+  return snapshot.data() as StoredUserResult;
 }
 
 async function getQuestionSnapshot(questionIds: string[]): Promise<QuestionTemplate[]> {
@@ -852,6 +855,25 @@ async function fetchResultByRole(familyId: string, role: FamilyRole) {
   return snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as QuizResultDocument);
 }
 
+async function fetchOwnResultByRole(userId: string, role: FamilyRole, familyId?: string | null) {
+  const constraints = [
+    where('userId', '==', userId),
+    where('role', '==', role),
+    limit(1),
+  ];
+
+  if (familyId) {
+    constraints.splice(1, 0, where('familyId', '==', familyId));
+  }
+
+  const snap = await getDocs(query(
+    collection(db, firestoreCollections.quizResults),
+    ...constraints,
+  ));
+
+  return snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as QuizResultDocument);
+}
+
 async function upsertJointResult(familyId: string, initiatorResult: QuizResultDocument, partnerResult: QuizResultDocument) {
   const jointSnap = await getDocs(query(
     collection(db, firestoreCollections.jointResults),
@@ -882,16 +904,10 @@ async function upsertJointResult(familyId: string, initiatorResult: QuizResultDo
 }
 
 export async function buildOrUpdateInitiatorResult(userId: string) {
-  const userResultSnap = await getDocs(query(collection(db, firestoreCollections.userResults), where('userId', '==', userId), limit(1)));
-  if (userResultSnap.empty) return null;
-  const userResult = userResultSnap.docs[0].data() as {
-    answers: Partial<Record<string, OwnershipAnswer>>;
-    questionIds: string[];
-    questionSetSnapshot?: QuestionTemplate[];
-    stressCategories?: StressSelection[];
+  const userResult = await getLatestInitiatorResult(userId) as (StoredUserResult & {
     filter?: { splitClarity?: string };
-    summary?: { selfPercent: number };
-  };
+  }) | null;
+  if (!userResult) return null;
   const profile = await fetchAppUserProfile(userId);
   if (!profile?.familyId) return null;
   const questions = userResult.questionSetSnapshot?.length
@@ -900,7 +916,7 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
   const categoryScores = computeCategoryScores(questions, userResult.answers);
   const totalScore = computeTotalScore(categoryScores);
 
-  const existing = await fetchResultByRole(profile.familyId, 'initiator');
+  const existing = await fetchOwnResultByRole(userId, 'initiator', profile.familyId);
   const resultId = existing?.id ?? doc(collection(db, firestoreCollections.quizResults)).id;
 
   await setDoc(doc(db, firestoreCollections.quizResults, resultId), {
@@ -1149,7 +1165,7 @@ export async function fetchDashboardBundle(userId: string) {
   };
 
   const [ownResultInitial, familySnapshot] = await Promise.all([
-    familyId ? fetchResultByRole(familyId, ownRole) : Promise.resolve(null),
+    fetchOwnResultByRole(userId, ownRole, familyId),
     familyId ? getDoc(doc(db, firestoreCollections.families, familyId)) : Promise.resolve(null),
   ]);
 

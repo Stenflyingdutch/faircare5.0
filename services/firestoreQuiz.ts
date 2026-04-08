@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, limit, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 
 import { quizCatalog as localCatalog, questionTemplates as localTemplates } from '@/data/questionTemplates';
 import { db } from '@/lib/firebase';
@@ -87,7 +87,7 @@ export async function persistUserResult(userId: string, session: TempQuizSession
 }
 
 export async function fetchUserResult(userId: string) {
-  const snapshot = await getDocs(query(collection(db, firestoreCollections.userResults), where('userId', '==', userId), limit(1)));
-  if (snapshot.empty) return null;
-  return snapshot.docs[0].data();
+  const snapshot = await getDoc(doc(db, firestoreCollections.userResults, userId));
+  if (!snapshot.exists()) return null;
+  return snapshot.data();
 }

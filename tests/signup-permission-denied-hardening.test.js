@@ -52,6 +52,17 @@ test('auth creation and profile bootstrap log the exact Firestore steps behind p
   assert.match(partnerFlowSrc, /family_doc\.create\.failed/);
 });
 
+test('signup bootstrap reads own userResults by deterministic document id instead of a blocked collection query', () => {
+  assert.match(partnerFlowSrc, /getDoc\(doc\(db, firestoreCollections\.userResults, userId\)\)/);
+  assert.doesNotMatch(partnerFlowSrc, /collection\(db, firestoreCollections\.userResults\), where\('userId', '==', userId\), limit\(1\)/);
+});
+
+test('dashboard and initiator bootstrap fetch own quizResults via userId-constrained query', () => {
+  assert.match(partnerFlowSrc, /where\('userId', '==', userId\)/);
+  assert.match(partnerFlowSrc, /fetchOwnResultByRole\(userId, ownRole, familyId\)/);
+  assert.match(partnerFlowSrc, /fetchOwnResultByRole\(userId, 'initiator', profile\.familyId\)/);
+});
+
 test('firestore rules allow initial self-read for a missing users document but keep update guarded by active accounts', () => {
   assert.match(rulesSrc, /allow read: if \(isSelf\(userId\) && \(/);
   assert.match(rulesSrc, /!exists\(\/databases\/\$\(database\)\/documents\/users\/\$\(userId\)\)/);
