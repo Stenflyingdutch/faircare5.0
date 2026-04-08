@@ -10,6 +10,7 @@ import {
   startPartnerSession,
 } from '@/services/partnerFlow.service';
 import { savePartnerLocalSession } from '@/services/partnerSessionStorage';
+import { logSignupInfo } from '@/services/signup-debug.service';
 import type { InvitationDocument, InvitationResolutionReason, InvitationResolutionStatus } from '@/types/partner-flow';
 
 function normalizeName(value?: string | null) {
@@ -28,6 +29,11 @@ export default function InviteLandingPage() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
+    logSignupInfo('route_is_public_invite', {
+      step: 'InviteLandingPage.useEffect',
+      path: '/invite/[token]',
+      extra: { rawTokenPresent: Boolean(params?.token) },
+    });
     console.info('invite.route.entered', { rawToken: params?.token ?? null });
     const token = sanitizeInvitationToken(params?.token);
     console.info('invite.route.parsed_token', { tokenLength: token.length });

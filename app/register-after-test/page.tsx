@@ -131,15 +131,51 @@ function RegisterAfterTestContent() {
         email: credential.user.email ?? email.trim().toLowerCase(),
         displayName: normalizedDisplayName || credential.user.displayName || null,
       });
-      logSignupInfo('signup.finalize.success', {
+      logSignupInfo('partner_signup.complete', {
         step: 'registerAfterTest.submit',
         path: '/api/partner/finalize-registration',
         uid: credential.user.uid,
         inviteContextPresent,
       });
       clearPartnerLocalSession();
+      logSignupInfo('signup.finalize.success', {
+        step: 'registerAfterTest.submit',
+        path: '/api/partner/finalize-registration',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('personal_area.redirect.start', {
+        step: 'registerAfterTest.submit',
+        path: '/register-after-test',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('signup.redirect.start', {
+        step: 'registerAfterTest.submit',
+        path: '/register-after-test',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('personal_area.redirect.called', {
+        step: 'registerAfterTest.submit',
+        path: '/app/transparenz',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('signup.redirect.target', {
+        step: 'registerAfterTest.submit',
+        path: '/app/transparenz',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
       router.push('/app/transparenz');
     } catch (submitError) {
+      logSignupError('signup.flow.failed', submitError, {
+        step: 'registerAfterTest.submit',
+        path: '/register-after-test',
+        uid: finalizedUserId,
+        inviteContextPresent,
+      });
       if (finalizeStarted) {
         logSignupError('signup.finalize.failed', submitError, {
           step: 'registerAfterTest.submit',
@@ -213,15 +249,51 @@ function RegisterAfterTestContent() {
         email: currentUser.email,
         displayName: normalizedDisplayName || currentUser.displayName || null,
       });
-      logSignupInfo('signup.finalize.success', {
+      logSignupInfo('partner_signup.complete', {
         step: 'registerAfterTest.continueWithActiveSession',
         path: '/api/partner/finalize-registration',
         uid: currentUser.uid,
         inviteContextPresent,
       });
       clearPartnerLocalSession();
+      logSignupInfo('signup.finalize.success', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/api/partner/finalize-registration',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('personal_area.redirect.start', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/register-after-test',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('signup.redirect.start', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/register-after-test',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('personal_area.redirect.called', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/app/transparenz',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('signup.redirect.target', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/app/transparenz',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
       router.push('/app/transparenz');
     } catch (submitError) {
+      logSignupError('signup.flow.failed', submitError, {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/register-after-test',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
       logSignupError('signup.finalize.failed', submitError, {
         step: 'registerAfterTest.continueWithActiveSession',
         path: '/api/partner/finalize-registration',
