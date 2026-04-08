@@ -11,7 +11,7 @@ const mailRouteSrc = fs.readFileSync(path.join(process.cwd(), 'app/api/mail/rout
 
 test('register-after-test supports both registration and login continuation for invites', () => {
   assert.match(registerAfterTestSrc, /const \[mode, setMode\] = useState<'register' \| 'login'>\('register'\)/);
-  assert.match(registerAfterTestSrc, /mode === 'register'\s*\?\s*await registerUser\(email, password\)\s*:\s*await loginUser\(email, password\)/);
+  assert.match(registerAfterTestSrc, /mode === 'register'\s*\?\s*await registerUser\(email, password, \{ inviteContextPresent \}\)\s*:\s*await loginUser\(email, password\)/);
   assert.match(registerAfterTestSrc, /observeAuthState/);
   assert.match(registerAfterTestSrc, /continueWithActiveSession/);
 });

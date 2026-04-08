@@ -52,7 +52,11 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if (isSelf(userId) && isActiveAccount()) || isAdmin();
+      // Permit the first self-read during signup before the profile document exists.
+      allow read: if (isSelf(userId) && (
+        !exists(/databases/$(database)/documents/users/$(userId)) ||
+        isActiveAccount()
+      )) || isAdmin();
       allow create: if isSelf(userId);
       allow update: if (isSelf(userId) && isActiveAccount()) || isAdmin();
       allow delete: if isAdmin();
