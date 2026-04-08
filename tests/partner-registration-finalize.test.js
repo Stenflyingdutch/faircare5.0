@@ -52,6 +52,10 @@ test('initiator unlock mails emit structured trigger and send diagnostics', () =
 test('partner completion login mail prefers the mental-faircare login url', () => {
   assert.match(finalizeServiceSrc, /const MENTAL_FAIRCARE_PUBLIC_URL = 'https:\/\/mental-faircare\.de';/);
   assert.match(finalizeServiceSrc, /function resolveMentalFaircareLoginUrl\(\)/);
+  assert.doesNotMatch(
+    finalizeServiceSrc,
+    /function resolveMentalFaircareLoginUrl\(\)[\s\S]*hostname\.endsWith\('\.vercel\.app'\)/,
+  );
   assert.match(finalizeServiceSrc, /const loginUrl = resolveMentalFaircareLoginUrl\(\);/);
   assert.match(finalizeServiceSrc, /return `\$\{MENTAL_FAIRCARE_PUBLIC_URL\}\/login`;/);
 });

@@ -120,7 +120,6 @@ function resolveMentalFaircareLoginUrl() {
     const hostname = parsed.hostname.toLowerCase();
     const shouldKeepResolvedBaseUrl = hostname === 'localhost'
       || hostname === '127.0.0.1'
-      || hostname.endsWith('.vercel.app')
       || hostname === 'mental-faircare.de'
       || hostname.endsWith('.mental-faircare.de');
 
