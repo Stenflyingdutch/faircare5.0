@@ -145,7 +145,21 @@ export default function RegisterPage() {
         extra: { targetRoute },
       });
       failedStep = 'redirect.navigate';
+      logSignupInfo('redirect.navigate.before', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+        extra: { targetRoute },
+      });
       router.push(targetRoute);
+      logSignupInfo('redirect.navigate.after', {
+        step: 'register.handleSubmit',
+        path: targetRoute,
+        uid: credential.user.uid,
+        inviteContextPresent,
+        extra: { targetRoute },
+      });
       failedStep = 'redirect.success';
       logSignupInfo('redirect.success', {
         step: 'register.handleSubmit',
@@ -178,10 +192,14 @@ export default function RegisterPage() {
           queryName: error.queryName ?? null,
           targetRoute: error.targetRoute ?? targetRoute,
           errorPath: error.path ?? null,
-          errorCode: error.code ?? null,
-          errorMessage: error.message ?? null,
-          errorCauseCode: cause?.code ?? null,
-          errorCauseMessage: cause?.message ?? null,
+          error: {
+            code: error.code ?? null,
+            message: error.message ?? null,
+            cause: {
+              code: cause?.code ?? null,
+              message: cause?.message ?? null,
+            },
+          },
         },
       });
       if (finalizeStarted) {
