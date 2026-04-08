@@ -11,6 +11,7 @@ import {
   setDoc,
   where,
 } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 import { app, auth, db, firebaseProjectId } from '@/lib/firebase';
@@ -89,6 +90,37 @@ function resolveInviteRuntimeEnvironment() {
   if (hostname.endsWith('.vercel.app')) return 'preview';
 
   return configuredEnv;
+}
+
+async function ensureFirestoreAuthReady(expectedUserId: string) {
+  const currentUser = auth.currentUser;
+  if (currentUser?.uid === expectedUserId) {
+    await currentUser.getIdToken(true);
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      resolve();
+    }, 1500);
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (settled || user?.uid !== expectedUserId) return;
+      settled = true;
+      clearTimeout(timeout);
+      unsubscribe();
+      try {
+        await user.getIdToken(true);
+      } catch {
+        // Der folgende Firestore-Call liefert den finalen Fehlercode.
+      }
+      resolve();
+    });
+  });
 }
 
 function resolveAppBaseUrl() {
@@ -219,6 +251,7 @@ export async function ensureUserProfile(params: {
   role?: FamilyRole;
   inviteContextPresent?: boolean;
 }) {
+  await ensureFirestoreAuthReady(params.userId);
   const userRef = doc(db, firestoreCollections.users, params.userId);
   const userPath = `${firestoreCollections.users}/${params.userId}`;
   const inviteContextPresent = params.inviteContextPresent ?? false;
