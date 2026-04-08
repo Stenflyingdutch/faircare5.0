@@ -28,6 +28,11 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const [hasLoggedFirstQuery, setHasLoggedFirstQuery] = useState(false);
 
   useEffect(() => {
+    logSignupInfo('partner_personal_area.mount', {
+      step: 'PersonalAreaShell.mount',
+      path: pathname,
+      extra: { phase: 'mount' },
+    });
     logSignupInfo('personal_area.shell.mount', {
       step: 'PersonalAreaShell.mount',
       path: pathname,
@@ -48,36 +53,21 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         path: pathname,
         uid: user.uid,
       });
+      logSignupInfo('partner_personal_area.auth_ready', {
+        step: 'PersonalAreaShell.observeAuthState',
+        path: pathname,
+        uid: user.uid,
+      });
       logSignupInfo('target_page.load.start', {
         step: 'PersonalAreaShell.observeAuthState',
         path: pathname,
         uid: user.uid,
       });
       try {
-        logSignupInfo('personal_area.shell.profile_load.start', {
-          step: 'PersonalAreaShell.observeAuthState',
-          path: pathname,
-          uid: user.uid,
-        });
         await ensureUserProfile({
           userId: user.uid,
           email: user.email ?? '',
           displayName: user.displayName ?? undefined,
-        });
-        logSignupInfo('personal_area.shell.profile_load.success', {
-          step: 'PersonalAreaShell.observeAuthState',
-          path: pathname,
-          uid: user.uid,
-        });
-        logSignupInfo('personal_area.shell.family_load.start', {
-          step: 'PersonalAreaShell.observeAuthState',
-          path: pathname,
-          uid: user.uid,
-        });
-        logSignupInfo('personal_area.shell.results_load.start', {
-          step: 'PersonalAreaShell.observeAuthState',
-          path: pathname,
-          uid: user.uid,
         });
         if (!hasLoggedFirstQuery) {
           logSignupInfo('personal_shell_first_query.start', {
@@ -128,21 +118,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           uid: user.uid,
         });
       } catch (error) {
-        logSignupError('personal_area.shell.profile_load.failed', error, {
-          step: 'PersonalAreaShell.observeAuthState',
-          path: pathname,
-          uid: user.uid,
-        });
-        logSignupError('personal_area.shell.family_load.failed', error, {
-          step: 'PersonalAreaShell.observeAuthState',
-          path: pathname,
-          uid: user.uid,
-        });
-        logSignupError('personal_area.shell.results_load.failed', error, {
-          step: 'PersonalAreaShell.observeAuthState',
-          path: pathname,
-          uid: user.uid,
-        });
         if (!hasLoggedFirstQuery) {
           logSignupError('personal_shell_first_query.failed', error, {
             step: 'PersonalAreaShell.observeAuthState',

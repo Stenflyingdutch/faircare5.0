@@ -196,6 +196,12 @@ function maskTokenForLog(token: string) {
   return `${token.slice(0, 8)}...${token.slice(-4)}`;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function isInvitationCompleted(status?: string | null) {
   return ['accepted', 'completed', 'consumed', 'used'].includes((status ?? '').toLowerCase());
 }
@@ -1432,7 +1438,28 @@ export async function fetchDashboardBundle(userId: string) {
     uid: userId,
   });
   try {
-    const profile = await fetchAppUserProfile(userId);
+    logSignupInfo('partner_personal_area.profile_read.start', {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.users}/${userId}`,
+      uid: userId,
+    });
+    let profile: AppUserProfile | null = null;
+    try {
+      profile = await fetchAppUserProfile(userId);
+      logSignupInfo('partner_personal_area.profile_read.success', {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+        extra: { profilePresent: Boolean(profile) },
+      });
+    } catch (error) {
+      logSignupError('partner_personal_area.profile_read.failed', error, {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+      });
+      throw error;
+    }
     if (!profile) {
       logSignupInfo('fetchDashboardBundle.success', {
         step: 'fetchDashboardBundle',
@@ -1466,11 +1493,33 @@ export async function fetchDashboardBundle(userId: string) {
     return latestInitiatorResultPromise;
   };
 
-  const [ownResultInitial, familySnapshot] = await Promise.all([
-    fetchOwnResultByRole(userId, ownRole, familyId),
-    familyId ? getDoc(doc(db, firestoreCollections.families, familyId)) : Promise.resolve(null),
-  ]);
+  logSignupInfo('partner_personal_area.results_read.start', {
+    step: 'fetchDashboardBundle',
+    path: `${firestoreCollections.quizResults}`,
+    uid: userId,
+    extra: { familyId, role: ownRole },
+  });
+  const ownResultPromise = fetchOwnResultByRole(userId, ownRole, familyId)
+    .then((value) => {
+      logSignupInfo('partner_personal_area.results_read.success', {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.quizResults}`,
+        uid: userId,
+        extra: { ownResultPresent: Boolean(value), familyId, role: ownRole },
+      });
+      return value;
+    })
+    .catch((error) => {
+      logSignupError('partner_personal_area.results_read.failed', error, {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.quizResults}`,
+        uid: userId,
+        extra: { familyId, role: ownRole },
+      });
+      throw error;
+    });
 
+  const ownResultInitial = await ownResultPromise;
   let ownResult = ownResultInitial;
   if (ownResult && profile.role !== 'partner' && (!ownResult.stressCategories || ownResult.stressCategories.length === 0)) {
     const raw = await getLatestInitiatorResultOnce();
@@ -1491,7 +1540,54 @@ export async function fetchDashboardBundle(userId: string) {
   let invitationPartnerEmail: string | null = null;
   let ageGroupForOwnership: AgeGroup | null = null;
 
-  family = familySnapshot?.exists() ? (familySnapshot.data() as FamilyDocument) : null;
+  if (familyId) {
+    const familyPath = `${firestoreCollections.families}/${familyId}`;
+    logSignupInfo('partner_personal_area.family_read.start', {
+      step: 'fetchDashboardBundle',
+      path: familyPath,
+      uid: userId,
+      extra: { role: profile.role ?? null },
+    });
+    const retries = profile.role === 'partner' ? 6 : 1;
+    let familyReadError: unknown = null;
+    for (let attempt = 1; attempt <= retries; attempt += 1) {
+      try {
+        const familySnapshot = await getDoc(doc(db, firestoreCollections.families, familyId));
+        family = familySnapshot.exists() ? (familySnapshot.data() as FamilyDocument) : null;
+        logSignupInfo('partner_personal_area.family_read.success', {
+          step: 'fetchDashboardBundle',
+          path: familyPath,
+          uid: userId,
+          extra: { exists: familySnapshot.exists(), attempt, retries, partnerUserId: family?.partnerUserId ?? null },
+        });
+        familyReadError = null;
+        break;
+      } catch (error) {
+        familyReadError = error;
+        logSignupError('partner_personal_area.family_read.failed', error, {
+          step: 'fetchDashboardBundle',
+          path: familyPath,
+          uid: userId,
+          extra: { attempt, retries, role: profile.role ?? null },
+        });
+        const errorCode = (error as { code?: string })?.code ?? '';
+        const isPermissionDenied = errorCode === 'permission-denied' || errorCode === 'firestore/permission-denied';
+        if (!isPermissionDenied || profile.role !== 'partner' || attempt >= retries) break;
+        await sleep(350);
+      }
+    }
+
+    if (familyReadError) {
+      throw wrapSignupFlowError({
+        message: 'Familie konnte noch nicht geladen werden. Partner-Verknüpfung ist wahrscheinlich noch nicht abgeschlossen.',
+        failedStep: 'fetchDashboardBundle.familyRead',
+        collection: firestoreCollections.families,
+        path: familyPath,
+        queryName: 'familyById',
+        cause: familyReadError,
+      });
+    }
+  }
 
   if (family) {
     const [initiatorProfile, partnerProfile, invitation] = await Promise.all([
