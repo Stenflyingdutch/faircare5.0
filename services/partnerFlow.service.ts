@@ -1590,9 +1590,28 @@ export async function fetchDashboardBundle(userId: string) {
   }
 
   if (family) {
+    const loadFamilyMemberProfile = async (targetUserId?: string | null) => {
+      if (!targetUserId) return null;
+      if (targetUserId === userId) return profile;
+      try {
+        return await fetchAppUserProfile(targetUserId);
+      } catch (error) {
+        const errorCode = (error as { code?: string })?.code ?? '';
+        const isPermissionDenied = errorCode === 'permission-denied' || errorCode === 'firestore/permission-denied';
+        if (!isPermissionDenied) throw error;
+        logSignupInfo('partner_personal_area.family_profile_read.skipped_permission_denied', {
+          step: 'fetchDashboardBundle',
+          path: `${firestoreCollections.users}/${targetUserId}`,
+          uid: userId,
+          extra: { targetUserId, role: profile.role ?? null },
+        });
+        return null;
+      }
+    };
+
     const [initiatorProfile, partnerProfile, invitation] = await Promise.all([
-      family.initiatorUserId ? fetchAppUserProfile(family.initiatorUserId) : Promise.resolve(null),
-      family.partnerUserId ? fetchAppUserProfile(family.partnerUserId) : Promise.resolve(null),
+      loadFamilyMemberProfile(family.initiatorUserId),
+      loadFamilyMemberProfile(family.partnerUserId),
       family.invitationId
         ? getDoc(doc(db, firestoreCollections.invitations, family.invitationId)).then((snap) => (snap.exists() ? snap.data() as InvitationDocument : null))
         : Promise.resolve(null),
