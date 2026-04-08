@@ -8,44 +8,26 @@ import { PageHero } from '@/components/PageHero';
 import { SectionWrapper } from '@/components/SectionWrapper';
 import { Modal } from '@/components/Modal';
 import { FairCareInfo } from '@/components/FairCareInfo';
-import { fetchContentBlocks, getDefaultContentBlocks, createTextResolver } from '@/services/contentBlocks.service';
 import { getCurrentLocale, uiTexts } from '@/lib/i18n';
+import { defaultContentLocaleSettings, loadContentCatalog, resolveContentText } from '@/lib/content-access';
+import type { ContentLocaleSettings } from '@/types/content';
 import type { LocalizedText } from '@/types/i18n';
 
 export default function HomePage() {
   const [texts, setTexts] = useState<Record<string, LocalizedText>>(uiTexts);
+  const [localeSettings, setLocaleSettings] = useState<ContentLocaleSettings>(defaultContentLocaleSettings);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const locale = getCurrentLocale();
 
   useEffect(() => {
     (async () => {
-      try {
-        const blocks = await fetchContentBlocks();
-        const resolver = createTextResolver(blocks);
-        const merged = { ...uiTexts };
-        for (const key of resolver.keys) {
-          const value = resolver.resolve(key);
-          if (value) merged[key] = value;
-        }
-        setTexts(merged);
-      } catch {
-        const fallback = createTextResolver(getDefaultContentBlocks());
-        const merged = { ...uiTexts };
-        for (const key of fallback.keys) {
-          const value = fallback.resolve(key);
-          if (value) merged[key] = value;
-        }
-        setTexts(merged);
-      }
+      const catalog = await loadContentCatalog();
+      setTexts(catalog.dictionary);
+      setLocaleSettings(catalog.localeSettings);
     })();
   }, []);
 
-  const t = (key: string) => {
-    const text = texts[key];
-    if (!text) return `[[missing:${key}]]`;
-    if (typeof text === 'string') return text;
-    return text[locale] || text.de || `[[missing:${key}]]`;
-  };
+  const t = (key: string) => resolveContentText(texts, key, locale, localeSettings);
 
   return (
     <>

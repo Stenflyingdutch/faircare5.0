@@ -32,7 +32,7 @@ export default function QuizFilterPage() {
   useEffect(() => {
     (async () => {
       try {
-        const blocks = await fetchContentBlocks();
+        const { blocks } = await fetchContentBlocks();
         const resolver = createTextResolver(blocks);
         const merged = { ...uiTexts };
         for (const key of resolver.keys) {

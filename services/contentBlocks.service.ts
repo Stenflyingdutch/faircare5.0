@@ -3,6 +3,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { defaultTextBlocks } from '@/data/textBlocks';
 import { db } from '@/lib/firebase';
 import type { ContentTextBlock, TemplateDocument } from '@/types/domain';
+import type { ContentLocaleSettings } from '@/types/content';
 import { firestoreCollections } from '@/types/domain';
 
 const CONTENT_DOC_ID = 'ui-text-blocks';
@@ -25,24 +26,26 @@ export function getDefaultContentBlocks(): ContentTextBlock[] {
   }));
 }
 
-export async function fetchContentBlocks(): Promise<ContentTextBlock[]> {
+export async function fetchContentBlocks(): Promise<{ blocks: ContentTextBlock[]; localeSettings?: Partial<ContentLocaleSettings> }> {
   try {
     const ref = doc(db, firestoreCollections.templates, CONTENT_DOC_ID);
     const snapshot = await getDoc(ref);
 
     if (snapshot.exists()) {
-      const payload = snapshot.data() as TemplateDocument<{ blocks: ContentTextBlock[] }>;
+      const payload = snapshot.data() as TemplateDocument<{ blocks: ContentTextBlock[]; localeSettings?: Partial<ContentLocaleSettings> }>;
       const blocks = payload?.content?.blocks;
-      if (Array.isArray(blocks) && blocks.length) return normalizeBlocks(blocks);
+      if (Array.isArray(blocks) && blocks.length) {
+        return { blocks: normalizeBlocks(blocks), localeSettings: payload?.content?.localeSettings };
+      }
     }
   } catch {
     // fallback to defaults
   }
 
-  return getDefaultContentBlocks();
+  return { blocks: getDefaultContentBlocks() };
 }
 
-export async function persistContentBlocks(blocks: ContentTextBlock[]) {
+export async function persistContentBlocks(blocks: ContentTextBlock[], localeSettings?: Partial<ContentLocaleSettings>) {
   const normalized = normalizeBlocks(blocks);
 
   await setDoc(doc(db, firestoreCollections.templates, CONTENT_DOC_ID), {
@@ -54,6 +57,7 @@ export async function persistContentBlocks(blocks: ContentTextBlock[]) {
     updatedAt: serverTimestamp(),
     content: {
       blocks: normalized,
+      ...(localeSettings ? { localeSettings } : {}),
     },
   }, { merge: true });
 }
