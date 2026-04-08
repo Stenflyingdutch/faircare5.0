@@ -8,6 +8,10 @@ function readArg(flag) {
   return process.argv[index + 1] ?? '';
 }
 
+function readBoolArg(flag) {
+  return process.argv.includes(flag);
+}
+
 function requireValue(value, label) {
   if (!value) {
     throw new Error(`Missing required value: ${label}`);
@@ -25,6 +29,11 @@ function normalizeName(name) {
 
 function buildDisplayName(firstName, lastName) {
   return [normalizeName(firstName), normalizeName(lastName)].filter(Boolean).join(' ').trim();
+}
+
+function parseBoolean(value) {
+  if (typeof value !== 'string') return false;
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }
 
 function resolvePrivateKey() {
@@ -50,10 +59,16 @@ function buildCredential() {
 }
 
 const email = normalizeEmail(requireValue(process.env.ADMIN_USER_EMAIL || readArg('--email'), '--email'));
-const password = requireValue(process.env.ADMIN_USER_PASSWORD || readArg('--password'), '--password');
-const firstName = normalizeName(requireValue(process.env.ADMIN_USER_FIRST_NAME || readArg('--first-name'), '--first-name'));
+const grantOnly = parseBoolean(process.env.ADMIN_GRANT_ONLY) || readBoolArg('--grant-only');
+const password = normalizeName(process.env.ADMIN_USER_PASSWORD || readArg('--password'));
+const firstName = normalizeName(process.env.ADMIN_USER_FIRST_NAME || readArg('--first-name') || '');
 const lastName = normalizeName(process.env.ADMIN_USER_LAST_NAME || readArg('--last-name') || '');
 const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID ?? process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+if (!grantOnly) {
+  requireValue(password, '--password');
+  requireValue(firstName, '--first-name');
+}
 
 const app = getApps()[0] ?? initializeApp({
   credential: buildCredential(),
@@ -68,14 +83,19 @@ async function main() {
 
   try {
     authUser = await auth.getUserByEmail(email);
-    authUser = await auth.updateUser(authUser.uid, {
-      email,
-      password,
-      displayName: buildDisplayName(firstName, lastName) || firstName,
-      disabled: false,
-    });
+    if (!grantOnly) {
+      authUser = await auth.updateUser(authUser.uid, {
+        email,
+        password,
+        displayName: buildDisplayName(firstName, lastName) || firstName,
+        disabled: false,
+      });
+    }
   } catch (error) {
     if (error?.code !== 'auth/user-not-found') throw error;
+    if (grantOnly) {
+      throw new Error(`User with email "${email}" does not exist; cannot use --grant-only.`);
+    }
 
     authUser = await auth.createUser({
       email,
@@ -93,9 +113,9 @@ async function main() {
   await userRef.set({
     id: authUser.uid,
     email,
-    firstName,
-    lastName,
-    displayName: buildDisplayName(firstName, lastName) || firstName,
+    ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    ...(firstName ? { displayName: buildDisplayName(firstName, lastName) || firstName } : {}),
     adminRole: 'admin',
     accountStatus: 'active',
     createdAt,

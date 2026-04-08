@@ -7,6 +7,8 @@ test('admin setup script does not hardcode credentials and requires runtime argu
   const src = fs.readFileSync(path.join(process.cwd(), 'scripts/upsert-admin-user.mjs'), 'utf8');
   assert.match(src, /ADMIN_USER_PASSWORD/);
   assert.match(src, /readArg\('--password'\)/);
+  assert.match(src, /--grant-only/);
+  assert.match(src, /ADMIN_GRANT_ONLY/);
   assert.doesNotMatch(src, /CatsGoesMax2026!/);
   assert.doesNotMatch(src, /tenijenhuis@gmail\.com/);
 });
