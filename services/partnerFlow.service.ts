@@ -229,6 +229,32 @@ export class InviteFlowError extends Error {
   }
 }
 
+function wrapSignupFlowError(params: {
+  message: string;
+  failedStep: string;
+  code?: string;
+  collection?: string;
+  queryName?: string;
+  path?: string;
+  cause: unknown;
+}) {
+  const wrapped = new Error(params.message) as Error & {
+    code?: string;
+    failedStep?: string;
+    collection?: string;
+    queryName?: string;
+    path?: string;
+    cause?: unknown;
+  };
+  wrapped.code = params.code ?? (params.cause as { code?: string })?.code;
+  wrapped.failedStep = params.failedStep;
+  wrapped.collection = params.collection;
+  wrapped.queryName = params.queryName;
+  wrapped.path = params.path;
+  wrapped.cause = params.cause;
+  return wrapped;
+}
+
 function buildInviteError(
   code: string,
   headline: string,
@@ -389,12 +415,46 @@ export async function fetchAppUserProfile(userId: string) {
     });
     throw error;
   }
+  logSignupInfo('dashboard.first_read.success', {
+    step: 'fetchAppUserProfile',
+    path: userPath,
+    uid: userId,
+    extra: { exists: snapshot.exists() },
+  });
   if (!snapshot.exists()) return null;
   return snapshot.data() as AppUserProfile;
 }
 
 async function getLatestInitiatorResult(userId: string) {
-  const snapshot = await getDoc(doc(db, firestoreCollections.userResults, userId));
+  const resultPath = `${firestoreCollections.userResults}/${userId}`;
+  logSignupInfo('initiator_result.read.start', {
+    step: 'getLatestInitiatorResult',
+    path: resultPath,
+    uid: userId,
+  });
+  let snapshot;
+  try {
+    snapshot = await getDoc(doc(db, firestoreCollections.userResults, userId));
+  } catch (error) {
+    logSignupError('initiator_result.read.failed', error, {
+      step: 'getLatestInitiatorResult',
+      path: resultPath,
+      uid: userId,
+    });
+    throw wrapSignupFlowError({
+      message: 'Initiator-Ergebnis konnte nicht gelesen werden.',
+      failedStep: 'getLatestInitiatorResult.read',
+      collection: firestoreCollections.userResults,
+      path: resultPath,
+      cause: error,
+    });
+  }
+  logSignupInfo('initiator_result.read.success', {
+    step: 'getLatestInitiatorResult',
+    path: resultPath,
+    uid: userId,
+    extra: { exists: snapshot.exists() },
+  });
   if (!snapshot.exists()) return null;
   return snapshot.data() as StoredUserResult;
 }
@@ -1105,13 +1165,71 @@ export async function ensureInitiatorFamilySetup(userId: string, options?: { inv
     throw error;
   }
 
-  await setDoc(doc(db, firestoreCollections.users, userId), {
-    familyId,
-    role: 'initiator',
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
+  const userPath = `${firestoreCollections.users}/${userId}`;
+  logSignupInfo('family_link_user_doc.update.start', {
+    step: 'ensureInitiatorFamilySetup',
+    path: userPath,
+    uid: userId,
+    inviteContextPresent,
+  });
+  try {
+    await setDoc(doc(db, firestoreCollections.users, userId), {
+      familyId,
+      role: 'initiator',
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    logSignupInfo('family_link_user_doc.update.success', {
+      step: 'ensureInitiatorFamilySetup',
+      path: userPath,
+      uid: userId,
+      inviteContextPresent,
+    });
+  } catch (error) {
+    logSignupError('family_link_user_doc.update.failed', error, {
+      step: 'ensureInitiatorFamilySetup',
+      path: userPath,
+      uid: userId,
+      inviteContextPresent,
+    });
+    throw wrapSignupFlowError({
+      message: 'Nutzerprofil konnte nicht mit Familie verknüpft werden.',
+      failedStep: 'ensureInitiatorFamilySetup.userLink',
+      collection: firestoreCollections.users,
+      path: userPath,
+      cause: error,
+    });
+  }
 
-  await buildOrUpdateInitiatorResult(userId);
+  logSignupInfo('initiator_result.bootstrap.start', {
+    step: 'ensureInitiatorFamilySetup',
+    path: `${firestoreCollections.quizResults}`,
+    uid: userId,
+    inviteContextPresent,
+  });
+  try {
+    await buildOrUpdateInitiatorResult(userId);
+    logSignupInfo('initiator_result.bootstrap.success', {
+      step: 'ensureInitiatorFamilySetup',
+      path: `${firestoreCollections.quizResults}`,
+      uid: userId,
+      inviteContextPresent,
+    });
+  } catch (error) {
+    logSignupError('initiator_result.bootstrap.failed', error, {
+      step: 'ensureInitiatorFamilySetup',
+      path: `${firestoreCollections.quizResults}`,
+      uid: userId,
+      inviteContextPresent,
+    });
+    throw wrapSignupFlowError({
+      message: 'Initiator-Ergebnis konnte nicht aufgebaut werden.',
+      failedStep: 'ensureInitiatorFamilySetup.buildOrUpdateInitiatorResult',
+      collection: firestoreCollections.quizResults,
+      queryName: 'buildOrUpdateInitiatorResult',
+      path: `${firestoreCollections.quizResults}`,
+      cause: error,
+    });
+  }
   return familyId;
 }
 
@@ -1258,8 +1376,33 @@ export async function openSharedResultsView(userId: string) {
 }
 
 export async function fetchDashboardBundle(userId: string) {
-  const profile = await fetchAppUserProfile(userId);
-  if (!profile) return { profile: null };
+  logSignupInfo('fetchDashboardBundle.start', {
+    step: 'fetchDashboardBundle',
+    path: `${firestoreCollections.users}/${userId}`,
+    uid: userId,
+  });
+  try {
+    const profile = await fetchAppUserProfile(userId);
+    if (!profile) {
+      logSignupInfo('fetchDashboardBundle.success', {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+        extra: { profilePresent: false },
+      });
+      return {
+        profile: null,
+        ownResult: null,
+        family: null,
+        joint: null,
+        initiatorResult: null,
+        partnerResult: null,
+        initiatorDisplayName: null,
+        partnerDisplayName: null,
+        invitationPartnerEmail: null,
+        ageGroupForOwnership: null,
+      };
+    }
 
   const familyId = profile.familyId ?? null;
   const ownRole = profile.role === 'partner' ? 'partner' : 'initiator';
@@ -1371,18 +1514,33 @@ export async function fetchDashboardBundle(userId: string) {
     }
   }
 
-  return {
-    profile,
-    ownResult,
-    family,
-    joint,
-    initiatorResult,
-    partnerResult,
-    initiatorDisplayName,
-    partnerDisplayName,
-    invitationPartnerEmail,
-    ageGroupForOwnership,
-  };
+    const bundle = {
+      profile,
+      ownResult,
+      family,
+      joint,
+      initiatorResult,
+      partnerResult,
+      initiatorDisplayName,
+      partnerDisplayName,
+      invitationPartnerEmail,
+      ageGroupForOwnership,
+    };
+    logSignupInfo('fetchDashboardBundle.success', {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.users}/${userId}`,
+      uid: userId,
+      extra: { familyId: profile.familyId ?? null },
+    });
+    return bundle;
+  } catch (error) {
+    logSignupError('fetchDashboardBundle.failed', error, {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.users}/${userId}`,
+      uid: userId,
+    });
+    throw error;
+  }
 }
 
 export async function persistMailDebugLog(entry: Record<string, unknown>) {

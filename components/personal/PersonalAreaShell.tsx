@@ -49,6 +49,11 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         }));
         setPartnerCompleted(Boolean(bundle.family?.partnerCompleted));
         setIsReady(true);
+        logSignupInfo('personal_shell_loaded', {
+          step: 'PersonalAreaShell.observeAuthState',
+          path: pathname,
+          uid: user.uid,
+        });
       } catch (error) {
         logSignupError('target_page.load.failed', error, {
           step: 'PersonalAreaShell.observeAuthState',
