@@ -131,16 +131,34 @@ function RegisterAfterTestContent() {
         email: credential.user.email ?? email.trim().toLowerCase(),
         displayName: normalizedDisplayName || credential.user.displayName || null,
       });
-      logSignupInfo('signup.finalize.success', {
+      logSignupInfo('partner_signup.complete', {
         step: 'registerAfterTest.submit',
         path: '/api/partner/finalize-registration',
         uid: credential.user.uid,
         inviteContextPresent,
       });
       clearPartnerLocalSession();
+      logSignupInfo('signup.finalize.success', {
+        step: 'registerAfterTest.submit',
+        path: '/api/partner/finalize-registration',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('personal_area.redirect.start', {
+        step: 'registerAfterTest.submit',
+        path: '/register-after-test',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
       logSignupInfo('signup.redirect.start', {
         step: 'registerAfterTest.submit',
         path: '/register-after-test',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('personal_area.redirect.called', {
+        step: 'registerAfterTest.submit',
+        path: '/app/transparenz',
         uid: credential.user.uid,
         inviteContextPresent,
       });
@@ -231,16 +249,34 @@ function RegisterAfterTestContent() {
         email: currentUser.email,
         displayName: normalizedDisplayName || currentUser.displayName || null,
       });
-      logSignupInfo('signup.finalize.success', {
+      logSignupInfo('partner_signup.complete', {
         step: 'registerAfterTest.continueWithActiveSession',
         path: '/api/partner/finalize-registration',
         uid: currentUser.uid,
         inviteContextPresent,
       });
       clearPartnerLocalSession();
+      logSignupInfo('signup.finalize.success', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/api/partner/finalize-registration',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('personal_area.redirect.start', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/register-after-test',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
       logSignupInfo('signup.redirect.start', {
         step: 'registerAfterTest.continueWithActiveSession',
         path: '/register-after-test',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('personal_area.redirect.called', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/app/transparenz',
         uid: currentUser.uid,
         inviteContextPresent,
       });
