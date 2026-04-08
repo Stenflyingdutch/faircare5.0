@@ -89,6 +89,12 @@ export default function RegisterPage() {
       if (session) {
         await linkAnonymousSessionToUser(credential.user, session);
       }
+      logSignupInfo('bootstrap.complete', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
       logSignupInfo('signup.finalize.success', {
         step: 'register.handleSubmit',
         path: '/register',
