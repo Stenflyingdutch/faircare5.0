@@ -1,4 +1,4 @@
-import { auth } from '@/lib/firebase';
+import { auth, firebaseProjectId } from '@/lib/firebase';
 
 type SignupLogContext = {
   step: string;
@@ -14,6 +14,7 @@ function buildSignupLogPayload(context: SignupLogContext) {
   return {
     step: context.step,
     path: context.path,
+    projectId: firebaseProjectId ?? null,
     hasAuthCurrentUser: Boolean(currentUser),
     uid: context.uid ?? currentUser?.uid ?? null,
     hasInviteContext: Boolean(context.inviteContextPresent),

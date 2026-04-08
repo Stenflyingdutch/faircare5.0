@@ -11,6 +11,7 @@ import {
   setDoc,
   where,
 } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 import { app, auth, db, firebaseProjectId } from '@/lib/firebase';
@@ -89,6 +90,37 @@ function resolveInviteRuntimeEnvironment() {
   if (hostname.endsWith('.vercel.app')) return 'preview';
 
   return configuredEnv;
+}
+
+async function ensureFirestoreAuthReady(expectedUserId: string) {
+  const currentUser = auth.currentUser;
+  if (currentUser?.uid === expectedUserId) {
+    await currentUser.getIdToken(true);
+    return;
+  }
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      resolve();
+    }, 1500);
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (settled || user?.uid !== expectedUserId) return;
+      settled = true;
+      clearTimeout(timeout);
+      unsubscribe();
+      try {
+        await user.getIdToken(true);
+      } catch {
+        // Der folgende Firestore-Call liefert den finalen Fehlercode.
+      }
+      resolve();
+    });
+  });
 }
 
 function resolveAppBaseUrl() {
@@ -219,10 +251,17 @@ export async function ensureUserProfile(params: {
   role?: FamilyRole;
   inviteContextPresent?: boolean;
 }) {
+  await ensureFirestoreAuthReady(params.userId);
   const userRef = doc(db, firestoreCollections.users, params.userId);
   const userPath = `${firestoreCollections.users}/${params.userId}`;
   const inviteContextPresent = params.inviteContextPresent ?? false;
 
+  logSignupInfo('signup.next_read.start', {
+    step: 'ensureUserProfile',
+    path: userPath,
+    uid: params.userId,
+    inviteContextPresent,
+  });
   logSignupInfo('user_doc.read.start', {
     step: 'ensureUserProfile',
     path: userPath,
@@ -234,6 +273,13 @@ export async function ensureUserProfile(params: {
 
   try {
     existingSnapshot = await getDoc(userRef);
+    logSignupInfo('signup.next_read.success', {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+      extra: { exists: existingSnapshot.exists() },
+    });
     logSignupInfo('user_doc.read.success', {
       step: 'ensureUserProfile',
       path: userPath,
@@ -242,16 +288,27 @@ export async function ensureUserProfile(params: {
       extra: { exists: existingSnapshot.exists() },
     });
   } catch (error) {
+    logSignupError('signup.next_read.failed', error, {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+    });
     logSignupError('user_doc.read.failed', error, {
       step: 'ensureUserProfile',
       path: userPath,
       uid: params.userId,
       inviteContextPresent,
     });
-    throw error;
+    const code = (error as { code?: string })?.code ?? '';
+    if (code === 'permission-denied' || code === 'firestore/permission-denied') {
+      existingSnapshot = null;
+    } else {
+      throw error;
+    }
   }
 
-  const existingProfile = existingSnapshot.exists() ? existingSnapshot.data() as AppUserProfile : null;
+  const existingProfile = existingSnapshot?.exists() ? existingSnapshot.data() as AppUserProfile : null;
   const normalizedDisplayName = params.displayName?.trim();
   const firstName = normalizedDisplayName?.split(' ')[0] ?? existingProfile?.firstName ?? '';
   const lastName = normalizedDisplayName?.split(' ').slice(1).join(' ') ?? existingProfile?.lastName ?? '';
@@ -270,6 +327,12 @@ export async function ensureUserProfile(params: {
     payload.role = params.role;
   }
 
+  logSignupInfo('user_profile.create.start', {
+    step: 'ensureUserProfile',
+    path: userPath,
+    uid: params.userId,
+    inviteContextPresent,
+  });
   logSignupInfo('user_doc.create.start', {
     step: 'ensureUserProfile',
     path: userPath,
@@ -279,6 +342,12 @@ export async function ensureUserProfile(params: {
 
   try {
     await setDoc(userRef, payload, { merge: true });
+    logSignupInfo('user_profile.create.success', {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+    });
     logSignupInfo('user_doc.create.success', {
       step: 'ensureUserProfile',
       path: userPath,
@@ -286,6 +355,12 @@ export async function ensureUserProfile(params: {
       inviteContextPresent,
     });
   } catch (error) {
+    logSignupError('user_profile.create.failed', error, {
+      step: 'ensureUserProfile',
+      path: userPath,
+      uid: params.userId,
+      inviteContextPresent,
+    });
     logSignupError('user_doc.create.failed', error, {
       step: 'ensureUserProfile',
       path: userPath,
@@ -297,7 +372,23 @@ export async function ensureUserProfile(params: {
 }
 
 export async function fetchAppUserProfile(userId: string) {
-  const snapshot = await getDoc(doc(db, firestoreCollections.users, userId));
+  const userPath = `${firestoreCollections.users}/${userId}`;
+  logSignupInfo('dashboard.first_read.start', {
+    step: 'fetchAppUserProfile',
+    path: userPath,
+    uid: userId,
+  });
+  let snapshot;
+  try {
+    snapshot = await getDoc(doc(db, firestoreCollections.users, userId));
+  } catch (error) {
+    logSignupError('dashboard.first_read.failed', error, {
+      step: 'fetchAppUserProfile',
+      path: userPath,
+      uid: userId,
+    });
+    throw error;
+  }
   if (!snapshot.exists()) return null;
   return snapshot.data() as AppUserProfile;
 }
@@ -866,10 +957,28 @@ async function fetchOwnResultByRole(userId: string, role: FamilyRole, familyId?:
     constraints.splice(1, 0, where('familyId', '==', familyId));
   }
 
-  const snap = await getDocs(query(
-    collection(db, firestoreCollections.quizResults),
-    ...constraints,
-  ));
+  const queryPath = familyId
+    ? `${firestoreCollections.quizResults}?userId=${userId}&role=${role}&familyId=${familyId}`
+    : `${firestoreCollections.quizResults}?userId=${userId}&role=${role}`;
+  logSignupInfo('dashboard.followup_read.start', {
+    step: 'fetchOwnResultByRole',
+    path: queryPath,
+    uid: userId,
+  });
+  let snap;
+  try {
+    snap = await getDocs(query(
+      collection(db, firestoreCollections.quizResults),
+      ...constraints,
+    ));
+  } catch (error) {
+    logSignupError('dashboard.followup_read.failed', error, {
+      step: 'fetchOwnResultByRole',
+      path: queryPath,
+      uid: userId,
+    });
+    throw error;
+  }
 
   return snap.empty ? null : ({ id: snap.docs[0].id, ...snap.docs[0].data() } as QuizResultDocument);
 }

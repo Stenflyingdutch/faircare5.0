@@ -138,8 +138,26 @@ function RegisterAfterTestContent() {
         inviteContextPresent,
       });
       clearPartnerLocalSession();
+      logSignupInfo('signup.redirect.start', {
+        step: 'registerAfterTest.submit',
+        path: '/register-after-test',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('signup.redirect.target', {
+        step: 'registerAfterTest.submit',
+        path: '/app/transparenz',
+        uid: credential.user.uid,
+        inviteContextPresent,
+      });
       router.push('/app/transparenz');
     } catch (submitError) {
+      logSignupError('signup.flow.failed', submitError, {
+        step: 'registerAfterTest.submit',
+        path: '/register-after-test',
+        uid: finalizedUserId,
+        inviteContextPresent,
+      });
       if (finalizeStarted) {
         logSignupError('signup.finalize.failed', submitError, {
           step: 'registerAfterTest.submit',
@@ -220,8 +238,26 @@ function RegisterAfterTestContent() {
         inviteContextPresent,
       });
       clearPartnerLocalSession();
+      logSignupInfo('signup.redirect.start', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/register-after-test',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
+      logSignupInfo('signup.redirect.target', {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/app/transparenz',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
       router.push('/app/transparenz');
     } catch (submitError) {
+      logSignupError('signup.flow.failed', submitError, {
+        step: 'registerAfterTest.continueWithActiveSession',
+        path: '/register-after-test',
+        uid: currentUser.uid,
+        inviteContextPresent,
+      });
       logSignupError('signup.finalize.failed', submitError, {
         step: 'registerAfterTest.continueWithActiveSession',
         path: '/api/partner/finalize-registration',
