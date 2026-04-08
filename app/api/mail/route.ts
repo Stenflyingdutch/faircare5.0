@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
+import { SESSION_COOKIE_NAME } from '@/lib/admin-auth';
+import { verifyAdminSessionCookie } from '@/lib/firebase-admin';
 import { dispatchMail, MailDispatchError, type MailType } from '@/services/server/mail.service';
 
 export async function POST(request: NextRequest) {
   try {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const decodedToken = await verifyAdminSessionCookie(sessionCookie);
+
+    if (!decodedToken?.uid) {
+      console.warn('mail.dispatch.unauthorized');
+      return NextResponse.json(
+        { error: 'Nicht autorisiert.', category: 'validation_error', code: 'mail_auth_unauthorized' },
+        { status: 401 },
+      );
+    }
+
     const body = await request.json();
     const { type, to, subject, html, originalRecipient, familyId, invitationId } = body as {
       type: MailType;

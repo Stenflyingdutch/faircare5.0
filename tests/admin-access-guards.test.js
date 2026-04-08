@@ -24,3 +24,11 @@ test('admin user api protects the last admin from destructive actions', () => {
   assert.match(src, /Der letzte Admin kann nicht gesperrt, entmachtet oder gelöscht werden/);
   assert.match(src, /ensureNotLastAdmin/);
 });
+
+test('admin user delete supports auth-only users without a Firestore profile', () => {
+  const src = read('app/api/admin/users/[userId]/route.ts');
+  assert.match(src, /const \{ profile, authUser, userRef \} = await getAdminUserState\(userId\)/);
+  assert.match(src, /if \(!profile && !authUser\)/);
+  assert.match(src, /profile \? userRef\.delete\(\) : Promise\.resolve\(\)/);
+  assert.match(src, /if \(authUser\) {\s+await adminAuth\.deleteUser\(userId\);/);
+});

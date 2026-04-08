@@ -104,16 +104,16 @@ async function findInvitationByToken(token: string) {
   const tokenCandidates = Array.from(new Set([normalizedToken, normalizedToken.toLowerCase()]));
   const hashCandidates = tokenCandidates.map((candidate) => sha256(candidate));
 
-  for (const field of ['tokenHash', 'inviteTokenHash', 'token_hash']) {
-    for (const hashValue of hashCandidates) {
-      const invitation = await queryInvitationByField(field, hashValue);
+  for (const field of ['token', 'inviteToken']) {
+    for (const tokenValue of tokenCandidates) {
+      const invitation = await queryInvitationByField(field, tokenValue);
       if (invitation) return invitation;
     }
   }
 
-  for (const field of ['token', 'inviteToken']) {
-    for (const tokenValue of tokenCandidates) {
-      const invitation = await queryInvitationByField(field, tokenValue);
+  for (const field of ['tokenHash', 'inviteTokenHash', 'token_hash']) {
+    for (const hashValue of hashCandidates) {
+      const invitation = await queryInvitationByField(field, hashValue);
       if (invitation) return invitation;
     }
   }
@@ -196,6 +196,7 @@ async function notifyInitiatorIfPossible(familyId: string, invitationId: string)
   const loginUrl = `${resolveAppBaseUrl()}/login`;
 
   try {
+    console.info('invite.unlock_mail.start', { familyId, invitationId });
     const outcome = await dispatchMail({
       type: 'partner_completed_notify_initiator',
       to: initiatorProfile.email,
@@ -212,8 +213,9 @@ async function notifyInitiatorIfPossible(familyId: string, invitationId: string)
     });
 
     await adminDb.collection(outcome.collection).add(outcome.payload);
+    console.info('invite.unlock_mail.success', { familyId, invitationId });
   } catch (error) {
-    console.error('partner.finalize.notify_initiator_failed', {
+    console.error('invite.unlock_mail.failed', {
       familyId,
       invitationId,
       message: error instanceof Error ? error.message : String(error),
@@ -239,6 +241,12 @@ export async function finalizePartnerRegistrationWithAdmin(params: {
   email: string;
   displayName?: string | null;
 }) {
+  console.info('invite.join.start', {
+    userId: params.userId,
+    hasSessionId: Boolean(params.sessionId),
+    hasInvitationToken: Boolean(params.invitationToken),
+  });
+
   const invitation = await findInvitationByToken(params.invitationToken);
   const invitationStatus = invitation.status?.toLowerCase() ?? '';
   const familyRef = adminDb.collection(firestoreCollections.families).doc(invitation.familyId);
@@ -262,6 +270,12 @@ export async function finalizePartnerRegistrationWithAdmin(params: {
   }
 
   if (family?.partnerUserId === params.userId && family.partnerRegistered && family.partnerCompleted) {
+    console.info('invite.join.success', {
+      familyId: invitation.familyId,
+      invitationId: invitation.id,
+      userId: params.userId,
+      alreadyCompleted: true,
+    });
     return { familyId: invitation.familyId, alreadyCompleted: true };
   }
 
@@ -369,5 +383,11 @@ export async function finalizePartnerRegistrationWithAdmin(params: {
   }
 
   await notifyInitiatorIfPossible(invitation.familyId, invitation.id);
+  console.info('invite.join.success', {
+    familyId: invitation.familyId,
+    invitationId: invitation.id,
+    userId: params.userId,
+    alreadyCompleted: false,
+  });
   return { familyId: invitation.familyId, alreadyCompleted: false };
 }

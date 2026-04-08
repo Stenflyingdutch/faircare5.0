@@ -16,6 +16,11 @@ test('partner registration finalization is routed through a server endpoint', ()
 });
 
 test('server-side partner finalization marks invites accepted and writes with admin db', () => {
+  const plainTokenLookupIndex = finalizeServiceSrc.indexOf("for (const field of ['token', 'inviteToken'])");
+  const tokenHashLookupIndex = finalizeServiceSrc.indexOf("for (const field of ['tokenHash', 'inviteTokenHash', 'token_hash'])");
+  assert.ok(plainTokenLookupIndex > -1, 'plain token lookup should exist');
+  assert.ok(tokenHashLookupIndex > -1, 'token hash lookup should exist');
+  assert.ok(plainTokenLookupIndex < tokenHashLookupIndex, 'server should resolve plain token before token hash');
   assert.match(finalizeServiceSrc, /adminDb\.runTransaction/);
   assert.match(finalizeServiceSrc, /collection\(firestoreCollections\.invitations\)\.doc\(invitation\.id\)/);
   assert.match(finalizeServiceSrc, /status: 'accepted'/);
@@ -26,4 +31,11 @@ test('registration error handling exposes partner finalization and session sync 
   assert.match(authServiceSrc, /auth\/session-sync-failed/);
   assert.match(authServiceSrc, /code\?\.startsWith\('partner_registration\/'\)/);
   assert.match(authServiceSrc, /Deine Anmeldung konnte nicht bestätigt werden/);
+  assert.match(authServiceSrc, /auth\/operation-not-allowed/);
+  assert.match(authServiceSrc, /auth\/network-request-failed/);
+  assert.match(authServiceSrc, /auth\/too-many-requests/);
+  assert.match(authServiceSrc, /auth\/quota-exceeded/);
+  assert.match(authServiceSrc, /auth\/unauthorized-domain/);
+  assert.match(authServiceSrc, /Registrierung mit Firebase fehlgeschlagen/);
+  assert.match(partnerFlowSrc, /partner_registration\/network_failed/);
 });
