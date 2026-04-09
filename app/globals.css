@@ -322,6 +322,26 @@ main {
   line-height: 1.7;
 }
 
+.card--link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.card--link .card-description {
+  flex: 1;
+}
+
+.card-action {
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.card-action--centered {
+  display: flex;
+  justify-content: center;
+}
+
 .section-subdued {
   background: #fafafe;
   border-top: 1px solid var(--color-line);

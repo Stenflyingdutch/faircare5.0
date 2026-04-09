@@ -131,18 +131,20 @@ export default function HomePage() {
       <SectionWrapper subdued>
         <div className={linksGridClass}>
           <Card
+            className="card--link"
             title={t('landing.links.mental_load.title')}
             description={t('landing.links.mental_load.text')}
           >
-            <div style={{ marginTop: '1rem' }}>
+            <div className="card-action card-action--centered">
               <CTAButton href="/mental-load" variant="secondary">{t('landing.links.mental_load.button')}</CTAButton>
             </div>
           </Card>
           <Card
+            className="card--link"
             title={t('landing.links.what_is_faircare.title')}
             description={t('landing.links.what_is_faircare.text')}
           >
-            <div style={{ marginTop: '1rem' }}>
+            <div className="card-action card-action--centered">
               <button type="button" className="cta-button secondary" onClick={() => setIsModalOpen(true)}>
                 {t('landing.links.what_is_faircare.button')}
               </button>
@@ -150,10 +152,11 @@ export default function HomePage() {
           </Card>
           {siteVisibility.about && (
             <Card
+              className="card--link"
               title={t('landing.links.about_us.title')}
               description={t('landing.links.about_us.text')}
             >
-              <div style={{ marginTop: '1rem' }}>
+              <div className="card-action card-action--centered">
                 <CTAButton href="/about" variant="secondary">{t('landing.links.about_us.button')}</CTAButton>
               </div>
             </Card>
