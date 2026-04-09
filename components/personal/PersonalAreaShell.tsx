@@ -13,7 +13,6 @@ const personalNavItems = [
   { label: 'Meine', href: '/app/home', tone: 'violet', gatedUntilPartnerCompleted: true },
   { label: 'Unsere', href: '/app/ownership-dashboard', tone: 'petrol', gatedUntilPartnerCompleted: false },
   { label: 'Austausch', href: '/app/review', tone: 'violet', gatedUntilPartnerCompleted: true },
-  { label: 'Transparenz', href: '/app/transparenz', tone: 'petrol', gatedUntilPartnerCompleted: false },
 ] as const;
 
 const LOCKED_TAB_HINT = 'Dieser Bereich wird sichtbar, sobald dein Partner den Test abgeschlossen hat.';
@@ -172,6 +171,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const showNavigation = !pathname.startsWith('/app/ergebnisse');
   const activeNavItem = personalNavItems.find((item) => pathname.startsWith(item.href)) ?? null;
   const showLockedPlaceholder = Boolean(activeNavItem?.gatedUntilPartnerCompleted) && !partnerCompleted;
+  const isSettingsActive = pathname.startsWith('/app/einstellungen');
 
   return (
     <section className="section personal-area-section">
@@ -183,22 +183,45 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         <header className="personal-area-header stack">
           <div className="personal-area-nav-row">
             {showNavigation && (
-              <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
-                {personalNavItems.map((item) => {
-                  const isTeamCheckContext = item.href === '/app/review' && pathname.startsWith('/app/ergebnisse');
-                  const isActive = pathname.startsWith(item.href) || isTeamCheckContext;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`personal-area-nav-link ${isActive ? `active tone-${item.tone}` : ''}`}
-                    >
-                      {item.label}
-                      {item.href === '/app/review' && showTeamCheckDot && <span className="team-check-nav-dot" aria-hidden="true" />}
-                    </Link>
-                  );
-                })}
-              </nav>
+              <>
+                <nav className="personal-area-nav" aria-label="Hauptnavigation persönlicher Bereich">
+                  {personalNavItems.map((item) => {
+                    const isTeamCheckContext = item.href === '/app/review' && pathname.startsWith('/app/ergebnisse');
+                    const isActive = pathname.startsWith(item.href) || isTeamCheckContext;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`personal-area-nav-link ${isActive ? `active tone-${item.tone}` : ''}`}
+                      >
+                        {item.label}
+                        {item.href === '/app/review' && showTeamCheckDot && <span className="team-check-nav-dot" aria-hidden="true" />}
+                      </Link>
+                    );
+                  })}
+                </nav>
+                <Link
+                  href="/app/einstellungen"
+                  className={`personal-area-settings-link ${isSettingsActive ? 'active' : ''}`}
+                  aria-label="Einstellungen"
+                >
+                  <svg
+                    className="personal-area-settings-icon"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="12" r="3.25" />
+                    <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1.8 1.8 0 1 1-2.5 2.5l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a1.8 1.8 0 1 1-3.6 0v-.2a1 1 0 0 0-.7-.9 1 1 0 0 0-1.1.2l-.1.1a1.8 1.8 0 1 1-2.5-2.5l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a1.8 1.8 0 1 1 0-3.6h.2a1 1 0 0 0 .9-.7 1 1 0 0 0-.2-1.1l-.1-.1a1.8 1.8 0 1 1 2.5-2.5l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a1.8 1.8 0 1 1 3.6 0v.2a1 1 0 0 0 .7.9 1 1 0 0 0 1.1-.2l.1-.1a1.8 1.8 0 1 1 2.5 2.5l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6h.2a1.8 1.8 0 1 1 0 3.6h-.2a1 1 0 0 0-.9.7Z" />
+                  </svg>
+                </Link>
+              </>
             )}
           </div>
         </header>

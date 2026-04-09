@@ -1273,6 +1273,10 @@ textarea.input {
   background: linear-gradient(180deg, rgba(231, 242, 241, 0.98), rgba(214, 233, 231, 0.96));
 }
 
+.personal-area-settings-icon {
+  display: block;
+}
+
 .personal-area-kicker {
   margin: 0;
   color: var(--color-text-secondary);
@@ -1290,7 +1294,7 @@ textarea.input {
 .personal-area-nav {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.3rem;
   padding: 0.24rem;
   border-radius: 999px;

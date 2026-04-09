@@ -247,6 +247,9 @@ export function TeamCheckContent() {
                 <button type="button" className="button" onClick={() => setMode('conduct')}>
                   Unseren Austausch durchführen
                 </button>
+                <Link href="/app/transparenz" className="button secondary">
+                  Dashboard
+                </Link>
               </div>
             )}
             <div className="stack" style={{ gap: 4 }}>
