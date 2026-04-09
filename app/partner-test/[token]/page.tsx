@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import PreQuestionStep from '@/components/test/PreQuestionStep';
 import { ownershipOptions, splitClarityOptions } from '@/components/test/test-config';
 import { resolveInvitationByToken, sanitizeInvitationToken, savePartnerFilterPerception, savePartnerSessionAnswer } from '@/services/partnerFlow.service';
 import { loadPartnerLocalSession, savePartnerLocalSession, type PartnerLocalSession } from '@/services/partnerSessionStorage';
@@ -106,11 +107,9 @@ export default function PartnerTestPage() {
       <div className="container test-shell stack">
         <div className="quiz-progress"><div className="quiz-progress-bar" style={{ width: `${progress}%` }} /></div>
         {!session.perceptionAnswer ? (
-          <>
-            <h1 className="test-title">Mach sichtbar, was im Alltag oft unsichtbar mitläuft.</h1>
-            <fieldset className="quiz-fieldset stack">
-              <legend>Wie klar ist eure Aufteilung heute?</legend>
-              <div className="stack">
+          <div className="quiz-pre-question-layout">
+            <h1 className="test-title quiz-intro-title">Mach sichtbar, was im Alltag oft unsichtbar mitläuft.</h1>
+            <PreQuestionStep question="Wie klar ist eure Aufteilung heute?" questionId="partner-test-perception-question">
                 {splitClarityOptions.map((option) => (
                   <button
                     key={option.value}
@@ -122,9 +121,8 @@ export default function PartnerTestPage() {
                     {option.label}
                   </button>
                 ))}
-              </div>
-            </fieldset>
-          </>
+            </PreQuestionStep>
+          </div>
         ) : (
           <>
             <p className="helper">Frage {index + 1} von {session.questions.length}</p>

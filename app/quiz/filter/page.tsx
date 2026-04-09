@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 
+import PreQuestionStep from '@/components/test/PreQuestionStep';
 import { ageGroupOptions, childcareChoices, splitClarityOptions } from '@/components/test/test-config';
 import { observeAuthState } from '@/services/auth.service';
 import { fetchAppUserProfile } from '@/services/partnerFlow.service';
@@ -139,86 +140,74 @@ export default function QuizFilterPage() {
 
   return (
     <section className="section">
-      <div className="container test-shell stack">
-        <h1 className="test-title">{t('quiz.filter.title', locale, undefined, textDictionary)}</h1>
-        <form className="stack" onSubmit={handleSubmit}>
+      <div className="container test-shell stack quiz-pre-question-layout">
+        <h1 className="test-title quiz-intro-title">{t('quiz.filter.title', locale, undefined, textDictionary)}</h1>
+        <form className="stack quiz-pre-question-form" onSubmit={handleSubmit}>
           {step === 0 && (
-            <fieldset className="quiz-fieldset stack">
-              <legend>{t('quiz.filter.childCount', locale, undefined, textDictionary)}</legend>
-              <div className="stack">
-                {childCountOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`option-chip ${filter.childCount === option.value ? 'selected' : ''}`}
-                    onClick={() => {
-                      setFilter((c) => ({ ...c, childCount: option.value }));
-                      setStep(1);
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <PreQuestionStep question={t('quiz.filter.childCount', locale, undefined, textDictionary)} questionId="quiz-filter-child-count-question">
+              {childCountOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`option-chip ${filter.childCount === option.value ? 'selected' : ''}`}
+                  onClick={() => {
+                    setFilter((c) => ({ ...c, childCount: option.value }));
+                    setStep(1);
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </PreQuestionStep>
           )}
 
           {step === 1 && (
-            <fieldset className="quiz-fieldset stack">
-              <legend>{t('quiz.filter.ageGroup', locale, undefined, textDictionary)}</legend>
-              <div className="stack">
-                {ageGroupOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`option-chip ${filter.youngestAgeGroup === option.value ? 'selected' : ''}`}
-                    onClick={() => {
-                      setFilter((c) => ({ ...c, youngestAgeGroup: option.value as AgeGroup }));
-                      setStep(2);
-                    }}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <PreQuestionStep question={t('quiz.filter.ageGroup', locale, undefined, textDictionary)} questionId="quiz-filter-age-group-question">
+              {ageGroupOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`option-chip ${filter.youngestAgeGroup === option.value ? 'selected' : ''}`}
+                  onClick={() => {
+                    setFilter((c) => ({ ...c, youngestAgeGroup: option.value as AgeGroup }));
+                    setStep(2);
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </PreQuestionStep>
           )}
 
           {step === 2 && (
-            <fieldset className="quiz-fieldset stack">
-              <legend>{t('quiz.filter.childcare', locale, undefined, textDictionary)}</legend>
-              <div className="stack">
-                {childcareChoices.map((choice) => (
-                  <button key={choice.value} type="button" className={`option-chip ${(filter.childcareTags ?? []).includes(choice.value) ? 'selected' : ''}`} onClick={() => toggleChildcare(choice.value)}>
-                    {choice.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <PreQuestionStep question={t('quiz.filter.childcare', locale, undefined, textDictionary)} questionId="quiz-filter-childcare-question">
+              {childcareChoices.map((choice) => (
+                <button key={choice.value} type="button" className={`option-chip ${(filter.childcareTags ?? []).includes(choice.value) ? 'selected' : ''}`} onClick={() => toggleChildcare(choice.value)}>
+                  {choice.label}
+                </button>
+              ))}
+            </PreQuestionStep>
           )}
 
           {step === 3 && (
-            <fieldset className="quiz-fieldset stack">
-              <legend>{t('quiz.filter.split', locale, undefined, textDictionary)}</legend>
-              <div className="stack">
-                {splitClarityOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`option-chip ${filter.splitClarity === option.value ? 'selected' : ''}`}
-                    onClick={async () => {
-                      if (isSubmitting) return;
-                      const nextFilter = { ...filter, splitClarity: option.value as SplitClarity };
-                      setFilter(nextFilter);
-                      await createAndStartSession(nextFilter);
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <PreQuestionStep question={t('quiz.filter.split', locale, undefined, textDictionary)} questionId="quiz-filter-split-question">
+              {splitClarityOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`option-chip ${filter.splitClarity === option.value ? 'selected' : ''}`}
+                  onClick={async () => {
+                    if (isSubmitting) return;
+                    const nextFilter = { ...filter, splitClarity: option.value as SplitClarity };
+                    setFilter(nextFilter);
+                    await createAndStartSession(nextFilter);
+                  }}
+                  disabled={isSubmitting}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </PreQuestionStep>
           )}
 
           {error && <p className="inline-error">{error}</p>}
