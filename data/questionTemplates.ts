@@ -94,7 +94,7 @@ const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; de
       description: 'Vorsorge, Symptome, Medikamente, Zahngesundheit und gesundheitliche Themen im Blick behalten.',
     },
     babyalltag_pflege: {
-      label: 'Babyalltag',
+      label: 'Alltag',
       description: 'Essen, Anziehen, Schlafen, Wickeln oder Toilette, Körperpflege und tägliche Begleitung.',
     },
     haushalt_einkaeufe_vorraete: {
@@ -112,7 +112,7 @@ const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; de
       description: 'Vorsorge, Symptome, Zahngesundheit, Medikamente und gesundheitliche Themen im Blick behalten.',
     },
     babyalltag_pflege: {
-      label: 'Babyalltag',
+      label: 'Alltag',
       description: 'Essen, Anziehen, Schlafen, Körperpflege, Selbstständigkeit und tägliche Begleitung.',
     },
     haushalt_einkaeufe_vorraete: {
@@ -130,7 +130,7 @@ const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; de
       description: 'Vorsorge, Beschwerden, Zahngesundheit, Medikamente, Bewegung und gesundheitliche Themen im Blick behalten.',
     },
     babyalltag_pflege: {
-      label: 'Babyalltag',
+      label: 'Alltag',
       description: 'Mahlzeiten, Kleidung, Schlaf, Hygiene, Schulalltag und Begleitung zu mehr Selbstständigkeit.',
     },
     haushalt_einkaeufe_vorraete: {
@@ -148,7 +148,7 @@ const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; de
       description: 'Vorsorge, Beschwerden, Schlaf, psychische Belastung, Arzttermine und gesundheitliche Themen im Blick behalten.',
     },
     babyalltag_pflege: {
-      label: 'Babyalltag',
+      label: 'Alltag',
       description: 'Essen, Schlaf, Kleidung, Hygiene, Schulalltag und Begleitung zu mehr Eigenverantwortung.',
     },
     haushalt_einkaeufe_vorraete: {
