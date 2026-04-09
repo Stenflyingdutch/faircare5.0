@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -121,6 +122,8 @@ function composeTemplateNote(details: string[]) {
   return details.join('\n');
 }
 
+const supportedLocales: Locale[] = ['de', 'en', 'nl'];
+
 function deriveDetailsFromLegacyNote(note: LocalizedText | undefined): LocalizedTextList {
   const splitLines = (value?: string) => (
     value
@@ -156,6 +159,83 @@ function normalizeTaskPackageTemplate(template: TaskPackageTemplate): TaskPackag
       nl: nextNote.nl || template.note?.nl || '',
     },
   };
+}
+
+function resolveLocalizedTemplateMap(value: Record<string, string> | undefined) {
+  return {
+    de: value?.de || value?.en || value?.nl || '',
+    en: value?.en || value?.de || value?.nl || '',
+    nl: value?.nl || value?.de || value?.en || '',
+  } satisfies Record<Locale, string>;
+}
+
+function resolveTemplateNotes(template: TaskPackageTemplate) {
+  const normalized = normalizeTaskPackageTemplate(template);
+  return resolveLocalizedTemplateMap(normalized.note);
+}
+
+function resolveTemplateTitles(template: TaskPackageTemplate) {
+  return resolveLocalizedTemplateMap(template.title);
+}
+
+async function syncUneditedCardsForTemplate(params: {
+  templateId: string;
+  previousTemplate: TaskPackageTemplate;
+  nextTemplate: TaskPackageTemplate;
+  actorUserId: string;
+}) {
+  const previousTitles = resolveTemplateTitles(params.previousTemplate);
+  const nextTitles = resolveTemplateTitles(params.nextTemplate);
+  const previousNotes = resolveTemplateNotes(params.previousTemplate);
+  const nextNotes = resolveTemplateNotes(params.nextTemplate);
+  const linkedCards = await getDocs(query(
+    collectionGroup(db, 'ownershipCards'),
+    where('sourceTemplateId', '==', params.templateId),
+    where('isDeleted', '==', false),
+  ));
+
+  if (linkedCards.empty) return 0;
+
+  let updates = 0;
+  let batch = writeBatch(db);
+  let pendingWrites = 0;
+
+  const commitBatch = async () => {
+    if (pendingWrites === 0) return;
+    await batch.commit();
+    batch = writeBatch(db);
+    pendingWrites = 0;
+  };
+
+  for (const snapshot of linkedCards.docs) {
+    const card = snapshot.data() as OwnershipCardDocument;
+    const currentTitle = card.title ?? '';
+    const currentNote = card.note ?? '';
+    const localeByTitle = supportedLocales.find((locale) => previousTitles[locale] === currentTitle);
+    const localeByNote = supportedLocales.find((locale) => previousNotes[locale] === currentNote);
+    const resolvedLocale = localeByTitle ?? localeByNote;
+    if (!resolvedLocale) continue;
+
+    const nextTitle = nextTitles[resolvedLocale] || nextTitles.de;
+    const nextNote = nextNotes[resolvedLocale] || nextNotes.de;
+    if (nextTitle === currentTitle && nextNote === currentNote) continue;
+
+    batch.update(snapshot.ref, {
+      title: nextTitle,
+      note: nextNote,
+      updatedBy: params.actorUserId,
+      updatedAt: serverTimestamp(),
+      catalogTemplateSyncedAt: nowIso(),
+    });
+    updates += 1;
+    pendingWrites += 1;
+    if (pendingWrites >= 400) {
+      await commitBatch();
+    }
+  }
+
+  await commitBatch();
+  return updates;
 }
 
 function getOwnershipTaskPackageSeed(ageGroup: AgeGroup, categoryKey: QuizCategory) {
@@ -218,20 +298,39 @@ export async function fetchTaskPackageTemplatesForAdmin(ageGroup: AgeGroup) {
 
 export async function saveTaskPackageTemplate(template: TaskPackageTemplate, actorUserId: string) {
   const normalized = normalizeTaskPackageTemplate(template);
-  await setDoc(doc(db, firestoreCollections.taskPackageTemplates, template.id), {
+  const templateRef = doc(db, firestoreCollections.taskPackageTemplates, template.id);
+  const previousSnapshot = await getDoc(templateRef);
+  const previousTemplate = previousSnapshot.exists()
+    ? normalizeTaskPackageTemplate({ id: previousSnapshot.id, ...previousSnapshot.data() } as TaskPackageTemplate)
+    : null;
+  await setDoc(templateRef, {
     ...normalized,
     updatedBy: actorUserId,
     updatedAt: serverTimestamp(),
     createdAt: normalized.createdAt ?? nowIso(),
   }, { merge: true });
+
+  if (previousTemplate) {
+    try {
+      await syncUneditedCardsForTemplate({
+        templateId: template.id,
+        previousTemplate,
+        nextTemplate: normalized,
+        actorUserId,
+      });
+    } catch (error) {
+      console.warn('Ungeänderte Ownership-Karten konnten nicht vollständig synchronisiert werden.', error);
+    }
+  }
 }
 
 export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: string) {
   const categories = ownershipTaskPackageSeedByAgeGroup[ageGroup];
   if (!categories) return 0;
 
-  const writes = Object.entries(categories).flatMap(([categoryKey, items]) =>
-    items.map((entry, index) => {
+  let writes = 0;
+  for (const [categoryKey, items] of Object.entries(categories)) {
+    for (const [index, entry] of items.entries()) {
       const id = `${ageGroup}_${categoryKey}_${index + 1}`;
       const payload: TaskPackageTemplate = {
         id,
@@ -249,12 +348,12 @@ export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: 
         version: 1,
         filterTags: entry.filterTags ?? [],
       };
-      return saveTaskPackageTemplate(payload, actorUserId);
-    }),
-  );
+      await saveTaskPackageTemplate(payload, actorUserId);
+      writes += 1;
+    }
+  }
 
-  await Promise.all(writes);
-  return writes.length;
+  return writes;
 }
 
 export async function initializeFamilyOwnership(params: {

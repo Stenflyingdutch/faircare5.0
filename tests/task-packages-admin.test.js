@@ -81,9 +81,10 @@ test('task package service still normalizes details and seeds deterministic ids'
   const src = read('services/ownership.service.ts');
 
   assert.match(src, /function normalizeTaskPackageTemplate\(template: TaskPackageTemplate\)/);
+  assert.match(src, /async function syncUneditedCardsForTemplate/);
   assert.match(src, /details: entry\.details,/);
   assert.match(src, /const id = `\$\{ageGroup\}_\$\{categoryKey\}_\$\{index \+ 1\}`;/);
-  assert.doesNotMatch(src, /const count = existingByCategory/);
+  assert.match(src, /await saveTaskPackageTemplate\(payload, actorUserId\);/);
 });
 
 test('admin task packages page supports age filter, language switch, detail lists and renamed display labels', () => {
