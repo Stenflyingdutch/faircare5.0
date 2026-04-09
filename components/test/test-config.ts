@@ -39,9 +39,9 @@ export const childcareChoices: Array<{ label: string; value: ChildcareTag }> = [
 ];
 
 export const stressOptions: Array<{ value: StressSelection; label: string }> = [
-  { value: 'betreuung_entwicklung', label: 'Betreuung & Entwicklung' },
+  { value: 'betreuung_entwicklung', label: 'Betreuung' },
   { value: 'gesundheit', label: 'Gesundheit' },
-  { value: 'babyalltag_pflege', label: 'Alltag & Pflege' },
-  { value: 'haushalt_einkaeufe_vorraete', label: 'Haushalt, Einkäufe & Vorräte' },
+  { value: 'babyalltag_pflege', label: 'Babyalltag' },
+  { value: 'haushalt_einkaeufe_vorraete', label: 'Haushalt' },
   { value: 'keiner_genannten_bereiche', label: 'In keiner der genannten Bereiche' },
 ];

@@ -68,7 +68,7 @@ const legacyQuestionIds0To1: Record<QuizCategory, string[]> = {
 const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; description: string }>> = {
   '0_1': {
     betreuung_entwicklung: {
-      label: 'Betreuung & Entwicklung',
+      label: 'Betreuung',
       description: 'Schlaf, Entwicklung, Betreuung und passende Anregung im Alltag.',
     },
     gesundheit: {
@@ -76,17 +76,17 @@ const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; de
       description: 'Vorsorge, Symptome, Medikamente und gesundheitliche Themen im Blick behalten.',
     },
     babyalltag_pflege: {
-      label: 'Babyalltag & Pflege',
+      label: 'Babyalltag',
       description: 'Essen, Wickeln, Schlafen, Unterwegsbedarf und tägliche Pflege des Babys.',
     },
     haushalt_einkaeufe_vorraete: {
-      label: 'Haushalt, Einkäufe & Vorräte',
+      label: 'Haushalt',
       description: 'Vorräte, Wäsche, Nachkaufen und alles, was im Alltag verfügbar sein muss.',
     },
   },
   '1_3': {
     betreuung_entwicklung: {
-      label: 'Betreuung & Entwicklung',
+      label: 'Betreuung',
       description: 'Tagesrhythmus, Entwicklung, Sprache, Spiel, Grenzen und passende Begleitung im Alltag.',
     },
     gesundheit: {
@@ -94,17 +94,17 @@ const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; de
       description: 'Vorsorge, Symptome, Medikamente, Zahngesundheit und gesundheitliche Themen im Blick behalten.',
     },
     babyalltag_pflege: {
-      label: 'Alltag & Pflege',
+      label: 'Babyalltag',
       description: 'Essen, Anziehen, Schlafen, Wickeln oder Toilette, Körperpflege und tägliche Begleitung.',
     },
     haushalt_einkaeufe_vorraete: {
-      label: 'Haushalt, Einkäufe & Vorräte',
+      label: 'Haushalt',
       description: 'Vorräte, Wäsche, Kleidung, Nachkaufen und alles, was im Alltag mit Kind verfügbar sein muss.',
     },
   },
   '3_6': {
     betreuung_entwicklung: {
-      label: 'Betreuung & Entwicklung',
+      label: 'Betreuung',
       description: 'Tagesstruktur, Entwicklung, Vorschulthemen, Spiel, soziale Themen und passende Begleitung.',
     },
     gesundheit: {
@@ -112,17 +112,17 @@ const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; de
       description: 'Vorsorge, Symptome, Zahngesundheit, Medikamente und gesundheitliche Themen im Blick behalten.',
     },
     babyalltag_pflege: {
-      label: 'Alltag & Pflege',
+      label: 'Babyalltag',
       description: 'Essen, Anziehen, Schlafen, Körperpflege, Selbstständigkeit und tägliche Begleitung.',
     },
     haushalt_einkaeufe_vorraete: {
-      label: 'Haushalt, Einkäufe & Vorräte',
+      label: 'Haushalt',
       description: 'Kleidung, Brotdosen, Wäsche, Spielsachen, Nachkaufen und alles, was im Alltag verfügbar sein muss.',
     },
   },
   '6_10': {
     betreuung_entwicklung: {
-      label: 'Betreuung & Entwicklung',
+      label: 'Betreuung',
       description: 'Schule, Lernen, Freundschaften, Freizeit, Medien und passende Begleitung in der Entwicklung.',
     },
     gesundheit: {
@@ -130,17 +130,17 @@ const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; de
       description: 'Vorsorge, Beschwerden, Zahngesundheit, Medikamente, Bewegung und gesundheitliche Themen im Blick behalten.',
     },
     babyalltag_pflege: {
-      label: 'Alltag & Pflege',
+      label: 'Babyalltag',
       description: 'Mahlzeiten, Kleidung, Schlaf, Hygiene, Schulalltag und Begleitung zu mehr Selbstständigkeit.',
     },
     haushalt_einkaeufe_vorraete: {
-      label: 'Haushalt, Einkäufe & Vorräte',
+      label: 'Haushalt',
       description: 'Kleidung, Schulsachen, Sportausrüstung, Vorräte und alles, was im Alltag rechtzeitig da sein muss.',
     },
   },
   '10_plus': {
     betreuung_entwicklung: {
-      label: 'Betreuung & Entwicklung',
+      label: 'Betreuung',
       description: 'Schule, Selbstständigkeit, Medien, soziale Themen, Orientierung und passende Begleitung im Jugendalter.',
     },
     gesundheit: {
@@ -148,11 +148,11 @@ const categoryContent: Record<AgeGroup, Record<QuizCategory, { label: string; de
       description: 'Vorsorge, Beschwerden, Schlaf, psychische Belastung, Arzttermine und gesundheitliche Themen im Blick behalten.',
     },
     babyalltag_pflege: {
-      label: 'Alltag & Pflege',
+      label: 'Babyalltag',
       description: 'Essen, Schlaf, Kleidung, Hygiene, Schulalltag und Begleitung zu mehr Eigenverantwortung.',
     },
     haushalt_einkaeufe_vorraete: {
-      label: 'Haushalt, Einkäufe & Vorräte',
+      label: 'Haushalt',
       description: 'Kleidung, Schul- und Freizeitsachen, Vorräte und alles, was im Alltag rechtzeitig da sein muss.',
     },
   },

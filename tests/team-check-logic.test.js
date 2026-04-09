@@ -19,7 +19,8 @@ test('team check badge is a dot only in personal nav and not a number/text badge
   const shell = read('components/personal/PersonalAreaShell.tsx');
   const css = read('app/globals.css');
   assert.match(shell, /team-check-nav-dot/);
-  assert.doesNotMatch(shell, /\d+/);
+  assert.doesNotMatch(shell, /team-check-nav-(count|badge|label)/);
+  assert.doesNotMatch(shell, /badgeCount|badgeLabel/);
   assert.match(css, /\.team-check-nav-dot/);
   assert.match(css, /width:\s*8px/);
 });

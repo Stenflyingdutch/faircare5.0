@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import { questionTemplates } from '@/data/questionTemplates';
-import { resolveCategoryLabel } from '@/services/resultCalculator';
+import { resolveCategoryDescription, resolveCategoryLabel } from '@/services/resultCalculator';
 import {
   buildCategoryComparisons,
 } from '@/services/resultInsights';
@@ -476,10 +476,13 @@ function JointResultPanel({ bundle, ageGroup }: {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                 <strong>{resolveCategoryLabel(entry.category, ageGroup ?? undefined)}</strong>
                 <span className="helper" style={{ border: '1px solid currentColor', padding: '2px 8px', borderRadius: 999 }}>
-                  {hasGap ? 'Abweichung sichtbar' : 'Stimmig'}
+                  {hasGap ? 'Abweichung' : 'Stimmig'}
                 </span>
               </div>
-              <p className="helper" style={{ marginTop: 4 }}>
+              <p className="helper" style={{ margin: '6px 0 0' }}>
+                {resolveCategoryDescription(entry.category, ageGroup ?? undefined)}
+              </p>
+              <p className="helper" style={{ margin: '14px 0 16px' }}>
                 {hasGap
                   ? 'Hier gibt es eine größere Abweichung zwischen Selbst- und Fremdwahrnehmung.'
                   : 'Hier stimmen Fremd- und Selbstbild weitgehend überein.'}

@@ -57,9 +57,9 @@ test('quiz catalog contains only the four final categories across all age groups
   const oneToThreeCare = quizCatalog.categories.find((entry) => entry.ageGroup === '1_3' && entry.key === 'babyalltag_pflege');
   const tenPlusCare = quizCatalog.categories.find((entry) => entry.ageGroup === '10_plus' && entry.key === 'babyalltag_pflege');
 
-  assert.equal(zeroToOneCare.label.de, 'Babyalltag & Pflege');
-  assert.equal(oneToThreeCare.label.de, 'Alltag & Pflege');
-  assert.equal(tenPlusCare.label.de, 'Alltag & Pflege');
+  assert.equal(zeroToOneCare.label.de, 'Babyalltag');
+  assert.equal(oneToThreeCare.label.de, 'Babyalltag');
+  assert.equal(tenPlusCare.label.de, 'Babyalltag');
   assert.doesNotMatch(read('data/questionTemplates.ts'), /Inhalt folgt\./);
   assert.doesNotMatch(read('data/questionTemplates.ts'), new RegExp(forbiddenLegacyCategoryKey));
 });
@@ -99,7 +99,7 @@ test('stress/admin-facing options use the existing keys with updated labels', ()
   assert.equal(resolveAgeGroupLabel('10_plus'), '12–18 Jahre');
   assert.equal(ageGroupOptions.find((entry) => entry.value === '6_10')?.label, '6–12 Jahre');
   assert.equal(ageGroupOptions.find((entry) => entry.value === '10_plus')?.label, '12–18 Jahre');
-  assert.equal(stressOptions.find((entry) => entry.value === 'babyalltag_pflege')?.label, 'Alltag & Pflege');
+  assert.equal(stressOptions.find((entry) => entry.value === 'babyalltag_pflege')?.label, 'Babyalltag');
   assert.equal(stressOptions.length, 5, 'expected 4 stress categories plus the none-option');
 });
 
