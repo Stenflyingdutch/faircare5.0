@@ -141,9 +141,6 @@ export default function QuizFilterPage() {
     <section className="section">
       <div className="container test-shell stack">
         <h1 className="test-title">{t('quiz.filter.title', locale, undefined, textDictionary)}</h1>
-        <p className="quiz-filter-intro-title">{t('quiz.filter.intro.title', locale, undefined, textDictionary)}</p>
-        <p className="helper quiz-filter-intro-text">{t('quiz.filter.intro.text', locale, undefined, textDictionary)}</p>
-        <p className="helper">{t('quiz.filter.step', locale, { current: step + 1, total: 4 }, textDictionary)}</p>
         <form className="stack" onSubmit={handleSubmit}>
           {step === 0 && (
             <fieldset className="quiz-fieldset stack">

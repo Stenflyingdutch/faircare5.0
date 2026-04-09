@@ -107,8 +107,7 @@ export default function PartnerTestPage() {
         <div className="quiz-progress"><div className="quiz-progress-bar" style={{ width: `${progress}%` }} /></div>
         {!session.perceptionAnswer ? (
           <>
-            <p className="helper">Schritt 1 von {totalSteps}</p>
-            <h1 className="test-title">Vor dem Quiz</h1>
+            <h1 className="test-title">Mach sichtbar, was im Alltag oft unsichtbar mitläuft.</h1>
             <fieldset className="quiz-fieldset stack">
               <legend>Wie klar ist eure Aufteilung heute?</legend>
               <div className="stack">
