@@ -18,9 +18,12 @@ import {
 
 import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
-import { ownershipTaskPackageSeedByAgeGroup } from '@/data/ownershipTaskPackageTemplates';
+import {
+  externalCareTaskPackageSeedByCategory,
+  ownershipTaskPackageSeedByAgeGroup,
+} from '@/data/ownershipTaskPackageTemplates';
 import type { Locale, LocalizedText, LocalizedTextList } from '@/types/i18n';
-import type { AgeGroup, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, QuizCategory } from '@/types/quiz';
 import type {
   OwnershipCardDocument,
   OwnershipCategoryDocument,
@@ -121,6 +124,15 @@ function composeTemplateNote(details: string[]) {
   return details.join('\n');
 }
 
+function matchesRequiredChildcareTags(
+  requiredChildcareTags: ChildcareTag[] | undefined,
+  selectedChildcareTags: ChildcareTag[] | undefined,
+) {
+  if (!requiredChildcareTags?.length) return true;
+  if (!selectedChildcareTags?.length) return false;
+  return requiredChildcareTags.some((tag) => selectedChildcareTags.includes(tag));
+}
+
 function deriveDetailsFromLegacyNote(note: LocalizedText | undefined): LocalizedTextList {
   const splitLines = (value?: string) => (
     value
@@ -159,21 +171,33 @@ function normalizeTaskPackageTemplate(template: TaskPackageTemplate): TaskPackag
 }
 
 function getOwnershipTaskPackageSeed(ageGroup: AgeGroup, categoryKey: QuizCategory) {
-  return ownershipTaskPackageSeedByAgeGroup[ageGroup]?.[categoryKey] ?? [];
+  return [
+    ...(ownershipTaskPackageSeedByAgeGroup[ageGroup]?.[categoryKey] ?? []),
+    ...(externalCareTaskPackageSeedByCategory[categoryKey] ?? []),
+  ];
 }
 
-function buildSeedFallbackTemplates(ageGroup: AgeGroup, categoryKey: QuizCategory, locale: Locale) {
-  return getOwnershipTaskPackageSeed(ageGroup, categoryKey).slice(0, 10).map((entry, index) => {
+function buildSeedFallbackTemplates(
+  ageGroup: AgeGroup,
+  categoryKey: QuizCategory,
+  locale: Locale,
+  selectedChildcareTags: ChildcareTag[],
+) {
+  return getOwnershipTaskPackageSeed(ageGroup, categoryKey)
+    .filter((entry) => matchesRequiredChildcareTags(entry.requiredChildcareTags, selectedChildcareTags))
+    .map((entry, index) => {
     const details = mapTemplateDetailsLocale(entry.details, locale);
     return {
-    id: `seed_${categoryKey}_${index + 1}`,
-    categoryKey,
-    title: mapTemplateLocale(entry.title, locale, 'Ownership-Bereich'),
-    details,
-    note: composeTemplateNote(details),
-    sortOrder: index + 1,
-  };
-  });
+      id: `seed_${categoryKey}_${index + 1}`,
+      categoryKey,
+      title: mapTemplateLocale(entry.title, locale, 'Ownership-Bereich'),
+      details,
+      note: composeTemplateNote(details),
+      sortOrder: index + 1,
+      requiredChildcareTags: entry.requiredChildcareTags,
+      filterTags: entry.filterTags,
+    };
+    });
 }
 
 export async function fetchTaskPackageTemplates(ageGroup: AgeGroup) {
@@ -222,6 +246,8 @@ export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: 
         categoryKey: categoryKey as QuizCategory,
         title: entry.title,
         details: entry.details,
+        requiredChildcareTags: entry.requiredChildcareTags,
+        filterTags: entry.filterTags,
         note: {
           de: composeTemplateNote(entry.details.de || []),
           en: composeTemplateNote(entry.details.en || []),
@@ -247,6 +273,7 @@ export async function initializeFamilyOwnership(params: {
   recommendations: OwnershipRecommendation[];
   allSignals: OwnershipSignalBreakdown[];
   locale: Locale;
+  selectedChildcareTags?: ChildcareTag[];
 }) {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
   const recommendedByCategory = new Map(params.recommendations.map((item, index) => [item.categoryKey, { ...item, rank: index + 1 }]));
@@ -283,8 +310,13 @@ export async function initializeFamilyOwnership(params: {
 
     const categoryTemplates = templates
       .filter((template) => template.categoryKey === categoryKey)
-      .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
+      .filter((template) => matchesRequiredChildcareTags(template.requiredChildcareTags, params.selectedChildcareTags));
+    const fallbackTemplates = buildSeedFallbackTemplates(
+      params.ageGroup,
+      categoryKey,
+      params.locale,
+      params.selectedChildcareTags ?? [],
+    );
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
@@ -293,6 +325,8 @@ export async function initializeFamilyOwnership(params: {
         details: mapTemplateDetailsLocale(template.details, params.locale),
         note: composeTemplateNote(mapTemplateDetailsLocale(template.details, params.locale)),
         sortOrder: template.sortOrder,
+        requiredChildcareTags: template.requiredChildcareTags,
+        filterTags: template.filterTags,
       }))
       : fallbackTemplates;
 
@@ -344,6 +378,7 @@ export async function ensureOwnershipCardsForCategories(params: {
   actorUserId: string;
   locale: Locale;
   categoryKeys: QuizCategory[];
+  selectedChildcareTags?: ChildcareTag[];
 }) {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
   const activeCategoryList = [...new Set(params.categoryKeys)];
@@ -364,8 +399,13 @@ export async function ensureOwnershipCardsForCategories(params: {
   for (const categoryKey of activeCategoryList) {
     const categoryTemplates = templates
       .filter((template) => template.categoryKey === categoryKey)
-      .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
+      .filter((template) => matchesRequiredChildcareTags(template.requiredChildcareTags, params.selectedChildcareTags));
+    const fallbackTemplates = buildSeedFallbackTemplates(
+      params.ageGroup,
+      categoryKey,
+      params.locale,
+      params.selectedChildcareTags ?? [],
+    );
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
@@ -374,6 +414,8 @@ export async function ensureOwnershipCardsForCategories(params: {
         details: mapTemplateDetailsLocale(template.details, params.locale),
         note: composeTemplateNote(mapTemplateDetailsLocale(template.details, params.locale)),
         sortOrder: template.sortOrder,
+        requiredChildcareTags: template.requiredChildcareTags,
+        filterTags: template.filterTags,
       }))
       : fallbackTemplates;
 

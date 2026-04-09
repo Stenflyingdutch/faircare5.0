@@ -1,26 +1,36 @@
 import type { LocalizedText, LocalizedTextList } from '@/types/i18n';
-import type { AgeGroup, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, QuizCategory } from '@/types/quiz';
 
 export interface OwnershipTemplateSeedItem {
   title: LocalizedText;
   details: LocalizedTextList;
+  filterTags?: string[];
+  requiredChildcareTags?: ChildcareTag[];
 }
 
 interface OwnershipTemplateSourceItem {
   title: string;
   details: string[];
+  filterTags?: string[];
+  requiredChildcareTags?: ChildcareTag[];
 }
 
 const sameAllLocales = (value: string): LocalizedText => ({ de: value, en: value, nl: value });
 
-function item(title: string, details: string[]): OwnershipTemplateSourceItem {
-  return { title, details };
+function item(
+  title: string,
+  details: string[],
+  options?: Pick<OwnershipTemplateSourceItem, 'filterTags' | 'requiredChildcareTags'>,
+): OwnershipTemplateSourceItem {
+  return { title, details, ...options };
 }
 
 function toSeedItem(entry: OwnershipTemplateSourceItem): OwnershipTemplateSeedItem {
   return {
     title: sameAllLocales(entry.title),
     details: { de: entry.details, en: [], nl: [] },
+    filterTags: entry.filterTags,
+    requiredChildcareTags: entry.requiredChildcareTags,
   };
 }
 
@@ -757,6 +767,112 @@ const rawSeedContent: Record<AgeGroup, Record<QuizCategory, OwnershipTemplateSou
     ],
   },
 };
+
+const externalCareTagByChildcare: Record<Exclude<ChildcareTag, 'none'>, string> = {
+  kita: 'externalCare:kita',
+  tagesmutter: 'externalCare:tagespflege',
+  family: 'externalCare:familie',
+  babysitter: 'externalCare:babysitter',
+};
+
+const externalCareSeedByCategory: Record<QuizCategory, OwnershipTemplateSourceItem[]> = {
+  betreuung_entwicklung: [
+    item('Kita-Kommunikation steuern', [
+      'Nachrichten, Elterninfos, Rückmeldungen, Aushänge und Absprachen mit der Kita im Blick behalten und beantworten.',
+    ], { requiredChildcareTags: ['kita'], filterTags: [externalCareTagByChildcare.kita] }),
+    item('Eingewöhnung und Betreuungsplatz organisieren', [
+      'Eingewöhnung, Gruppenwechsel, Bezugspersonen, Vertrags- oder Platzthemen und wichtige Abstimmungen mit der Kita steuern.',
+    ], { requiredChildcareTags: ['kita'], filterTags: [externalCareTagByChildcare.kita] }),
+    item('Absprachen mit der Tagespflege steuern', [
+      'Zeiten, Besonderheiten, Rückfragen und laufende Abstimmungen mit der Tagespflege im Blick behalten.',
+    ], { requiredChildcareTags: ['tagesmutter'], filterTags: [externalCareTagByChildcare.tagesmutter] }),
+    item('Betreuungsplatz und Eingewöhnung organisieren', [
+      'Start, Wechsel, Eingewöhnung und grundlegende Betreuungsabsprachen verlässlich steuern.',
+    ], { requiredChildcareTags: ['tagesmutter'], filterTags: [externalCareTagByChildcare.tagesmutter] }),
+    item('Betreuung mit Familie abstimmen', [
+      'Zeiten, Zuständigkeiten, Verfügbarkeit und Erwartungen mit Großeltern oder Familie klar regeln.',
+    ], { requiredChildcareTags: ['family'], filterTags: [externalCareTagByChildcare.family] }),
+    item('Regeln, Routinen und wichtige Infos weitergeben', [
+      'Schlaf, Essen, Gewohnheiten, Abläufe und wichtige Besonderheiten verständlich abstimmen und aktuell halten.',
+    ], { requiredChildcareTags: ['family'], filterTags: [externalCareTagByChildcare.family] }),
+    item('Einsätze mit Babysitter oder Nanny planen', [
+      'Termine, Zeiten, Verfügbarkeit und Änderungen rund um die Betreuung im Blick behalten.',
+    ], { requiredChildcareTags: ['babysitter'], filterTags: [externalCareTagByChildcare.babysitter] }),
+    item('Abläufe und Regeln für die Betreuung klar übergeben', [
+      'Schlaf, Essen, Beruhigung, Routinen und wichtige Regeln klar erklären und aktuell halten.',
+    ], { requiredChildcareTags: ['babysitter'], filterTags: [externalCareTagByChildcare.babysitter] }),
+  ],
+  babyalltag_pflege: [
+    item('Kita-Tasche und Mitgebsachen vorbereiten', [
+      'Wechselkleidung, Brotdose, Trinkflasche, Hausschuhe, Schlafsachen und besondere Mitgebsachen vollständig bereithalten.',
+    ], { requiredChildcareTags: ['kita'], filterTags: [externalCareTagByChildcare.kita] }),
+    item('Bring- und Abholabläufe organisieren', [
+      'Bringzeiten, Abholzeiten, Übergaben, Vertretungen und kurzfristige Änderungen verlässlich abstimmen.',
+    ], { requiredChildcareTags: ['kita'], filterTags: [externalCareTagByChildcare.kita] }),
+    item('Tagespflege-Tasche und Tagesbedarf vorbereiten', [
+      'Essen, Wechselkleidung, Schlafsachen, Pflegeprodukte und persönliche Dinge vollständig bereithalten.',
+    ], { requiredChildcareTags: ['tagesmutter'], filterTags: [externalCareTagByChildcare.tagesmutter] }),
+    item('Bring- und Abholabläufe organisieren', [
+      'Zeiten, Wege, Übergaben und kurzfristige Änderungen rund um die Tagespflege abstimmen.',
+    ], { requiredChildcareTags: ['tagesmutter'], filterTags: [externalCareTagByChildcare.tagesmutter] }),
+    item('Mitgebsachen für die Familienbetreuung vorbereiten', [
+      'Essen, Kleidung, Schlafsachen, Medikamente und andere wichtige Dinge vollständig mitgeben.',
+    ], { requiredChildcareTags: ['family'], filterTags: [externalCareTagByChildcare.family] }),
+    item('Bring-, Abhol- und Übergabelogik organisieren', [
+      'Wer bringt, wer holt und wie spontane Änderungen laufen, verlässlich abstimmen.',
+    ], { requiredChildcareTags: ['family'], filterTags: [externalCareTagByChildcare.family] }),
+    item('Einsatz praktisch vorbereiten', [
+      'Essen, Schlafsachen, Kontaktinfos, Schlüssel, Notfallinfos und alles Nötige für den Einsatz vollständig vorbereiten.',
+    ], { requiredChildcareTags: ['babysitter'], filterTags: [externalCareTagByChildcare.babysitter] }),
+    item('Betreuungsbedarf im Alltag vorausplanen', [
+      'Rechtzeitig mitdenken, wann Betreuung gebraucht wird und wie sie in euren Alltag passt.',
+    ], { requiredChildcareTags: ['babysitter'], filterTags: [externalCareTagByChildcare.babysitter] }),
+  ],
+  gesundheit: [
+    item('Gesundheitsinfos für die Kita aktuell halten', [
+      'Allergien, Medikamente, Krankmeldungen und gesundheitliche Besonderheiten klar weitergeben und aktuell halten.',
+    ], { requiredChildcareTags: ['kita'], filterTags: [externalCareTagByChildcare.kita] }),
+    item('Gesundheitsinfos für die Tagespflege aktuell halten', [
+      'Allergien, Medikamente, Krankmeldungen und wichtige gesundheitliche Hinweise klar weitergeben.',
+    ], { requiredChildcareTags: ['tagesmutter'], filterTags: [externalCareTagByChildcare.tagesmutter] }),
+    item('Gesundheitsinfos für Familie aktuell halten', [
+      'Allergien, Medikamente, Krankheit und wichtige Hinweise klar weitergeben.',
+    ], { requiredChildcareTags: ['family'], filterTags: [externalCareTagByChildcare.family] }),
+    item('Notfall- und Gesundheitsinfos griffbereit halten', [
+      'Allergien, Medikamente, wichtige Nummern und gesundheitliche Hinweise klar verfügbar machen.',
+    ], { requiredChildcareTags: ['babysitter'], filterTags: [externalCareTagByChildcare.babysitter] }),
+  ],
+  haushalt_einkaeufe_vorraete: [
+    item('Kita-Ausstattung vollständig halten', [
+      'Hausschuhe, Wechselwäsche, Matschsachen, Brotdosen und andere Kita-Sachen rechtzeitig besorgen, ergänzen und ersetzen.',
+    ], { requiredChildcareTags: ['kita'], filterTags: [externalCareTagByChildcare.kita] }),
+    item('Schließtage und Betreuungsausfälle auffangen', [
+      'Ferien, Konzeptionstage, Krankheit, Eingewöhnungsphasen oder spontane Ausfälle rechtzeitig mitdenken und absichern.',
+    ], { requiredChildcareTags: ['kita'], filterTags: [externalCareTagByChildcare.kita] }),
+    item('Sachen für die Tagespflege vollständig halten', [
+      'Wechselkleidung, Pflegeprodukte, Essen, Trinksachen und Schlafsachen rechtzeitig ergänzen und ersetzen.',
+    ], { requiredChildcareTags: ['tagesmutter'], filterTags: [externalCareTagByChildcare.tagesmutter] }),
+    item('Ausfälle und Vertretung absichern', [
+      'Urlaub, Krankheit oder Änderungen in der Tagespflege rechtzeitig auffangen und Alternativen organisieren.',
+    ], { requiredChildcareTags: ['tagesmutter'], filterTags: [externalCareTagByChildcare.tagesmutter] }),
+    item('Sachen für Betreuung bei Familie bereithalten', [
+      'Wechselkleidung, Essen, Pflegeprodukte oder andere benötigte Dinge rechtzeitig vorbereiten.',
+    ], { requiredChildcareTags: ['family'], filterTags: [externalCareTagByChildcare.family] }),
+    item('Ausfälle und Alternativen absichern', [
+      'Absagen, Überforderung oder spontane Änderungen rechtzeitig auffangen und Ersatz mitdenken.',
+    ], { requiredChildcareTags: ['family'], filterTags: [externalCareTagByChildcare.family] }),
+    item('Betreuungsausstattung vollständig halten', [
+      'Snacks, Pflegeprodukte, Schlafsachen, Beschäftigungssachen und andere benötigte Dinge rechtzeitig bereithalten.',
+    ], { requiredChildcareTags: ['babysitter'], filterTags: [externalCareTagByChildcare.babysitter] }),
+    item('Ausfälle und Ersatzlösungen absichern', [
+      'Kurzfristige Absagen oder Änderungen rechtzeitig auffangen und Alternativen organisieren.',
+    ], { requiredChildcareTags: ['babysitter'], filterTags: [externalCareTagByChildcare.babysitter] }),
+  ],
+};
+
+export const externalCareTaskPackageSeedByCategory: Record<QuizCategory, OwnershipTemplateSeedItem[]> = Object.fromEntries(
+  Object.entries(externalCareSeedByCategory).map(([categoryKey, items]) => [categoryKey, items.map(toSeedItem)]),
+) as Record<QuizCategory, OwnershipTemplateSeedItem[]>;
 
 export const ownershipTaskPackageSeedByAgeGroup: Partial<Record<AgeGroup, Record<QuizCategory, OwnershipTemplateSeedItem[]>>> =
   Object.fromEntries(

@@ -16,7 +16,7 @@ import { listenToAllResponsibilities } from '@/services/responsibilities.service
 import { ensureInitiatorFamilySetup, fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import { getCurrentLocale } from '@/lib/i18n';
-import type { AgeGroup, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, QuizCategory } from '@/types/quiz';
 import type { OwnershipCardDocument } from '@/types/ownership';
 
 export default function OwnershipDashboardPage() {
@@ -34,6 +34,7 @@ function OwnershipDashboardPageContent() {
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
   const [ageGroup, setAgeGroup] = useState<AgeGroup | null>(null);
+  const [selectedChildcareTags, setSelectedChildcareTags] = useState<ChildcareTag[]>([]);
   const [ownerOptions, setOwnerOptions] = useState<Array<{ userId: string; label: string }>>([]);
   const [autoPreselectedCategoryKeys, setAutoPreselectedCategoryKeys] = useState<QuizCategory[]>([]);
   const [recommendationPayload, setRecommendationPayload] = useState<{
@@ -65,6 +66,7 @@ function OwnershipDashboardPageContent() {
       const resolvedFamilyId = bundle.profile?.familyId ?? null;
       setFamilyId(resolvedFamilyId);
       setAgeGroup(bundle.ageGroupForOwnership ?? null);
+      setSelectedChildcareTags(bundle.childcareTagsForOwnership ?? []);
       if (bundle.ownResult) {
         const signals = computeOwnershipSignals({
           categoryScores: bundle.ownResult.categoryScores,
@@ -130,8 +132,9 @@ function OwnershipDashboardPageContent() {
       actorUserId: userId,
       locale: getCurrentLocale(),
       categoryKeys: allCategoryKeys,
+      selectedChildcareTags,
     }).catch(() => setLoadError('Die Karten konnten gerade nicht geladen oder angelegt werden. Bitte versuche es erneut.'));
-  }, [familyId, userId, ageGroup, allCategoryKeys]);
+  }, [familyId, userId, ageGroup, allCategoryKeys, selectedChildcareTags]);
 
   useEffect(() => {
     if (!familyId || !userId || !ageGroup || !recommendationPayload?.selectedCategories.length) return;
@@ -143,8 +146,9 @@ function OwnershipDashboardPageContent() {
       recommendations: recommendationPayload.recommendations,
       allSignals: recommendationPayload.signals,
       locale: getCurrentLocale(),
+      selectedChildcareTags,
     }).catch(() => setLoadError('Die empfohlenen Kategorien konnten gerade nicht vorbereitet werden. Bitte versuche es erneut.'));
-  }, [familyId, userId, ageGroup, recommendationPayload]);
+  }, [familyId, userId, ageGroup, recommendationPayload, selectedChildcareTags]);
 
   if (!userId || !familyId) {
     return (

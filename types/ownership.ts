@@ -1,4 +1,4 @@
-import type { AgeGroup, QuizCategory, StressSelection } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, QuizCategory, StressSelection } from '@/types/quiz';
 import type { Locale, LocalizedText, LocalizedTextList } from '@/types/i18n';
 
 export type OwnershipFocusLevel = 'now' | 'soon' | 'later';
@@ -10,6 +10,8 @@ export interface TaskPackageTemplate {
   id: string;
   ageGroup: AgeGroup;
   categoryKey: QuizCategory;
+  filterTags?: string[];
+  requiredChildcareTags?: ChildcareTag[];
   title: LocalizedText;
   details: LocalizedTextList;
   note: LocalizedText;
