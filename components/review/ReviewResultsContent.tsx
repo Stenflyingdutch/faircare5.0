@@ -11,7 +11,6 @@ import {
 } from '@/services/resultInsights';
 import { observeAuthState } from '@/services/auth.service';
 import {
-  ensureUserProfile,
   fetchDashboardBundle,
   fetchAppUserProfile,
   sendPartnerInvitation,
@@ -115,7 +114,6 @@ export function ReviewResultsContent() {
       });
       try {
         setCurrentUserId(user.uid);
-        await ensureUserProfile({ userId: user.uid, email: user.email ?? '', displayName: user.displayName ?? undefined });
         if (!hasLoggedFirstQuery) {
           logSignupInfo('transparenz_first_query.start', {
             step: 'ReviewResultsContent.observeAuthState',
