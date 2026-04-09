@@ -106,7 +106,7 @@ export default function PartnerTestPage() {
       <div className="container test-shell stack">
         <div className="quiz-progress"><div className="quiz-progress-bar" style={{ width: `${progress}%` }} /></div>
         {!session.perceptionAnswer ? (
-          <>
+          <div className="partner-test-intro stack">
             <h1 className="test-title">Mach sichtbar, was im Alltag oft unsichtbar mitläuft.</h1>
             <fieldset className="quiz-fieldset stack">
               <legend>Wie klar ist eure Aufteilung heute?</legend>
@@ -124,7 +124,7 @@ export default function PartnerTestPage() {
                 ))}
               </div>
             </fieldset>
-          </>
+          </div>
         ) : (
           <>
             <p className="helper">Frage {index + 1} von {session.questions.length}</p>

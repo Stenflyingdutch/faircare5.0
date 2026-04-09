@@ -652,6 +652,10 @@ textarea.input {
   max-width: 26ch;
 }
 
+.partner-test-intro {
+  gap: 1.5rem;
+}
+
 .option-chip {
   border: 1px solid var(--color-line);
   border-radius: 12px;
