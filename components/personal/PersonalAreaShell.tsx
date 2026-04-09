@@ -176,6 +176,10 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   return (
     <section className="section personal-area-section">
       <div className="container personal-area-shell stack">
+        <Link href="/" className="brand personal-area-brand" aria-label="Zur Startseite von FairCare">
+          <span className="brand-fair">Fair</span>
+          <span className="brand-care">Care</span>
+        </Link>
         <header className="personal-area-header stack">
           <div className="personal-area-nav-row">
             {showNavigation && (
