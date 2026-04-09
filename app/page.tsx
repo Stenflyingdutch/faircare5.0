@@ -11,6 +11,7 @@ import { FairCareInfo } from '@/components/FairCareInfo';
 import { fetchContentBlocks, getDefaultContentBlocks, createTextResolver } from '@/services/contentBlocks.service';
 import { getCurrentLocale, uiTexts } from '@/lib/i18n';
 import type { LocalizedText } from '@/types/i18n';
+import { siteVisibility } from '@/utils/siteVisibility';
 
 export default function HomePage() {
   const [texts, setTexts] = useState<Record<string, LocalizedText>>(uiTexts);
@@ -136,14 +137,16 @@ export default function HomePage() {
               </button>
             </div>
           </Card>
-          <Card
-            title={t('landing.links.about_us.title')}
-            description={t('landing.links.about_us.text')}
-          >
-            <div style={{ marginTop: '1rem' }}>
-              <CTAButton href="/about" variant="secondary">{t('landing.links.about_us.button')}</CTAButton>
-            </div>
-          </Card>
+          {siteVisibility.about && (
+            <Card
+              title={t('landing.links.about_us.title')}
+              description={t('landing.links.about_us.text')}
+            >
+              <div style={{ marginTop: '1rem' }}>
+                <CTAButton href="/about" variant="secondary">{t('landing.links.about_us.button')}</CTAButton>
+              </div>
+            </Card>
+          )}
         </div>
       </SectionWrapper>
 
