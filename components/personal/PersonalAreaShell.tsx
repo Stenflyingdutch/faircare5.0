@@ -196,15 +196,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
                 })}
               </nav>
             )}
-            {showNavigation && (
-              <Link
-                href="/app/einstellungen"
-                className={`personal-area-settings-link ${pathname.startsWith('/app/einstellungen') ? 'active' : ''}`}
-                aria-label="Einstellungen öffnen"
-              >
-                <span aria-hidden="true">⚙</span>
-              </Link>
-            )}
           </div>
         </header>
         <div className="personal-area-content">
