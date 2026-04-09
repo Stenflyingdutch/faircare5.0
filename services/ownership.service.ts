@@ -33,7 +33,7 @@ import type {
 } from '@/types/ownership';
 
 const MAX_RECOMMENDATIONS = 2;
-const OWNERSHIP_CATALOG_VERSION = '2026-04-final';
+const OWNERSHIP_CATALOG_VERSION = '2026-04-final-v2';
 
 function nowIso() {
   return new Date().toISOString();
@@ -234,6 +234,17 @@ export async function saveTaskPackageTemplate(template: TaskPackageTemplate, act
 export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: string) {
   const categories = ownershipTaskPackageSeedByAgeGroup[ageGroup];
   if (!categories) return 0;
+
+  const existingTemplates = await getDocs(query(
+    collection(db, firestoreCollections.taskPackageTemplates),
+    where('ageGroup', '==', ageGroup),
+  ));
+
+  if (!existingTemplates.empty) {
+    const deleteBatch = writeBatch(db);
+    existingTemplates.docs.forEach((entry) => deleteBatch.delete(entry.ref));
+    await deleteBatch.commit();
+  }
 
   const writes = Object.entries(categories).flatMap(([categoryKey, items]) =>
     items.map((entry, index) => {
