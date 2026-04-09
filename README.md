@@ -94,6 +94,13 @@ npm run lint
 npm run typecheck
 ```
 
+## Passwort-Reset (Firebase Auth)
+- Startseite: `/forgot-password`
+- API-Route: `POST /api/auth/password-reset`
+- Zielseite: `/reset-password?mode=resetPassword&oobCode=...`
+
+Für Deployments muss die Basis-URL konsistent gesetzt sein (`APP_BASE_URL` oder `NEXT_PUBLIC_APP_URL`) und die verwendete Domain zusätzlich in Firebase Authentication → **Authorized domains** eingetragen werden (z. B. Production-Domain und Preview-`*.vercel.app`-Domain).
+
 ## Admin-User hochstufen (Firebase)
 Bestehenden Benutzer zur Admin-Rolle hochstufen (ohne Passwort-Reset):
 

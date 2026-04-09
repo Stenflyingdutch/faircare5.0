@@ -1,4 +1,4 @@
-import { createUserWithEmailAndPassword, onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, type User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, type User } from 'firebase/auth';
 
 import { auth } from '@/lib/firebase';
 import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
@@ -96,9 +96,9 @@ async function postJson(url: string, body: Record<string, unknown>, code: string
   }
 
   if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    const payload = await response.json().catch(() => null) as { error?: string; code?: string } | null;
     const wrapped = new Error(payload?.error ?? fallbackMessage) as Error & { code?: string };
-    wrapped.code = code;
+    wrapped.code = payload?.code ?? code;
     throw wrapped;
   }
 
@@ -141,13 +141,15 @@ export async function signOutUser() {
 
 export async function requestPasswordReset(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
-  const actionCodeSettings = {
-    url: `${resolveAuthBaseUrl()}/login`,
-  };
   console.info('auth.password_reset.request.start', { email: maskEmailForLog(normalizedEmail) });
 
   try {
-    await sendPasswordResetEmail(auth, normalizedEmail, actionCodeSettings);
+    await postJson(
+      '/api/auth/password-reset',
+      { email: normalizedEmail, baseUrl: resolveAuthBaseUrl() },
+      'auth/password-reset-failed',
+      'Passwort-Reset konnte nicht gestartet werden. Bitte versuche es erneut.',
+    );
     console.info('auth.password_reset.request.success', { email: maskEmailForLog(normalizedEmail) });
   } catch (error) {
     console.error('auth.password_reset.request.failed', {
@@ -175,6 +177,14 @@ export function resolvePasswordResetErrorMessage(error: unknown) {
 
   if (code === 'auth/network-request-failed') {
     return 'Die Verbindung zu Firebase ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.';
+  }
+
+  if (code === 'auth/password-reset-config-invalid') {
+    return 'Passwort-Reset ist aktuell nicht richtig konfiguriert. Bitte versuche es später erneut.';
+  }
+
+  if (code === 'auth/password-reset-delivery-failed') {
+    return 'Passwort-Reset konnte aktuell nicht zugestellt werden. Bitte versuche es später erneut.';
   }
 
   return 'Passwort-Reset konnte nicht gestartet werden. Bitte prüfe deine E-Mail-Adresse.';

@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import {
   loginUser,
-  requestPasswordReset,
   resolveLoginErrorMessage,
-  resolvePasswordResetErrorMessage,
   signOutUser,
   syncAuthSession,
 } from '@/services/auth.service';
@@ -24,14 +22,12 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   const safeRedirectTo = redirectTo && redirectTo.startsWith('/') ? redirectTo : null;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    setResetMessage(null);
     try {
       const userCredential = await loginUser(email, password);
       await syncAuthSession(userCredential.user);
@@ -61,23 +57,12 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
     }
   }
 
-  async function forgotPassword() {
-    setError(null);
-    setResetMessage(null);
-    if (!email.trim()) {
-      setError('Bitte gib zuerst deine E-Mail-Adresse ein.');
-      return;
-    }
-    try {
-      await requestPasswordReset(email.trim());
-      setResetMessage('Wir haben dir eine E-Mail zum Zurücksetzen deines Passworts geschickt.');
-    } catch (resetError) {
-      setError(resolvePasswordResetErrorMessage(resetError));
-    }
-  }
-
   function goToRegister() {
     router.push('/register');
+  }
+
+  function goToForgotPassword() {
+    router.push(`/forgot-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ''}`);
   }
 
   return (
@@ -88,10 +73,9 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
           <input type="email" required className="input" placeholder="E-Mail" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input type="password" required className="input" placeholder="Passwort" value={password} onChange={(e) => setPassword(e.target.value)} />
           {error && <p className="inline-error">{error}</p>}
-          {resetMessage && <p className="helper">{resetMessage}</p>}
           <button className="button primary" type="submit">Anmelden</button>
           <button className="button" type="button" onClick={goToRegister}>Registrieren</button>
-          <button className="button" type="button" onClick={forgotPassword}>Passwort vergessen?</button>
+          <button className="button" type="button" onClick={goToForgotPassword}>Passwort vergessen?</button>
         </form>
       </div>
     </section>
