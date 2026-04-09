@@ -4,759 +4,236 @@ import type { AgeGroup, QuizCategory } from '@/types/quiz';
 export interface OwnershipTemplateSeedItem {
   title: LocalizedText;
   details: LocalizedTextList;
+  filterTags?: string[];
 }
 
 interface OwnershipTemplateSourceItem {
   title: string;
   details: string[];
+  filterTags?: string[];
 }
 
 const sameAllLocales = (value: string): LocalizedText => ({ de: value, en: value, nl: value });
 
-function item(title: string, details: string[]): OwnershipTemplateSourceItem {
-  return { title, details };
+function item(title: string, details: string[], filterTags?: string[]): OwnershipTemplateSourceItem {
+  return { title, details, ...(filterTags?.length ? { filterTags } : {}) };
 }
 
 function toSeedItem(entry: OwnershipTemplateSourceItem): OwnershipTemplateSeedItem {
   return {
     title: sameAllLocales(entry.title),
     details: { de: entry.details, en: [], nl: [] },
+    ...(entry.filterTags?.length ? { filterTags: entry.filterTags } : {}),
   };
 }
 
-// Bestehende Schlüssel bleiben erhalten: `6_10` trägt die Inhalte für 6–12 und `10_plus` die Inhalte für 12–18.
-const rawSeedContent: Record<AgeGroup, Record<QuizCategory, OwnershipTemplateSourceItem[]>> = {
+const ageGroups: AgeGroup[] = ['0_1', '1_3', '3_6', '6_10', '10_plus'];
+
+type CategoryContent = Record<QuizCategory, OwnershipTemplateSourceItem[]>;
+
+const externalCareContent: CategoryContent = {
+  betreuung_entwicklung: [
+    item('Kita-Kommunikation steuern', ['Kita-Kommunikation steuern'], ['externalCare:kita']),
+    item('Eingewöhnung und Betreuungsplatz organisieren', ['Eingewöhnung und Betreuungsplatz organisieren'], ['externalCare:kita']),
+    item('Absprachen mit der Tagespflege steuern', ['Absprachen mit der Tagespflege steuern'], ['externalCare:tagespflege']),
+    item('Betreuungsplatz und Eingewöhnung organisieren', ['Betreuungsplatz und Eingewöhnung organisieren'], ['externalCare:tagespflege']),
+    item('Betreuung mit Familie abstimmen', ['Betreuung mit Familie abstimmen'], ['externalCare:familie']),
+    item('Regeln, Routinen und wichtige Infos weitergeben', ['Regeln, Routinen und wichtige Infos weitergeben'], ['externalCare:familie']),
+    item('Einsätze mit Babysitter oder Nanny planen', ['Einsätze mit Babysitter oder Nanny planen'], ['externalCare:babysitter']),
+    item('Abläufe und Regeln für die Betreuung klar übergeben', ['Abläufe und Regeln für die Betreuung klar übergeben'], ['externalCare:babysitter']),
+  ],
+  babyalltag_pflege: [
+    item('Kita-Tasche und Mitgebsachen vorbereiten', ['Kita-Tasche und Mitgebsachen vorbereiten'], ['externalCare:kita']),
+    item('Bring- und Abholabläufe organisieren', ['Bring- und Abholabläufe organisieren'], ['externalCare:kita']),
+    item('Tagespflege-Tasche und Tagesbedarf vorbereiten', ['Tagespflege-Tasche und Tagesbedarf vorbereiten'], ['externalCare:tagespflege']),
+    item('Bring- und Abholabläufe organisieren', ['Bring- und Abholabläufe organisieren'], ['externalCare:tagespflege']),
+    item('Mitgebsachen für die Familienbetreuung vorbereiten', ['Mitgebsachen für die Familienbetreuung vorbereiten'], ['externalCare:familie']),
+    item('Bring-, Abhol- und Übergabelogik organisieren', ['Bring-, Abhol- und Übergabelogik organisieren'], ['externalCare:familie']),
+    item('Einsatz praktisch vorbereiten', ['Einsatz praktisch vorbereiten'], ['externalCare:babysitter']),
+    item('Betreuungsbedarf im Alltag vorausplanen', ['Betreuungsbedarf im Alltag vorausplanen'], ['externalCare:babysitter']),
+  ],
+  gesundheit: [
+    item('Gesundheitsinfos für die Kita aktuell halten', ['Gesundheitsinfos für die Kita aktuell halten'], ['externalCare:kita']),
+    item('Gesundheitsinfos für die Tagespflege aktuell halten', ['Gesundheitsinfos für die Tagespflege aktuell halten'], ['externalCare:tagespflege']),
+    item('Gesundheitsinfos für Familie aktuell halten', ['Gesundheitsinfos für Familie aktuell halten'], ['externalCare:familie']),
+    item('Notfall- und Gesundheitsinfos griffbereit halten', ['Notfall- und Gesundheitsinfos griffbereit halten'], ['externalCare:babysitter']),
+  ],
+  haushalt_einkaeufe_vorraete: [
+    item('Kita-Ausstattung vollständig halten', ['Kita-Ausstattung vollständig halten'], ['externalCare:kita']),
+    item('Schließtage und Betreuungsausfälle auffangen', ['Schließtage und Betreuungsausfälle auffangen'], ['externalCare:kita']),
+    item('Sachen für die Tagespflege vollständig halten', ['Sachen für die Tagespflege vollständig halten'], ['externalCare:tagespflege']),
+    item('Ausfälle und Vertretung absichern', ['Ausfälle und Vertretung absichern'], ['externalCare:tagespflege']),
+    item('Sachen für Betreuung bei Familie bereithalten', ['Sachen für Betreuung bei Familie bereithalten'], ['externalCare:familie']),
+    item('Ausfälle und Alternativen absichern', ['Ausfälle und Alternativen absichern'], ['externalCare:familie']),
+    item('Betreuungsausstattung vollständig halten', ['Betreuungsausstattung vollständig halten'], ['externalCare:babysitter']),
+    item('Ausfälle und Ersatzlösungen absichern', ['Ausfälle und Ersatzlösungen absichern'], ['externalCare:babysitter']),
+  ],
+};
+
+const baseContentByAge: Record<AgeGroup, CategoryContent> = {
   '0_1': {
     betreuung_entwicklung: [
-      item('Wer wählt passende Spiel- und Lernimpulse aus', [
-        'Welche Aktivitäten passen gerade zum Alter',
-        'Was fördert das Kind sinnvoll',
-        'Was bringt Abwechslung in den Alltag',
-      ]),
-      item('Wer sorgt dafür, dass regelmäßiger Kontakt zu anderen Kindern stattfindet', [
-        'Treffen mit anderen Kindern im Kopf haben',
-        'Regelmäßigkeit im Blick behalten',
-        'Gelegenheiten aktiv erkennen',
-      ]),
-      item('Wer sucht passende Kurse und Angebote aus', [
-        'Überblick über Angebote behalten',
-        'Einschätzen, was sinnvoll ist',
-        'Zeitpunkt für Teilnahme erkennen',
-      ]),
-      item('Wer organisiert Treffen mit anderen Eltern aktiv', [
-        'Kontakte im Kopf behalten',
-        'Anstoßen, dass Treffen stattfinden',
-        'Regelmäßigkeit sichern',
-      ]),
-      item('Wer plant passende Aktivitäten im Alltag', [
-        'Ideen für den Tag im Kopf haben',
-        'Abwechslung sicherstellen',
-        'Aktivität passend zur Situation wählen',
-      ]),
-      item('Wer führt neue Aktivitäten ein. Bücher, Musik, Bewegung', [
-        'Erkennen, wann etwas Neues sinnvoll ist',
-        'Neue Impulse bewusst einbringen',
-        'Entwicklung dadurch anstoßen',
-      ]),
-      item('Wer beobachtet Interessen und passt Aktivitäten daran an', [
-        'Wahrnehmen, was das Kind interessiert',
-        'Aktivitäten entsprechend anpassen',
-        'Veränderungen erkennen',
-      ]),
-      item('Wer verfolgt Entwicklungsschritte aktiv', [
-        'Meilensteine im Blick behalten',
-        'Entwicklung einschätzen',
-        'Fortschritte bewusst wahrnehmen',
-      ]),
-      item('Wer erkennt frühzeitig Entwicklungsbedarfe', [
-        'Auffälligkeiten erkennen',
-        'Unterstützungsbedarf einschätzen',
-        'Handlungsbedarf ableiten',
-      ]),
-      item('Wer überprüft regelmäßig, ob vorhandenes Spielzeug noch zum Entwicklungsstand passt', [
-        'Spielzeug regelmäßig hinterfragen',
-        'Passung zum Alter prüfen',
-        'Bedarf für Veränderung erkennen',
-      ]),
+      item('Schlafrhythmus im Blick behalten', ['Schlafenszeiten, Wachphasen und Müdigkeitssignale mitdenken und den Tag danach ausrichten.']),
+      item('Beschäftigung und Anregung planen', ['Spielideen, Vorlesen, Singen und passende Anregung für den Tag mitdenken.']),
+      item('Ausflüge und Besuche passend planen', ['Spaziergänge, Besuche und kleine Unternehmungen so planen, dass sie zum Rhythmus des Babys passen.']),
+      item('Beruhigungswege kennen und vorbereiten', ['Im Blick behalten, was bei Unruhe, Weinen oder Überforderung hilft und was dafür griffbereit sein muss.']),
+      item('Entwicklungsschritte mitverfolgen', ['Neue Fortschritte wahrnehmen, Veränderungen einordnen und überlegen, was als Nächstes gut passt.']),
     ],
     gesundheit: [
-      item('Wer behält Vorsorgeuntersuchungen im Blick', [
-        'Nächste U-Untersuchung im Kopf haben',
-        'Timing nicht verpassen',
-        'Reihenfolge verstehen',
-      ]),
-      item('Wer behält anstehende Impfungen im Blick', [
-        'Impfstatus kennen',
-        'Nächste Schritte im Kopf haben',
-        'Zeitfenster berücksichtigen',
-      ]),
-      item('Wer entscheidet, wann ein Arztbesuch nötig ist', [
-        'Symptome einschätzen',
-        'Abwägen, ob Arzt nötig ist',
-        'Sicherheit herstellen',
-      ]),
-      item('Wer denkt rechtzeitig an anstehende Arzttermine', [
-        'Termin nicht vergessen',
-        'Vorbereitung im Kopf haben',
-        'Ablauf antizipieren',
-      ]),
-      item('Wer hält die Hausapotheke einsatzbereit', [
-        'Überblick über vorhandene Mittel',
-        'Fehlendes früh erkennen',
-        'Einsatzfähigkeit sicherstellen',
-      ]),
-      item('Wer kennt typische Symptome und kann sie einordnen', [
-        'Fieber, Husten etc. einschätzen',
-        'Normal vs. kritisch unterscheiden',
-        'Ruhe oder Handeln ableiten',
-      ]),
-      item('Wer erkennt frühzeitig gesundheitliche Auffälligkeiten', [
-        'Veränderungen wahrnehmen',
-        'Abweichungen erkennen',
-        'rechtzeitig reagieren',
-      ]),
-      item('Wer behält Krankheitsverläufe im Blick', [
-        'Entwicklung einer Krankheit verfolgen',
-        'Besserung oder Verschlechterung erkennen',
-        'nächste Schritte ableiten',
-      ]),
-      item('Wer stellt sicher, dass Gesundheitsinformationen verfügbar sind', [
-        'Wissen griffbereit im Kopf',
-        'wichtige Infos kennen',
-        'Zugriff sicherstellen',
-      ]),
-      item('Wer organisiert Krankschreibungen, Atteste und medizinische Nachweise', [
-        'Wissen, wann Nachweise nötig sind',
-        'Überblick über Anforderungen haben',
-        'rechtzeitig daran denken',
-      ]),
+      item('Vorsorge und Impftermine nachhalten', ['U-Termine, Impfungen und empfohlene Untersuchungen rechtzeitig im Blick behalten und vorbereiten.']),
+      item('Krankheitssymptome einschätzen', ['Fieber, Husten, Haut, Verdauung oder auffälliges Verhalten beobachten und bewerten.']),
+      item('Medikamente und Hausapotheke im Griff haben', ['Im Blick behalten, was vorhanden ist, was fehlt und was wann gegeben wurde.']),
+      item('Arztbesuche vorbereiten', ['Unterlagen, Fragen, Versicherungskarte und passende Terminzeiten mitdenken.']),
+      item('Gesundheitsunterlagen griffbereit halten', ['Impfpass, U-Heft und wichtige Infos so organisieren, dass sie schnell verfügbar sind.']),
     ],
     babyalltag_pflege: [
-      item('Wer behält den Überblick über tägliche Routinen', [
-        'Tagesstruktur im Kopf haben',
-        'Wiederkehrendes koordinieren',
-        'Stabilität sichern',
-      ]),
-      item('Wer erkennt, wann Routinen angepasst werden müssen', [
-        'Veränderungen im Verhalten erkennen',
-        'Bedarf zur Anpassung ableiten',
-        'Timing einschätzen',
-      ]),
-      item('Wer behält Schlafverhalten und Veränderungen im Blick', [
-        'Schlafmuster kennen',
-        'Abweichungen erkennen',
-        'Anpassungen ableiten',
-      ]),
-      item('Wer denkt an nächste Entwicklungsschritte im Alltag', [
-        'Übergänge antizipieren',
-        'nächste Phase im Kopf haben',
-        'Vorbereitung gedanklich leisten',
-      ]),
-      item('Wer sorgt dafür, dass im Alltag alles Notwendige verfügbar ist', [
-        'Bedarf im Kopf behalten',
-        'nichts Wichtiges vergessen',
-        'Alltag reibungslos halten',
-      ]),
-      item('Wer erkennt frühzeitig neue Bedürfnisse des Babys', [
-        'Signale wahrnehmen',
-        'Veränderungen interpretieren',
-        'darauf reagieren',
-      ]),
-      item('Wer passt den Alltag an Entwicklungsschritte an', [
-        'Alltag flexibel anpassen',
-        'neue Anforderungen integrieren',
-        'Struktur weiterentwickeln',
-      ]),
-      item('Wer behält Wechselkleidung und Bedarf im Blick', [
-        'Größe und Menge im Kopf haben',
-        'Bedarf rechtzeitig erkennen',
-        'Engpässe vermeiden',
-      ]),
-      item('Wer sorgt für Struktur im Alltag', [
-        'Orientierung geben',
-        'Wiederkehr schaffen',
-        'Chaos vermeiden',
-      ]),
-      item('Wer denkt an anstehende Veränderungen im Alltag', [
-        'Übergänge erkennen',
-        'kommende Anpassungen im Kopf haben',
-        'frühzeitig vorbereiten',
-      ]),
+      item('Mahlzeiten und Füttern steuern', ['Im Blick behalten, wann das Baby essen sollte und was dafür vorbereitet sein muss.']),
+      item('Wickeln und Hautpflege nachhalten', ['Windeln, Wickelzeiten, Hautzustand und nötige Pflegeprodukte im Blick behalten.']),
+      item('Baden, Nägel und Körperpflege einplanen', ['Regelmäßige Pflegeaufgaben rechtzeitig mitdenken und vorbereiten.']),
+      item('Kleidung passend bereithalten', ['Für Tag, Nacht, Wetter und unterwegs passende Kleidung im Blick behalten.']),
+      item('Tagesabläufe rund ums Baby abstimmen', ['Füttern, Wickeln, Schlafen und Losgehen im Alltag sinnvoll aufeinander abstimmen.']),
     ],
     haushalt_einkaeufe_vorraete: [
-      item('Wer plant den Wocheneinkauf gedanklich', [
-        'Bedarf im Kopf haben',
-        'kommende Woche antizipieren',
-        'nichts Wichtiges vergessen',
-      ]),
-      item('Wer erkennt frühzeitig, wann Einkäufe nötig werden', [
-        'Vorräte einschätzen',
-        'Engpässe erkennen',
-        'rechtzeitig reagieren',
-      ]),
-      item('Wer behält Vorräte im Blick', [
-        'Bestand kennen',
-        'Verbrauch einschätzen',
-        'Überblick behalten',
-      ]),
-      item('Wer denkt rechtzeitig an wiederkehrende Besorgungen', [
-        'Regelmäßiges im Kopf behalten',
-        'Timing nicht verpassen',
-        'Routine sicherstellen',
-      ]),
-      item('Wer sorgt dafür, dass Babybedarf nie ausgeht', [
-        'kritische Produkte im Blick haben',
-        'rechtzeitig nachdenken',
-        'Versorgung sichern',
-      ]),
-      item('Wer behält Haushaltsbedarf im Blick', [
-        'Waschmittel, etc. im Kopf haben',
-        'Bedarf erkennen',
-        'Engpässe vermeiden',
-      ]),
-      item('Wer erkennt, wann neue Anschaffungen nötig sind', [
-        'Bedarf antizipieren',
-        'Notwendigkeit einschätzen',
-        'rechtzeitig handeln',
-      ]),
-      item('Wer plant größere Anschaffungen gedanklich', [
-        'Bedarf früh erkennen',
-        'Optionen durchdenken',
-        'Entscheidung vorbereiten',
-      ]),
-      item('Wer behält das Haushaltsbudget im Blick', [
-        'Ausgaben im Kopf haben',
-        'Grenzen einschätzen',
-        'Prioritäten setzen',
-      ]),
-      item('Wer erkennt frühzeitig Engpässe im Haushalt', [
-        'Probleme antizipieren',
-        'Risiken erkennen',
-        'rechtzeitig gegensteuern',
-      ]),
+      item('Windeln und Pflegevorräte sichern', ['Windeln, Feuchttücher, Creme und Pflegeprodukte rechtzeitig nachkaufen und verfügbar halten.']),
+      item('Babywäsche organisieren', ['Bodys, Schlafsäcke, Spucktücher und Handtücher sauber und griffbereit halten.']),
+      item('Flaschen und Essenszubehör bereithalten', ['Flaschen, Sauger, Lätzchen und Zubehör reinigen, prüfen und vollständig verfügbar halten.']),
+      item('Babynahrung und Vorräte planen', ['Milch, Beikost, Snacks und wichtige Grundvorräte rechtzeitig im Haus haben.']),
+      item('Ausstattung und Saisonbedarf im Blick behalten', ['Fehlende, kaputte oder unpassende Dinge sowie wetterabhängige Ausstattung rechtzeitig ersetzen.']),
     ],
   },
   '1_3': {
     betreuung_entwicklung: [
-      item('Tagesrhythmus passend steuern', [
-        'Schlaf, Ruhe, Aktivität und Ausflüge so im Blick behalten, dass der Tag zum Kind passt.',
-      ]),
-      item('Spiel und Anregung passend auswählen', [
-        'Ideen, Spielsachen und kleine Aktivitäten passend zu Alter, Energie und Interesse des Kindes im Blick behalten.',
-      ]),
-      item('Sprachentwicklung im Alltag fördern', [
-        'Vorlesen, Benennen, Singen und kleine Sprechanreize regelmäßig mitdenken und einbauen.',
-      ]),
-      item('Motorische Entwicklung begleiten', [
-        'Bewegung, Klettern, Laufen, Greifen und sichere Übungsmöglichkeiten im Alltag mitdenken.',
-      ]),
-      item('Selbstständigkeit Schritt für Schritt aufbauen', [
-        'Kleine Schritte wie selbst essen, mithelfen, Schuhe probieren oder einfache Abläufe begleiten.',
-      ]),
-      item('Routinen stabil halten und anpassen', [
-        'Morgen, Mahlzeiten, Schlafen, Heimkommen und Übergänge im Blick behalten und nach Bedarf anpassen.',
-      ]),
-      item('Überreizung früh erkennen', [
-        'Signale für Müdigkeit, Frust, Reizüberflutung oder Rückzug wahrnehmen und Alltag entsprechend steuern.',
-      ]),
-      item('Übergänge gut vorbereiten', [
-        'Wechsel zwischen Zuhause, Betreuung, Spielplatz, Essen, Schlafen oder Heimweg gut begleiten.',
-      ]),
-      item('Entwicklungsstände im Blick behalten', [
-        'Beobachten, was neu gelingt, wo Unterstützung sinnvoll ist und was gerade gut passt.',
-      ]),
-      item('Passende Regeln und Orientierung geben', [
-        'Einfache Grenzen, Wiederholungen und klare Abläufe so im Blick behalten, dass das Kind Sicherheit hat.',
-      ]),
+      item('Schlaf, Pausen und Tagesablauf planen', ['Im Blick behalten, wann das Kind Ruhe, Schlaf oder einen ruhigeren Tag braucht.']),
+      item('Spielideen und Beschäftigung auswählen', ['Passende Bücher, Spiele, Sprache und Beschäftigung für den Tag mitdenken.']),
+      item('Bewegung und sicheres Ausprobieren ermöglichen', ['Klettern, Laufen, Toben und passende Bewegungsmöglichkeiten im Alltag mitdenken.']),
+      item('Selbstständigkeit im Alltag einüben', ['Selber essen, anziehen, mithelfen und kleine Alltagsschritte bewusst aufbauen.']),
+      item('Übergänge im Alltag vorbereiten', ['Losgehen, aufhören, heimkommen, schlafen oder umziehen so begleiten, dass es gut klappt.']),
     ],
     gesundheit: [
-      item('Vorsorgetermine und Impfungen steuern', [
-        'U-Termine, Impfungen, Zahnarzt und empfohlene Kontrollen im Blick behalten und vorbereiten.',
-      ]),
-      item('Krankheitssymptome beobachten', [
-        'Fieber, Husten, Haut, Magen-Darm, Zahnung oder auffälliges Verhalten früh wahrnehmen und einordnen.',
-      ]),
-      item('Medikamente und Hausapotheke im Griff haben', [
-        'Standardmittel, Dosierungen, Verfügbarkeit und Anwendung im Alltag geordnet im Blick behalten.',
-      ]),
-      item('Zahnung begleiten', [
-        'Beschwerden, Hilfsmittel, Entlastung und passende Reaktion auf Zahnungsthemen mitdenken.',
-      ]),
-      item('Trinken und Essen bei Krankheit absichern', [
-        'Darauf achten, dass das Kind bei Krankheit genug trinkt, isst und sich erholt.',
-      ]),
-      item('Arztbesuche vorbereiten', [
-        'Karte, Unterlagen, Fragen, Terminzeit und passende Begleitung für Arztbesuche mitdenken.',
-      ]),
-      item('Verträglichkeiten beobachten', [
-        'Reaktionen auf Lebensmittel, Pflegeprodukte oder Medikamente wahrnehmen und nachhalten.',
-      ]),
-      item('Sonnenschutz und Wetterschutz mitdenken', [
-        'Hitze, Kälte, Sonne und Jahreszeit im Alltag gesundheitlich passend absichern.',
-      ]),
-      item('Auffälligkeiten im Verlauf verfolgen', [
-        'Beobachten, ob etwas besser, gleich oder schlechter wird und wann nachgesteuert werden muss.',
-      ]),
-      item('Gesundheitsunterlagen griffbereit halten', [
-        'Impfpass, U-Heft, Arztinfos und wichtige Notizen schnell auffindbar organisieren.',
-      ]),
+      item('Vorsorge, Impfungen und Zahnarzttermine nachhalten', ['Gesundheitstermine rechtzeitig planen, erinnern und vorbereiten.']),
+      item('Krankheit und Beschwerden einschätzen', ['Fieber, Husten, Zahnung, Magen-Darm oder Hautthemen beobachten und einordnen.']),
+      item('Medikamente und Hausmittel im Blick behalten', ['Verfügbarkeit, Anwendung und Nachkauf verlässlich nachhalten.']),
+      item('Arztbesuche organisatorisch vorbereiten', ['Unterlagen, Fragen, Karte und passende Zeitfenster mitdenken.']),
+      item('Verträglichkeiten und wiederkehrende Themen verfolgen', ['Reaktionen auf Essen, Pflegeprodukte oder Medikamente im Blick behalten.']),
     ],
     babyalltag_pflege: [
-      item('Essen und Zwischenmahlzeiten steuern', [
-        'Mahlzeiten, Snacks, Trinkphasen und Hungerzeichen im Tagesverlauf im Blick behalten.',
-      ]),
-      item('Beikost und kindgerechtes Essen weiterentwickeln', [
-        'Passende Mahlzeiten, neue Lebensmittel und alltagstaugliche Essenslösungen planen.',
-      ]),
-      item('Wickeln oder Toilettenübergang begleiten', [
-        'Windeln, Sauberkeitsthemen, Signale und passende Abläufe im Alltag im Blick behalten.',
-      ]),
-      item('Körperpflege regelmäßig sichern', [
-        'Baden, Waschen, Zähneputzen, Nägel, Haare und Hautpflege passend einplanen.',
-      ]),
-      item('Kleidung im Alltag passend bereithalten', [
-        'Für Wetter, Schlaf, Betreuung und Aktivität passende Kleidung auswählen und verfügbar halten.',
-      ]),
-      item('Größenwechsel rechtzeitig erkennen', [
-        'Zu kleine Kleidung, Schuhe oder Schlafsachen rechtzeitig aussortieren und ersetzen.',
-      ]),
-      item('Wechselkleidung und Alltagstasche mitdenken', [
-        'Für Betreuung, Ausflüge und spontane Zwischenfälle alles Nötige griffbereit halten.',
-      ]),
-      item('Schlafen im Alltag begleiten', [
-        'Schlafbedarf, Einschlafhilfen, Schlafrituale und Veränderungen im Schlafverhalten im Blick behalten.',
-      ]),
-      item('Beruhigung und Trost organisieren', [
-        'Lieblingssachen, Schnuller, Kuscheltiere und beruhigende Abläufe im Alltag mitdenken.',
-      ]),
-      item('Tägliche Grundbedürfnisse koordinieren', [
-        'Essen, Schlaf, Pflege, Kleidung und Begleitung als Gesamtpaket im Blick behalten.',
-      ]),
+      item('Essen, Snacks und Trinken planen', ['Im Blick behalten, wann das Kind essen oder trinken sollte und was vorbereitet werden muss.']),
+      item('Wickeln oder Toilettenübergang begleiten', ['Signale, Wechselwäsche und passende Abläufe im Alltag mitdenken.']),
+      item('Körperpflege verlässlich einplanen', ['Baden, Zähneputzen, Haare, Nägel und Hautpflege regelmäßig mitdenken.']),
+      item('Kleidung und Wechselkleidung organisieren', ['Für Alltag, Wetter, Betreuung und unterwegs passende Kleidung bereithalten.']),
+      item('Alltagstasche und Unterwegs-Bedarf vorbereiten', ['Wechselkleidung, Snacks, Trinkflasche und wichtige Kleinigkeiten vor dem Losgehen mitdenken.']),
     ],
     haushalt_einkaeufe_vorraete: [
-      item('Windeln und Pflegevorräte sichern', [
-        'Windeln, Feuchttücher, Creme und Pflegeprodukte rechtzeitig nachkaufen und verfügbar halten.',
-      ]),
-      item('Kinderwäsche rechtzeitig organisieren', [
-        'Kleidung, Schlafsachen, Lätzchen und Handtücher sauber, sortiert und passend verfügbar halten.',
-      ]),
-      item('Essenszubehör und Trinksachen im Griff haben', [
-        'Flaschen, Becher, Teller, Besteck, Lätzchen und Boxen sauber und vollständig bereithalten.',
-      ]),
-      item('Kindgerechte Lebensmittel bevorraten', [
-        'Snacks, Obst, Getränke und Mahlzeiten so planen, dass im Alltag nichts fehlt.',
-      ]),
-      item('Saisonkleidung und Außensachen bereitstellen', [
-        'Regenkleidung, Sonnenhut, Mütze, Jacke oder Gummistiefel passend verfügbar halten.',
-      ]),
-      item('Alltagstaschen und Wechselsets nachfüllen', [
-        'Rucksack, Betreuungstasche und Wechselkleidung nach Nutzung wieder auffüllen.',
-      ]),
-      item('Kaputte oder unpassende Dinge ersetzen', [
-        'Fehlende, kaputte oder nicht mehr passende Kindersachen rechtzeitig erkennen und ersetzen.',
-      ]),
-      item('Spiel- und Beschäftigungsmaterial ergänzen', [
-        'Bücher, kleine Spielsachen oder Alltagshilfen passend erneuern oder austauschen.',
-      ]),
-      item('Vorräte für Wochenende und Feiertage planen', [
-        'So vorausdenken, dass rund um Schließzeiten nichts Wichtiges fehlt.',
-      ]),
-      item('Gesamtüberblick über Alltagsmaterial halten', [
-        'Behalten, was da ist, was fehlt und was bald wieder gebraucht wird.',
-      ]),
+      item('Pflegeprodukte und Verbrauchssachen nachkaufen', ['Windeln, Feuchttücher, Creme, Zahnpasta oder andere Alltagssachen rechtzeitig ergänzen.']),
+      item('Kinderwäsche und Schlafsachen verfügbar halten', ['Saubere Kleidung, Schlafsachen und Reservekleidung im Blick behalten.']),
+      item('Essenszubehör und Trinksachen im Griff haben', ['Becher, Teller, Besteck, Brotdose oder Flaschen reinigen, prüfen und ersetzen.']),
+      item('Kindgerechte Lebensmittel bevorraten', ['Snacks, Obst, Getränke und einfache Mahlzeiten so planen, dass nichts fehlt.']),
+      item('Saisonkleidung und Außensachen vorbereiten', ['Jacke, Mütze, Sonnenhut, Regenkleidung oder Schuhe rechtzeitig bereithalten.']),
     ],
   },
   '3_6': {
     betreuung_entwicklung: [
-      item('Tagesstruktur passend steuern', [
-        'Kita, Ruhe, Spiel, Termine und freie Zeit so im Blick behalten, dass der Alltag gut passt.',
-      ]),
-      item('Spiel und Beschäftigung passend auswählen', [
-        'Spiele, Basteln, Bewegung und ruhige Phasen passend zu Alter und Stimmung mitdenken.',
-      ]),
-      item('Soziale Entwicklung begleiten', [
-        'Teilen, Warten, Frust, Freundschaften und Gruppensituationen aufmerksam begleiten.',
-      ]),
-      item('Sprache und Ausdruck fördern', [
-        'Vorlesen, Erzählen, Fragen beantworten und sprachliche Entwicklung im Alltag mitdenken.',
-      ]),
-      item('Selbstständigkeit im Alltag aufbauen', [
-        'Anziehen, Aufräumen, kleine Verantwortlichkeiten und Mithelfen Schritt für Schritt begleiten.',
-      ]),
-      item('Regeln und Grenzen alltagstauglich halten', [
-        'Klare Orientierung, Wiederholungen und passende Konsequenz im Familienalltag im Blick behalten.',
-      ]),
-      item('Vorschulthemen spielerisch begleiten', [
-        'Konzentration, Feinmotorik, Zuhören und kleine Lernimpulse passend einbauen.',
-      ]),
-      item('Übergänge und Stimmungswechsel gut begleiten', [
-        'Morgens, Heimkommen, Schlafen, Verabschieden oder Stoppen von Spielen gut steuern.',
-      ]),
-      item('Routinen regelmäßig nachschärfen', [
-        'Beobachten, wo Abläufe nicht mehr tragen und was neu angepasst werden sollte.',
-      ]),
-      item('Entwicklungsbedarfe früh erkennen', [
-        'Wahrnehmen, wo das Kind mehr Sicherheit, Förderung oder Begleitung braucht.',
-      ]),
+      item('Nachmittage und freie Zeit planen', ['Im Blick behalten, wie Spielen, Bewegung, Termine und Erholung gut zusammenpassen.']),
+      item('Freundschaften und Verabredungen organisieren', ['Verabredungen, Geburtstage, Gruppensituationen und soziale Themen im Blick behalten.']),
+      item('Vorschule und Lernanreize mitdenken', ['Vorlesen, Zuhören, Konzentration und kleine Lernimpulse im Alltag bewusst einbauen.']),
+      item('Selbstständigkeit im Alltag aufbauen', ['Anziehen, Aufräumen, kleine Aufgaben und Mithelfen verlässlich einüben.']),
+      item('Regeln und Tagesabläufe stabil halten', ['Morgen, Heimkommen, Abend und typische Reibungsmomente mit klaren Abläufen steuern.']),
     ],
     gesundheit: [
-      item('Vorsorge, Zahnarzt und Impfungen steuern', [
-        'Gesundheitstermine rechtzeitig planen, wahrnehmen und vorbereiten.',
-      ]),
-      item('Akute Beschwerden einschätzen', [
-        'Fieber, Husten, Magen-Darm, Haut oder Schmerzen früh erkennen und passend reagieren.',
-      ]),
-      item('Medikamente und Hausmittel geordnet halten', [
-        'Verfügbarkeit, Anwendung und Nachkauf im Blick behalten.',
-      ]),
-      item('Zahngesundheit begleiten', [
-        'Putzen, Termine, Beschwerden und Zahnarztfragen mitdenken.',
-      ]),
-      item('Bewegung, Ruhe und Belastung balancieren', [
-        'Erkennen, wann das Kind körperlich fit, erschöpft oder überfordert ist.',
-      ]),
-      item('Ansteckung und Krankheitsphasen organisieren', [
-        'Kita-Ausfall, Zuhause-Betreuung und Wiedereinstieg mitdenken.',
-      ]),
-      item('Verträglichkeiten und Auffälligkeiten beobachten', [
-        'Reaktionen auf Essen, Hautprodukte oder wiederkehrende Beschwerden nachhalten.',
-      ]),
-      item('Sonnen-, Zecken- und Wetterschutz sichern', [
-        'Jahreszeitliche Gesundheitsthemen im Alltag mitdenken.',
-      ]),
-      item('Arztbesuche gut vorbereiten', [
-        'Fragen, Unterlagen, Zeitfenster und Begleitung passend organisieren.',
-      ]),
-      item('Gesamtüberblick über Gesundheit halten', [
-        'Wissen, was aktuell läuft, was beobachtet wird und was ansteht.',
-      ]),
+      item('Vorsorge, Impfungen und Zahnarzt nachhalten', ['Gesundheitstermine planen, vorbereiten und rechtzeitig wahrnehmen.']),
+      item('Akute Beschwerden einschätzen', ['Fieber, Husten, Bauchweh, Haut oder Schmerzen beobachten und passend reagieren.']),
+      item('Medikamente und Hilfsmittel verfügbar halten', ['Im Blick behalten, was da ist, was fehlt und was nachgekauft werden muss.']),
+      item('Arztbesuche und Nachfragen vorbereiten', ['Fragen, Unterlagen und Terminorganisation zuverlässig mitdenken.']),
+      item('Wiederkehrende Gesundheitsthemen verfolgen', ['Zahnthemen, Allergien, Haut oder andere Auffälligkeiten über längere Zeit im Blick behalten.']),
     ],
     babyalltag_pflege: [
-      item('Mahlzeiten im Alltag steuern', [
-        'Frühstück, Kita-Essen, Snacks und Abendessen alltagstauglich im Blick behalten.',
-      ]),
-      item('Brotdose und Trinkflasche mitdenken', [
-        'Für Kita, Ausflug oder Sport passende Versorgung vorbereiten.',
-      ]),
-      item('Kleidung passend für Wetter und Aktivität wählen', [
-        'Alltag, Kita, Spielplatz und Jahreszeit mitdenken.',
-      ]),
-      item('Körperpflege und Hygiene begleiten', [
-        'Zähneputzen, Baden, Haare, Nägel und Sauberkeit alltagssicher einplanen.',
-      ]),
-      item('Toilettenroutine stabil halten', [
-        'Toilettengänge, Unfälle, Wechselkleidung und Sicherheit im Alltag mitdenken.',
-      ]),
-      item('Schlafen und Ruhephasen begleiten', [
-        'Erholung, Abendroutine und Schlafbedarf im Blick behalten.',
-      ]),
-      item('Selbstständigkeit im Alltag fördern', [
-        'Anziehen, Tisch decken, Aufräumen und kleine Routinen mit dem Kind üben.',
-      ]),
-      item('Wechselkleidung und Außensachen bereithalten', [
-        'Für Kita und Alltag passende Reserve mitdenken.',
-      ]),
-      item('Alltagsabläufe verlässlich machen', [
-        'Morgen, Heimkommen, Abend und Losgehen so strukturieren, dass wenig Chaos entsteht.',
-      ]),
-      item('Gesamtüberblick über tägliche Bedürfnisse halten', [
-        'Essen, Kleidung, Pflege, Ruhe und Begleitung zusammen im Blick behalten.',
-      ]),
+      item('Mahlzeiten und Trinkroutine steuern', ['Frühstück, Kita-Essen, Snacks und Trinken über den Tag im Blick behalten.']),
+      item('Kleidung für Alltag und Wetter auswählen', ['Für Kita, Spielplatz und Wetter passende Kleidung rechtzeitig bereitlegen.']),
+      item('Körperpflege und Hygiene nachhalten', ['Zähneputzen, Baden, Haare, Nägel und Toilettenroutine im Alltag absichern.']),
+      item('Morgen- und Abendabläufe organisieren', ['Losgehen, Heimkommen, Umziehen und Schlafengehen mit klaren Abläufen steuern.']),
+      item('Wechselkleidung und Mitgebsachen vorbereiten', ['Für Kita, Ausflug oder Sport passende Sachen vollständig mitdenken.']),
     ],
     haushalt_einkaeufe_vorraete: [
-      item('Kita- und Alltagskleidung verfügbar halten', [
-        'Saubere, passende und wetterfeste Kleidung rechtzeitig bereitstellen.',
-      ]),
-      item('Brotdosen, Trinkflaschen und Rucksäcke im Griff haben', [
-        'Reinigen, auffüllen und einsatzbereit halten.',
-      ]),
-      item('Kinderwäsche und Bettwäsche organisieren', [
-        'Alltagssachen sauber und vollständig verfügbar halten.',
-      ]),
-      item('Saisonbedarf rechtzeitig umstellen', [
-        'Badesachen, Hausschuhe, Regenzeug, Mütze oder Handschuhe passend bereitstellen.',
-      ]),
-      item('Snacks und kindgerechte Lebensmittel bevorraten', [
-        'Für Kita, Zuhause und Ausflüge genug Passendes im Haus haben.',
-      ]),
-      item('Bastel- und Beschäftigungsmaterial ergänzen', [
-        'Stifte, Papier, Kleber, Bücher oder kleine Spielsachen rechtzeitig nachfüllen.',
-      ]),
-      item('Kaputte oder verlorene Sachen ersetzen', [
-        'Hausschuhe, Brotdose, Jacke oder Lieblingssachen rechtzeitig neu besorgen.',
-      ]),
-      item('Ausflugssachen und Reservebedarf mitdenken', [
-        'Rucksack, Trinkflasche, Wechselkleidung und Kleinigkeiten für unterwegs im Blick behalten.',
-      ]),
-      item('Einkäufe rund um Kita und Wochenende planen', [
-        'So vorausdenken, dass im Alltag keine Engpässe entstehen.',
-      ]),
-      item('Gesamtüberblick über kindbezogene Vorräte halten', [
-        'Wissen, was da ist, was fehlt und was bald wieder gebraucht wird.',
-      ]),
+      item('Kita-Kleidung und Reservewäsche verfügbar halten', ['Saubere Kleidung, Unterwäsche, Schlafsachen und Wechselkleidung im Blick behalten.']),
+      item('Brotdosen, Trinkflaschen und Rucksäcke einsatzbereit halten', ['Reinigen, auffüllen und fehlende Dinge rechtzeitig ersetzen.']),
+      item('Kindgerechte Lebensmittel und Snacks bevorraten', ['Für Kita, Zuhause und Ausflüge genug Passendes im Haus haben.']),
+      item('Bastel-, Spiel- und Beschäftigungsmaterial ergänzen', ['Stifte, Papier, Bücher und kleine Spielsachen rechtzeitig nachfüllen.']),
+      item('Saisonbedarf und Außensachen im Blick behalten', ['Regenzeug, Hausschuhe, Badesachen, Mütze oder Handschuhe passend bereithalten.']),
     ],
   },
   '6_10': {
     betreuung_entwicklung: [
-      item('Schulalltag passend begleiten', [
-        'Lernen, Erholung, Freizeit und Anforderungen so im Blick behalten, dass das Kind gut mitkommt.',
-      ]),
-      item('Hausaufgaben und Lernroutinen strukturieren', [
-        'Passende Zeiten, Unterstützung und Verlässlichkeit rund ums Lernen mitdenken.',
-      ]),
-      item('Freundschaften und soziale Themen begleiten', [
-        'Wahrnehmen, was in Schule, Gruppe oder Freundeskreis läuft und wo Begleitung nötig ist.',
-      ]),
-      item('Selbstständigkeit schrittweise ausbauen', [
-        'Mehr Verantwortung im Alltag, ohne das Kind zu überfordern, sinnvoll mitdenken.',
-      ]),
-      item('Freizeit und Hobbys passend balancieren', [
-        'Bewegung, Verein, freie Zeit und Erholung im Alltag gut austarieren.',
-      ]),
-      item('Mediennutzung im Blick behalten', [
-        'Regeln, Zeiten und Umgang mit Medien immer wieder passend nachschärfen.',
-      ]),
-      item('Motivation und Selbstvertrauen stärken', [
-        'Erkennen, wo das Kind Zuspruch, Orientierung oder Entlastung braucht.',
-      ]),
-      item('Routinen an neue Anforderungen anpassen', [
-        'Wenn Schule, Hausaufgaben oder Hobbys Abläufe verändern, passend nachsteuern.',
-      ]),
-      item('Entwicklungs- und Lernthemen früh erkennen', [
-        'Wahrnehmen, wo Unterstützung, Förderung oder Klärung nötig ist.',
-      ]),
-      item('Gesamtüberblick über Entwicklung und Begleitung halten', [
-        'Schule, Freizeit, Stimmung und Selbstständigkeit zusammen im Blick behalten.',
-      ]),
+      item('Schule und Lernen organisieren', ['Hausaufgaben, Tests, Lernzeiten und passende Unterstützung im Blick behalten.']),
+      item('Freundschaften und Verabredungen im Blick behalten', ['Wissen, was sozial läuft, was abgestimmt werden muss und wo Begleitung nötig ist.']),
+      item('Hobbys und Wochenstruktur koordinieren', ['Vereine, Aktivitäten, freie Zeit und Erholung im Wochenablauf sinnvoll abstimmen.']),
+      item('Medienregeln und Gerätezeiten steuern', ['Absprachen, Zeiten und Umgang mit Handy, Tablet, Konsole oder TV im Blick behalten.']),
+      item('Selbstständigkeit im Alltag ausbauen', ['Tasche packen, Dinge selbst organisieren und Verantwortung Schritt für Schritt übergeben.']),
     ],
     gesundheit: [
-      item('Vorsorge, Zahnarzt und Impfungen steuern', [
-        'Alle Gesundheitstermine verlässlich planen und vorbereiten.',
-      ]),
-      item('Beschwerden und Krankheitsverlauf beobachten', [
-        'Erkennen, wann etwas harmlos ist und wann mehr nötig wird.',
-      ]),
-      item('Medikamente und Hausapotheke im Griff behalten', [
-        'Verfügbarkeit, Dosierung und Nachkauf zuverlässig organisieren.',
-      ]),
-      item('Sport, Bewegung und Belastung mitdenken', [
-        'Achten, wie belastbar das Kind ist und was körperlich gerade passt.',
-      ]),
-      item('Schlaf, Erholung und Energie im Blick behalten', [
-        'Wahrnehmen, wenn Müdigkeit oder Überlastung ein Thema wird.',
-      ]),
-      item('Wiederkehrende Auffälligkeiten verfolgen', [
-        'Kopfschmerzen, Bauchweh, Haut, Verdauung oder Konzentrationsprobleme ernsthaft nachhalten.',
-      ]),
-      item('Arztbesuche organisatorisch vorbereiten', [
-        'Unterlagen, Zeiten, Fragen und Begleitung sauber klären.',
-      ]),
-      item('Gesunde Routinen stärken', [
-        'Zähne, Bewegung, Trinken, Schlaf und Erholung im Alltag mitdenken.',
-      ]),
-      item('Wetter- und Saisonthemen absichern', [
-        'Sonne, Kälte, Zecken, Sport oder Schwimmen passend gesundheitlich mitdenken.',
-      ]),
-      item('Gesamtüberblick über Gesundheit halten', [
-        'Alle laufenden Themen, Beobachtungen und Termine zuverlässig zusammenhalten.',
-      ]),
+      item('Vorsorge, Zahnarzt und Impfungen nachhalten', ['Gesundheitstermine rechtzeitig planen, prüfen und vorbereiten.']),
+      item('Beschwerden und Krankheitsverlauf beobachten', ['Fieber, Bauchweh, Kopfschmerzen, Haut oder andere Beschwerden einschätzen und nachverfolgen.']),
+      item('Medikamente und Hausapotheke im Griff behalten', ['Bestände, Dosierungen und Anwendung verlässlich nachhalten.']),
+      item('Sport, Belastung und Erholung mitdenken', ['Im Blick behalten, wann das Kind fit ist, Ruhe braucht oder körperlich überlastet wirkt.']),
+      item('Gesundheitsunterlagen und Atteste organisieren', ['Impfstatus, Nachweise, Unterlagen oder Bescheinigungen griffbereit halten.']),
     ],
     babyalltag_pflege: [
-      item('Mahlzeiten und Schulversorgung steuern', [
-        'Frühstück, Brotdose, Snacks und Trinken für Schule und Freizeit im Blick behalten.',
-      ]),
-      item('Kleidung für Schule, Sport und Wetter organisieren', [
-        'Passende Sachen für Alltag und Termine rechtzeitig bereithalten.',
-      ]),
-      item('Hygiene und Körperpflege begleiten', [
-        'Duschen, Zähne, Haare, Nägel und gepflegte Routinen im Blick behalten.',
-      ]),
-      item('Morgen- und Abendroutine stabil halten', [
-        'Losgehen, Heimkommen, Hausaufgaben und Schlafenszeit verlässlich strukturieren.',
-      ]),
-      item('Selbstständigkeit im Alltag fördern', [
-        'Tasche packen, Sachen mitnehmen, Verantwortlichkeiten übernehmen und Verantwortung schrittweise übergeben.',
-      ]),
-      item('Sport- und Hobbyausstattung mitdenken', [
-        'Sportsachen, Instrument, Schwimmsachen oder Material rechtzeitig bereithalten.',
-      ]),
-      item('Wechsel und Übergänge im Tagesablauf begleiten', [
-        'Zwischen Schule, Freizeit, Zuhause und Terminen gute Abläufe sicherstellen.',
-      ]),
-      item('Kleidung und Schuhe rechtzeitig erneuern', [
-        'Zu klein, kaputt oder unpassend gewordene Dinge früh erkennen.',
-      ]),
-      item('Schulsachen im Alltag funktionsfähig halten', [
-        'Federmappe, Hefte, Hausaufgabenmaterial und Taschenlogik im Blick behalten.',
-      ]),
-      item('Gesamtüberblick über tägliche Bedürfnisse halten', [
-        'Essen, Kleidung, Pflege, Schule und Selbstständigkeit als Paket steuern.',
-      ]),
+      item('Mahlzeiten und Schulversorgung steuern', ['Frühstück, Brotdose, Snacks und Trinken für Schule und Freizeit im Blick behalten.']),
+      item('Kleidung für Schule, Sport und Wetter organisieren', ['Passende Kleidung und Ausrüstung rechtzeitig bereithalten.']),
+      item('Hygiene und Körperpflege begleiten', ['Duschen, Zähne, Haare, Nägel und gepflegte Routinen im Blick behalten.']),
+      item('Morgen- und Abendroutine stabil halten', ['Losgehen, Heimkommen, Hausaufgaben und Schlafenszeit verlässlich strukturieren.']),
+      item('Sport- und Schulsachen vollständig halten', ['Im Blick behalten, was eingepackt, ersetzt oder ergänzt werden muss.']),
     ],
     haushalt_einkaeufe_vorraete: [
-      item('Schulmaterial rechtzeitig ergänzen', [
-        'Hefte, Stifte, Bastelsachen und Verbrauchsmaterial im Blick behalten.',
-      ]),
-      item('Kleidung, Unterwäsche und Sportsachen verfügbar halten', [
-        'Sauber, passend und einsatzbereit organisieren.',
-      ]),
-      item('Brotdose, Trinkflasche und Alltagsmaterial pflegen', [
-        'Reinigen, auffüllen und ersetzen, wenn etwas fehlt oder kaputt ist.',
-      ]),
-      item('Hobby- und Sportbedarf im Griff haben', [
-        'Ausrüstung, Kleidung oder Zubehör rechtzeitig beschaffen.',
-      ]),
-      item('Saisonkleidung und Außensachen vorbereiten', [
-        'Regenjacke, Badesachen, Wintersachen oder Hallenschuhe im Blick behalten.',
-      ]),
-      item('Snacks und Lebensmittel für Schulwoche planen', [
-        'So einkaufen, dass morgens und nachmittags alles da ist.',
-      ]),
-      item('Verlorene oder defekte Dinge ersetzen', [
-        'Schulsachen, Kleidung oder Sportmaterial rechtzeitig neu organisieren.',
-      ]),
-      item('Verbrauchsmaterial für Lernen und Kreatives sichern', [
-        'Kleber, Papier, Farben oder sonstige Dinge nachkaufen, bevor sie fehlen.',
-      ]),
-      item('Wochenenden, Ferien und besondere Tage vorbereiten', [
-        'Vorräte und Bedarf für Ausnahmen rechtzeitig mitdenken.',
-      ]),
-      item('Gesamtüberblick über kindbezogene Vorräte halten', [
-        'Wissen, was da ist, was fehlt und was bald wieder gebraucht wird.',
-      ]),
+      item('Schulmaterial rechtzeitig ergänzen', ['Hefte, Stifte, Bastelsachen und Verbrauchsmaterial im Blick behalten.']),
+      item('Kleidung, Unterwäsche und Sportsachen verfügbar halten', ['Sauber, passend und einsatzbereit organisieren.']),
+      item('Brotdose, Trinkflasche und Alltagsmaterial pflegen', ['Reinigen, auffüllen und ersetzen, wenn etwas fehlt oder kaputt ist.']),
+      item('Hobby- und Sportbedarf im Griff haben', ['Ausrüstung, Kleidung oder Zubehör rechtzeitig beschaffen.']),
+      item('Snacks und Vorräte für Schulwoche planen', ['So einkaufen, dass morgens und nachmittags alles da ist.']),
     ],
   },
   '10_plus': {
     betreuung_entwicklung: [
-      item('Schule, Belastung und Erholung balancieren', [
-        'Wahrnehmen, wie Anforderungen, Schlaf und Freizeit zusammenpassen und wo Entlastung nötig ist.',
-      ]),
-      item('Selbstständigkeit gezielt übergeben', [
-        'Verantwortung Schritt für Schritt abgeben, aber wichtige Themen weiter im Blick behalten.',
-      ]),
-      item('Prüfungs- und Leistungsphasen begleiten', [
-        'Rechtzeitig erkennen, wann mehr Struktur, Ruhe oder Unterstützung nötig ist.',
-      ]),
-      item('Zukunfts- und Orientierungsthemen mitdenken', [
-        'Schule, Praktika, Interessen und erste Weichenstellungen passend begleiten.',
-      ]),
-      item('Medien, Handy und digitale Routinen im Blick behalten', [
-        'Regeln und Balance zwischen Eigenverantwortung und Rahmung immer wieder anpassen.',
-      ]),
-      item('Psychische Belastung früh wahrnehmen', [
-        'Stimmung, Rückzug, Druck oder Überforderung ernst nehmen und nicht übersehen.',
-      ]),
-      item('Freundschaften, Konflikte und soziale Themen begleiten', [
-        'Wissen, was ungefähr läuft und wo Gespräch oder Halt nötig ist.',
-      ]),
-      item('Freiräume und Grenzen passend austarieren', [
-        'Nicht zu eng, nicht zu offen. Regeln und Vertrauen passend weiterentwickeln.',
-      ]),
-      item('Alltagsroutinen an das Jugendalter anpassen', [
-        'Schlaf, Lernen, Wochenrhythmus und Eigenorganisation realistisch neu denken.',
-      ]),
-      item('Gesamtüberblick über Entwicklung und Begleitung halten', [
-        'Eigenständigkeit, Schule, Stimmung und Anforderungen zusammen im Blick behalten.',
-      ]),
+      item('Schule, Lernen und Prüfungen im Blick behalten', ['Prüfungen, Abgaben, Lernphasen und schulische Belastung rechtzeitig mitdenken.']),
+      item('Praktika, Bewerbungen und Zukunftsschritte organisieren', ['Fristen, Unterlagen, Gespräche und nächste Schritte frühzeitig im Blick behalten.']),
+      item('Mediennutzung und Tagesstruktur steuern', ['Gerätenutzung, Schlaf, Erreichbarkeit und Tagesrhythmus im Blick behalten.']),
+      item('Selbstständigkeit und Eigenverantwortung übergeben', ['Mehr Verantwortung abgeben und trotzdem wichtige Themen weiter nachhalten.']),
+      item('Gesprächsbedarf und Überforderung früh merken', ['Im Blick behalten, wann Rückzug, Druck oder Überforderung zunehmen und Gespräch nötig wird.']),
     ],
     gesundheit: [
-      item('Vorsorge, Zahnarzt und Impfungen steuern', [
-        'Auch im Jugendalter wichtige Gesundheitstermine verlässlich im Blick behalten.',
-      ]),
-      item('Beschwerden und Warnzeichen ernsthaft beobachten', [
-        'Körperliche und psychische Auffälligkeiten früh erkennen und einordnen.',
-      ]),
-      item('Medikamente und gesundheitliche Selbstverantwortung begleiten', [
-        'Nachhalten, was da ist, wie es genommen wird und wo noch Unterstützung nötig ist.',
-      ]),
-      item('Schlaf, Erschöpfung und Stress im Blick behalten', [
-        'Erkennen, wenn Belastung zu hoch wird oder Routinen kippen.',
-      ]),
-      item('Bewegung, Ernährung und Regeneration mitdenken', [
-        'Gesunde Grundroutinen nicht aus dem Blick verlieren.',
-      ]),
-      item('Arzttermine und Abklärungen organisieren', [
-        'Fragen, Termine, Unterlagen und passende Begleitung bei Bedarf steuern.',
-      ]),
-      item('Gesundheitsunterlagen und Nachweise griffbereit halten', [
-        'Impfstatus, Atteste, Versicherungsdaten oder Bescheinigungen ordentlich organisieren.',
-      ]),
-      item('Wiederkehrende Beschwerden nachhalten', [
-        'Kopfschmerzen, Bauchweh, Haut, Stimmung oder Erschöpfung ernsthaft verfolgen.',
-      ]),
-      item('Schutz- und Risikothemen mitdenken', [
-        'Sonne, Sport, Verletzung, Erholung und altersgerechte Gesundheitsthemen im Blick behalten.',
-      ]),
-      item('Gesamtüberblick über Gesundheit halten', [
-        'Wissen, was ansteht, was beobachtet wird und wo gehandelt werden muss.',
-      ]),
+      item('Vorsorge, Zahnarzt und Impfungen nachhalten', ['Wichtige Gesundheitstermine auch im Jugendalter verlässlich im Blick behalten.']),
+      item('Beschwerden und Warnzeichen beobachten', ['Körperliche und psychische Auffälligkeiten früh erkennen und einordnen.']),
+      item('Medikamente und gesundheitliche Selbstverantwortung begleiten', ['Nachhalten, was da ist, wie es genommen wird und wo noch Unterstützung nötig ist.']),
+      item('Schlaf, Stress und Erholung im Blick behalten', ['Erkennen, wenn Belastung zu hoch wird oder Routinen kippen.']),
+      item('Gesundheitsunterlagen und Nachweise organisieren', ['Impfstatus, Atteste, Versicherungsthemen und wichtige Unterlagen griffbereit halten.']),
     ],
     babyalltag_pflege: [
-      item('Essen, Trinken und Tagesstruktur im Blick behalten', [
-        'Auch bei mehr Eigenständigkeit wahrnehmen, wenn Grundroutinen wegrutschen.',
-      ]),
-      item('Schlafrhythmus und Morgenstart stabilisieren', [
-        'Wochenalltag, Schule und Erholung so mitdenken, dass es nicht kippt.',
-      ]),
-      item('Kleidung, Ausrüstung und besondere Anlässe organisieren', [
-        'Alltag, Schule, Sport, Events oder Praktika passend vorbereiten.',
-      ]),
-      item('Hygiene und Grundpflege im Blick behalten', [
-        'Nicht kontrollierend, aber aufmerksam begleiten, wo Routinen wegbrechen.',
-      ]),
-      item('Schulalltag und Eigenorganisation unterstützen', [
-        'Material, Unterlagen, Lernphasen und Termine bei Bedarf mitstrukturieren.',
-      ]),
-      item('Prüfungsphasen alltagstauglich absichern', [
-        'Ruhe, Essen, Zeitfenster und Belastungssteuerung mitdenken.',
-      ]),
-      item('Zimmer, Wäsche und eigene Verantwortung begleiten', [
-        'Mehr Verantwortung übergeben, aber Engpässe oder Chaos nicht ignorieren.',
-      ]),
-      item('Mobilität und Unterwegs-Bedarf organisieren', [
-        'Wege, Sport, Ausflüge oder Reisen praktisch mitdenken.',
-      ]),
-      item('Selbstständigkeit in Alltagsschritten ausbauen', [
-        'Eigene Termine, Dinge packen, Prioritäten setzen und Verantwortung schrittweise stärken.',
-      ]),
-      item('Gesamtüberblick über tägliche Bedürfnisse halten', [
-        'Wo läuft es selbstständig, wo braucht es noch Struktur oder Erinnerung.',
-      ]),
+      item('Essen, Trinken und Tagesstruktur im Blick behalten', ['Auch bei mehr Eigenständigkeit wahrnehmen, wenn Grundroutinen wegrutschen.']),
+      item('Schlafrhythmus und Morgenstart stabilisieren', ['Schulalltag, Schlaf und Erholung so mitdenken, dass es nicht kippt.']),
+      item('Kleidung, Ausrüstung und besondere Anlässe organisieren', ['Alltag, Schule, Sport, Events oder Praktika passend vorbereiten.']),
+      item('Hygiene, Wäsche und Grundpflege im Blick behalten', ['Nicht alles übernehmen, aber aufmerksam bleiben, wo Routinen wegbrechen.']),
+      item('Prüfungsphasen im Alltag absichern', ['Ruhe, Essen, Zeitfenster und praktische Entlastung in stressigen Phasen mitdenken.']),
     ],
     haushalt_einkaeufe_vorraete: [
-      item('Kleidung und Saisonbedarf rechtzeitig erneuern', [
-        'Alltag, Sport, Schule und Wetter passend ausstatten.',
-      ]),
-      item('Schul- und Lernmaterial verfügbar halten', [
-        'Hefte, Technik, Zubehör und Verbrauchssachen rechtzeitig ergänzen.',
-      ]),
-      item('Sport-, Hobby- und Freizeitausrüstung im Blick behalten', [
-        'Fehlendes, Unpassendes oder Defektes früh erkennen und ersetzen.',
-      ]),
-      item('Snacks, Schulverpflegung und Alltagsbedarf planen', [
-        'So einkaufen, dass im Alltag genug da ist.',
-      ]),
-      item('Wäsche und alltagstaugliche Verfügbarkeit sichern', [
-        'Saubere Kleidung, Sportzeug und besondere Sachen rechtzeitig bereithalten.',
-      ]),
-      item('Technische Alltagsdinge mitdenken', [
-        'Ladekabel, Rechnerzubehör, Taschenrechner oder schulrelevante Kleinteile nicht aus dem Blick verlieren.',
-      ]),
-      item('Prüfungs-, Reise- oder Praktikumsbedarf vorbereiten', [
-        'Unterlagen, Kleidung, Material und Besonderheiten rechtzeitig beschaffen.',
-      ]),
-      item('Verlorene oder kaputte Dinge ersetzen', [
-        'Schulsachen, Schlüsselgegenstände oder Ausrüstung zügig neu organisieren.',
-      ]),
-      item('Vorräte für stressige Wochen sichern', [
-        'In Prüfungszeiten oder dichten Wochen genug Alltagsmaterial im Haus haben.',
-      ]),
-      item('Gesamtüberblick über jugendbezogene Vorräte halten', [
-        'Wissen, was da ist, was fehlt und was bald wieder gebraucht wird.',
-      ]),
+      item('Kleidung und Saisonbedarf rechtzeitig erneuern', ['Alltag, Sport, Schule und Wetter passend ausstatten.']),
+      item('Schul- und Lernmaterial verfügbar halten', ['Hefte, Technik, Zubehör und Verbrauchssachen rechtzeitig ergänzen.']),
+      item('Sport-, Hobby- und Freizeitausrüstung im Blick behalten', ['Fehlendes, Unpassendes oder Defektes früh erkennen und ersetzen.']),
+      item('Snacks, Schulverpflegung und Alltagsbedarf planen', ['So einkaufen, dass im Alltag genug da ist.']),
+      item('Prüfungs-, Reise- oder Praktikumsbedarf vorbereiten', ['Unterlagen, Kleidung, Material und Besonderheiten rechtzeitig beschaffen.']),
     ],
   },
 };
+
+const rawSeedContent: Record<AgeGroup, CategoryContent> = Object.fromEntries(
+  ageGroups.map((ageGroup) => {
+    const base = baseContentByAge[ageGroup];
+    return [ageGroup, {
+      betreuung_entwicklung: [...base.betreuung_entwicklung, ...externalCareContent.betreuung_entwicklung],
+      gesundheit: [...base.gesundheit, ...externalCareContent.gesundheit],
+      babyalltag_pflege: [...base.babyalltag_pflege, ...externalCareContent.babyalltag_pflege],
+      haushalt_einkaeufe_vorraete: [...base.haushalt_einkaeufe_vorraete, ...externalCareContent.haushalt_einkaeufe_vorraete],
+    } satisfies CategoryContent];
+  }),
+) as Record<AgeGroup, CategoryContent>;
 
 export const ownershipTaskPackageSeedByAgeGroup: Partial<Record<AgeGroup, Record<QuizCategory, OwnershipTemplateSeedItem[]>>> =
   Object.fromEntries(

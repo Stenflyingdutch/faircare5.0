@@ -19,6 +19,7 @@ import { MailClientError, sendAppMail } from '@/services/mail-client.service';
 import { buildJointInsights, computeCategoryScores, computeTotalScore, describeTotalScore } from '@/services/partnerResult';
 import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
 import { buildDisplayName, normalizeEmailAddress, normalizePersonName } from '@/services/user-profile.service';
+import { fetchUserResult } from '@/services/firestoreQuiz';
 import { firestoreCollections } from '@/types/domain';
 import type {
   AppUserProfile,
@@ -30,7 +31,7 @@ import type {
   QuizResultDocument,
   QuizSessionDocument,
 } from '@/types/partner-flow';
-import type { AgeGroup, OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
 
 type StoredUserResult = {
   questionIds: string[];
@@ -1505,6 +1506,7 @@ export async function fetchDashboardBundle(userId: string) {
         partnerDisplayName: null,
         invitationPartnerEmail: null,
         ageGroupForOwnership: null,
+        childcareTagsForOwnership: [],
       };
     }
 
@@ -1618,6 +1620,8 @@ export async function fetchDashboardBundle(userId: string) {
   let partnerDisplayName: string | null = null;
   let invitationPartnerEmail: string | null = null;
   let ageGroupForOwnership: AgeGroup | null = null;
+
+  let childcareTagsForOwnership: ChildcareTag[] = [];
 
   if (familyId) {
     const familyPath = `${firestoreCollections.families}/${familyId}`;
@@ -1757,11 +1761,32 @@ export async function fetchDashboardBundle(userId: string) {
   if (ownResult?.questionSetSnapshot?.length) {
     ageGroupForOwnership = ownResult.questionSetSnapshot[0]?.ageGroup ?? null;
   }
+
+  const normalizeChildcareTags = (value: unknown): ChildcareTag[] => {
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry): entry is ChildcareTag => ['none', 'kita', 'tagesmutter', 'family', 'babysitter'].includes(String(entry)));
+  };
+
+  if (profile.role !== 'partner') {
+    const raw = await getLatestInitiatorResultOnce();
+    childcareTagsForOwnership = normalizeChildcareTags(raw?.filter?.childcareTags);
+  }
+
   if (!ageGroupForOwnership && profile.role !== 'partner') {
     const raw = await getLatestInitiatorResultOnce();
     const candidate = raw?.filter?.youngestAgeGroup;
     if (candidate && ['0_1', '1_3', '3_6', '6_10', '10_plus'].includes(candidate)) {
       ageGroupForOwnership = candidate as AgeGroup;
+    }
+  }
+
+
+  if (!childcareTagsForOwnership.length && family?.initiatorUserId) {
+    try {
+      const initiatorUserResult = await fetchUserResult(family.initiatorUserId);
+      childcareTagsForOwnership = normalizeChildcareTags((initiatorUserResult as { filter?: { childcareTags?: unknown } } | null)?.filter?.childcareTags);
+    } catch {
+      // ignore and keep empty fallback
     }
   }
 
@@ -1776,6 +1801,7 @@ export async function fetchDashboardBundle(userId: string) {
       partnerDisplayName,
       invitationPartnerEmail,
       ageGroupForOwnership,
+      childcareTagsForOwnership,
     };
     logSignupInfo('fetchDashboardBundle.success', {
       step: 'fetchDashboardBundle',

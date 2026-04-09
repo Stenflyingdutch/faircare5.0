@@ -172,6 +172,9 @@ export default function AdminTaskPackagesPage() {
                     ))}
                   </ul>
                   <p className="helper" style={{ margin: 0 }}>Sortierung: {template.sortOrder} · Version: {template.version} · {template.isActive ? 'Aktiv' : 'Inaktiv'}</p>
+                  {!!template.filterTags?.length && (
+                    <p className="helper" style={{ margin: 0 }}>Filter-Tags: {template.filterTags.join(', ')}</p>
+                  )}
                   <button type="button" className="button" onClick={() => setDraft(template)}>Bearbeiten</button>
                 </div>
               ))}

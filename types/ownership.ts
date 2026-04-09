@@ -16,6 +16,7 @@ export interface TaskPackageTemplate {
   sortOrder: number;
   isActive: boolean;
   version: number;
+  filterTags?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

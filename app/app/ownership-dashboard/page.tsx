@@ -16,7 +16,7 @@ import { listenToAllResponsibilities } from '@/services/responsibilities.service
 import { ensureInitiatorFamilySetup, fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import { getCurrentLocale } from '@/lib/i18n';
-import type { AgeGroup, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, QuizCategory } from '@/types/quiz';
 import type { OwnershipCardDocument } from '@/types/ownership';
 
 export default function OwnershipDashboardPage() {
@@ -40,6 +40,7 @@ function OwnershipDashboardPageContent() {
     selectedCategories: QuizCategory[];
     recommendations: ReturnType<typeof buildOwnershipRecommendations>;
     signals: ReturnType<typeof computeOwnershipSignals>;
+    childcareTagsForOwnership: ChildcareTag[];
   } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const queryCategoryKeys = ((searchParams.get('categories') ?? '')
@@ -82,6 +83,7 @@ function OwnershipDashboardPageContent() {
           selectedCategories,
           recommendations,
           signals,
+          childcareTagsForOwnership: bundle.childcareTagsForOwnership ?? [],
         } : null);
       } else {
         setAutoPreselectedCategoryKeys([]);
@@ -130,8 +132,9 @@ function OwnershipDashboardPageContent() {
       actorUserId: userId,
       locale: getCurrentLocale(),
       categoryKeys: allCategoryKeys,
+      childcareTags: recommendationPayload?.childcareTagsForOwnership ?? [],
     }).catch(() => setLoadError('Die Karten konnten gerade nicht geladen oder angelegt werden. Bitte versuche es erneut.'));
-  }, [familyId, userId, ageGroup, allCategoryKeys]);
+  }, [familyId, userId, ageGroup, allCategoryKeys, recommendationPayload]);
 
   useEffect(() => {
     if (!familyId || !userId || !ageGroup || !recommendationPayload?.selectedCategories.length) return;
@@ -143,6 +146,7 @@ function OwnershipDashboardPageContent() {
       recommendations: recommendationPayload.recommendations,
       allSignals: recommendationPayload.signals,
       locale: getCurrentLocale(),
+      childcareTags: recommendationPayload.childcareTagsForOwnership ?? [],
     }).catch(() => setLoadError('Die empfohlenen Kategorien konnten gerade nicht vorbereitet werden. Bitte versuche es erneut.'));
   }, [familyId, userId, ageGroup, recommendationPayload]);
 

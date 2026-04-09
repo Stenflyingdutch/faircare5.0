@@ -20,7 +20,7 @@ import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
 import { ownershipTaskPackageSeedByAgeGroup } from '@/data/ownershipTaskPackageTemplates';
 import type { Locale, LocalizedText, LocalizedTextList } from '@/types/i18n';
-import type { AgeGroup, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, QuizCategory } from '@/types/quiz';
 import type {
   OwnershipCardDocument,
   OwnershipCategoryDocument,
@@ -162,17 +162,34 @@ function getOwnershipTaskPackageSeed(ageGroup: AgeGroup, categoryKey: QuizCatego
   return ownershipTaskPackageSeedByAgeGroup[ageGroup]?.[categoryKey] ?? [];
 }
 
+function mapChildcareToExternalCareFilterTags(childcareTags: ChildcareTag[] = []) {
+  const result = new Set<string>();
+  for (const tag of childcareTags) {
+    if (tag === 'kita') result.add('externalCare:kita');
+    if (tag === 'tagesmutter') result.add('externalCare:tagespflege');
+    if (tag === 'family') result.add('externalCare:familie');
+    if (tag === 'babysitter') result.add('externalCare:babysitter');
+  }
+  return result;
+}
+
+function matchesTemplateFilters(filterTags: string[] | undefined, selectedFilterTags: Set<string>) {
+  if (!filterTags?.length) return true;
+  return filterTags.some((tag) => selectedFilterTags.has(tag));
+}
+
 function buildSeedFallbackTemplates(ageGroup: AgeGroup, categoryKey: QuizCategory, locale: Locale) {
-  return getOwnershipTaskPackageSeed(ageGroup, categoryKey).slice(0, 10).map((entry, index) => {
+  return getOwnershipTaskPackageSeed(ageGroup, categoryKey).map((entry, index) => {
     const details = mapTemplateDetailsLocale(entry.details, locale);
     return {
-    id: `seed_${categoryKey}_${index + 1}`,
-    categoryKey,
-    title: mapTemplateLocale(entry.title, locale, 'Ownership-Bereich'),
-    details,
-    note: composeTemplateNote(details),
-    sortOrder: index + 1,
-  };
+      id: `seed_${categoryKey}_${index + 1}`,
+      categoryKey,
+      title: mapTemplateLocale(entry.title, locale, 'Ownership-Bereich'),
+      details,
+      note: composeTemplateNote(details),
+      sortOrder: index + 1,
+      filterTags: entry.filterTags ?? [],
+    };
   });
 }
 
@@ -230,6 +247,7 @@ export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: 
         sortOrder: index + 1,
         isActive: true,
         version: 1,
+        filterTags: entry.filterTags ?? [],
       };
       return saveTaskPackageTemplate(payload, actorUserId);
     }),
@@ -247,12 +265,14 @@ export async function initializeFamilyOwnership(params: {
   recommendations: OwnershipRecommendation[];
   allSignals: OwnershipSignalBreakdown[];
   locale: Locale;
+  childcareTags?: ChildcareTag[];
 }) {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
   const recommendedByCategory = new Map(params.recommendations.map((item, index) => [item.categoryKey, { ...item, rank: index + 1 }]));
   const signalByCategory = new Map(params.allSignals.map((item) => [item.categoryKey, item]));
   const activeCategoryList = [...new Set(params.selectedCategories)];
   const familyRef = doc(db, firestoreCollections.families, params.familyId);
+  const selectedFilterTags = mapChildcareToExternalCareFilterTags(params.childcareTags ?? []);
   const familySnap = await getDoc(familyRef);
   if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
 
@@ -283,8 +303,9 @@ export async function initializeFamilyOwnership(params: {
 
     const categoryTemplates = templates
       .filter((template) => template.categoryKey === categoryKey)
-      .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
+      .filter((template) => matchesTemplateFilters(template.filterTags, selectedFilterTags));
+    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale)
+      .filter((template) => matchesTemplateFilters(template.filterTags, selectedFilterTags));
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
@@ -344,10 +365,12 @@ export async function ensureOwnershipCardsForCategories(params: {
   actorUserId: string;
   locale: Locale;
   categoryKeys: QuizCategory[];
+  childcareTags?: ChildcareTag[];
 }) {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
   const activeCategoryList = [...new Set(params.categoryKeys)];
   const familyRef = doc(db, firestoreCollections.families, params.familyId);
+  const selectedFilterTags = mapChildcareToExternalCareFilterTags(params.childcareTags ?? []);
   const familySnap = await getDoc(familyRef);
   if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
   const existingCardsSnap = activeCategoryList.length
@@ -364,8 +387,9 @@ export async function ensureOwnershipCardsForCategories(params: {
   for (const categoryKey of activeCategoryList) {
     const categoryTemplates = templates
       .filter((template) => template.categoryKey === categoryKey)
-      .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
+      .filter((template) => matchesTemplateFilters(template.filterTags, selectedFilterTags));
+    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale)
+      .filter((template) => matchesTemplateFilters(template.filterTags, selectedFilterTags));
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
