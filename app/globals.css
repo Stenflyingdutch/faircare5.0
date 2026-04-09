@@ -1330,7 +1330,7 @@ textarea.input {
 
 .settings-menu-entry {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.4rem;
   border: 1px solid var(--color-line);
   border-radius: 12px;
   padding: 0.9rem 1rem;
@@ -1499,6 +1499,10 @@ textarea.input {
 
 .settings-menu-title {
   font-weight: 700;
+}
+
+.settings-menu-description {
+  line-height: 1.45;
 }
 
 .settings-subpage-head {

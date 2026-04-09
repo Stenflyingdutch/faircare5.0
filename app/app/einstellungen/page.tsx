@@ -69,7 +69,7 @@ export default function EinstellungenPage() {
         {settingsEntries.map((entry) => (
           <Link key={entry.href} href={entry.href} className="settings-menu-entry">
             <span className="settings-menu-title">{entry.title}</span>
-            <span className="helper">{entry.description}</span>
+            <span className="helper settings-menu-description">{entry.description}</span>
           </Link>
         ))}
       </div>
