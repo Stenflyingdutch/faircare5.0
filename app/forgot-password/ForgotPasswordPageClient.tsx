@@ -46,6 +46,10 @@ export default function ForgotPasswordPageClient({
       await requestPasswordReset(email.trim());
       setSuccessMessage('Wir haben dir eine E-Mail zum Zurücksetzen deines Passworts geschickt.');
     } catch (submitError) {
+      if ((submitError as { code?: string })?.code === 'auth/user-not-found') {
+        setSuccessMessage('Wenn ein Konto zu dieser E-Mail existiert, wurde eine Reset-E-Mail versendet.');
+        return;
+      }
       setError(resolvePasswordResetErrorMessage(submitError));
     } finally {
       setIsSubmitting(false);

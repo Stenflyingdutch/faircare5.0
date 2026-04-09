@@ -17,10 +17,19 @@ function maskEmailForLog(email: string) {
 
 type AuthBaseUrlResolution = {
   baseUrl: string;
-  source: 'app_base_url' | 'next_public_app_url' | 'window_origin' | 'vercel_project_production_url' | 'vercel_url' | 'localhost_fallback';
+  source:
+    | 'password_reset_base_url'
+    | 'app_url'
+    | 'app_base_url'
+    | 'next_public_site_url'
+    | 'next_public_app_url'
+    | 'vercel_project_production_url'
+    | 'vercel_project_production_url_for_preview'
+    | 'vercel_url'
+    | 'window_origin_local'
+    | 'localhost_fallback';
   hostname: string;
-  allowedHosts: string[];
-  isPlausibleForAllowedHosts: boolean;
+  isLocalhost: boolean;
 };
 
 function normalizeBaseUrl(url: string) {
@@ -35,25 +44,57 @@ function resolveHostnameFromBaseUrl(baseUrl: string) {
   }
 }
 
-function matchesAllowedHost(hostname: string, candidate: string) {
-  const normalizedCandidate = candidate.trim().toLowerCase();
-  if (!normalizedCandidate) return false;
-  const normalizedHostname = hostname.trim().toLowerCase();
-  return normalizedHostname === normalizedCandidate || normalizedHostname.endsWith(`.${normalizedCandidate}`);
+function isLocalHostname(hostname: string) {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === 'localhost' || normalized === '127.0.0.1';
 }
 
 function resolveAuthBaseUrl(): AuthBaseUrlResolution {
+  const explicitPasswordResetBaseUrl = process.env.PASSWORD_RESET_BASE_URL?.trim();
+  if (explicitPasswordResetBaseUrl) {
+    const baseUrl = normalizeBaseUrl(explicitPasswordResetBaseUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'password_reset_base_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
+  }
+
+  const explicitAppUrl = process.env.APP_URL?.trim();
+  if (explicitAppUrl) {
+    const baseUrl = normalizeBaseUrl(explicitAppUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'app_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
+  }
+
   const explicitAppBaseUrl = process.env.APP_BASE_URL?.trim();
   if (explicitAppBaseUrl) {
     const baseUrl = normalizeBaseUrl(explicitAppBaseUrl);
     const hostname = resolveHostnameFromBaseUrl(baseUrl);
-    const allowedHosts = resolveAllowedRedirectHosts();
     return {
       baseUrl,
       source: 'app_base_url',
       hostname,
-      allowedHosts,
-      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+      isLocalhost: isLocalHostname(hostname),
+    };
+  }
+
+  const explicitPublicSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (explicitPublicSiteUrl) {
+    const baseUrl = normalizeBaseUrl(explicitPublicSiteUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'next_public_site_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
     };
   }
 
@@ -61,26 +102,11 @@ function resolveAuthBaseUrl(): AuthBaseUrlResolution {
   if (explicitPublicAppUrl) {
     const baseUrl = normalizeBaseUrl(explicitPublicAppUrl);
     const hostname = resolveHostnameFromBaseUrl(baseUrl);
-    const allowedHosts = resolveAllowedRedirectHosts();
     return {
       baseUrl,
       source: 'next_public_app_url',
       hostname,
-      allowedHosts,
-      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
-    };
-  }
-
-  if (typeof window !== 'undefined' && window.location.origin) {
-    const baseUrl = normalizeBaseUrl(window.location.origin);
-    const hostname = resolveHostnameFromBaseUrl(baseUrl);
-    const allowedHosts = resolveAllowedRedirectHosts();
-    return {
-      baseUrl,
-      source: 'window_origin',
-      hostname,
-      allowedHosts,
-      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+      isLocalhost: isLocalHostname(hostname),
     };
   }
 
@@ -89,50 +115,58 @@ function resolveAuthBaseUrl(): AuthBaseUrlResolution {
   if (vercelEnv === 'production' && productionDomain) {
     const baseUrl = `https://${normalizeBaseUrl(productionDomain)}`;
     const hostname = resolveHostnameFromBaseUrl(baseUrl);
-    const allowedHosts = resolveAllowedRedirectHosts();
     return {
       baseUrl,
       source: 'vercel_project_production_url',
       hostname,
-      allowedHosts,
-      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+      isLocalhost: isLocalHostname(hostname),
+    };
+  }
+
+  if (vercelEnv === 'preview' && productionDomain && process.env.PASSWORD_RESET_ALLOW_PREVIEW !== 'true') {
+    const baseUrl = `https://${normalizeBaseUrl(productionDomain)}`;
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'vercel_project_production_url_for_preview',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
     };
   }
 
   const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) {
+  if (vercelUrl && (vercelEnv !== 'preview' || process.env.PASSWORD_RESET_ALLOW_PREVIEW === 'true')) {
     const baseUrl = `https://${normalizeBaseUrl(vercelUrl)}`;
     const hostname = resolveHostnameFromBaseUrl(baseUrl);
-    const allowedHosts = resolveAllowedRedirectHosts();
     return {
       baseUrl,
       source: 'vercel_url',
       hostname,
-      allowedHosts,
-      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+      isLocalhost: isLocalHostname(hostname),
     };
+  }
+
+  if (typeof window !== 'undefined' && window.location.origin) {
+    const baseUrl = normalizeBaseUrl(window.location.origin);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    if (isLocalHostname(hostname)) {
+      return {
+        baseUrl,
+        source: 'window_origin_local',
+        hostname,
+        isLocalhost: true,
+      };
+    }
   }
 
   const baseUrl = 'http://localhost:3000';
   const hostname = resolveHostnameFromBaseUrl(baseUrl);
-  const allowedHosts = resolveAllowedRedirectHosts();
   return {
     baseUrl,
     source: 'localhost_fallback',
     hostname,
-    allowedHosts,
-    isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+    isLocalhost: true,
   };
-}
-
-function resolveAllowedRedirectHosts() {
-  const raw = process.env.APP_ALLOWED_AUTH_REDIRECT_HOSTS?.trim()
-    || process.env.NEXT_PUBLIC_ALLOWED_AUTH_REDIRECT_HOSTS?.trim()
-    || '';
-  return raw
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
 }
 
 export async function registerUser(email: string, password: string, options?: { inviteContextPresent?: boolean }) {
@@ -249,8 +283,9 @@ export async function requestPasswordReset(email: string) {
     continueUrl,
     source: baseUrlResolution.source,
     hostname: baseUrlResolution.hostname,
-    allowedHostsConfigured: baseUrlResolution.allowedHosts,
-    isPlausibleForAllowedHosts: baseUrlResolution.isPlausibleForAllowedHosts,
+    isLocalhost: baseUrlResolution.isLocalhost,
+    vercelEnv: process.env.VERCEL_ENV ?? null,
+    previewResetEnabled: process.env.PASSWORD_RESET_ALLOW_PREVIEW === 'true',
   });
   console.info('auth.password_reset.request.start', { email: maskEmailForLog(normalizedEmail) });
 
@@ -274,7 +309,7 @@ export function resolvePasswordResetErrorMessage(error: unknown) {
   }
 
   if (code === 'auth/user-not-found') {
-    return 'Zu dieser E-Mail-Adresse gibt es kein Konto.';
+    return 'Wenn ein Konto zu dieser E-Mail existiert, wurde eine Reset-E-Mail versendet.';
   }
 
   if (code === 'auth/too-many-requests') {
