@@ -45,8 +45,16 @@ export default function HomePage() {
     const text = texts[key];
     if (!text) return `[[missing:${key}]]`;
     if (typeof text === 'string') return text;
-    return text[locale] || text.de || `[[missing:${key}]]`;
+    if (text[locale] !== undefined) return text[locale];
+    if (text.de !== undefined) return text.de;
+    return `[[missing:${key}]]`;
   };
+
+  const differentiationBullets = [
+    t('landing.differentiation.bullet1'),
+    t('landing.differentiation.bullet2'),
+    t('landing.differentiation.bullet3'),
+  ].filter((bullet) => bullet.trim().length > 0);
 
   return (
     <>
@@ -87,11 +95,13 @@ export default function HomePage() {
       <SectionWrapper subdued id="differentiation">
         <h2 className="section-title">{t('landing.differentiation.headline')}</h2>
         <p className="section-description">{t('landing.differentiation.text')}</p>
-        <ul className="bullet-list">
-          <li>{t('landing.differentiation.bullet1')}</li>
-          <li>{t('landing.differentiation.bullet2')}</li>
-          <li>{t('landing.differentiation.bullet3')}</li>
-        </ul>
+        {differentiationBullets.length > 0 && (
+          <ul className="bullet-list">
+            {differentiationBullets.map((bullet) => (
+              <li key={bullet}>{bullet}</li>
+            ))}
+          </ul>
+        )}
         <p className="section-description">{t('landing.differentiation.additional')}</p>
       </SectionWrapper>
 
