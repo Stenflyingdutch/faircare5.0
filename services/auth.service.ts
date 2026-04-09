@@ -15,25 +15,124 @@ function maskEmailForLog(email: string) {
   return `${localPart.slice(0, 2)}***@${domainPart}`;
 }
 
-function resolveAuthBaseUrl() {
-  if (typeof window !== 'undefined' && window.location.origin) {
-    return window.location.origin;
+type AuthBaseUrlResolution = {
+  baseUrl: string;
+  source: 'app_base_url' | 'next_public_app_url' | 'window_origin' | 'vercel_project_production_url' | 'vercel_url' | 'localhost_fallback';
+  hostname: string;
+  allowedHosts: string[];
+  isPlausibleForAllowedHosts: boolean;
+};
+
+function normalizeBaseUrl(url: string) {
+  return url.trim().replace(/\/+$/, '');
+}
+
+function resolveHostnameFromBaseUrl(baseUrl: string) {
+  try {
+    return new URL(baseUrl).hostname;
+  } catch {
+    return 'invalid';
+  }
+}
+
+function matchesAllowedHost(hostname: string, candidate: string) {
+  const normalizedCandidate = candidate.trim().toLowerCase();
+  if (!normalizedCandidate) return false;
+  const normalizedHostname = hostname.trim().toLowerCase();
+  return normalizedHostname === normalizedCandidate || normalizedHostname.endsWith(`.${normalizedCandidate}`);
+}
+
+function resolveAuthBaseUrl(): AuthBaseUrlResolution {
+  const explicitAppBaseUrl = process.env.APP_BASE_URL?.trim();
+  if (explicitAppBaseUrl) {
+    const baseUrl = normalizeBaseUrl(explicitAppBaseUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    const allowedHosts = resolveAllowedRedirectHosts();
+    return {
+      baseUrl,
+      source: 'app_base_url',
+      hostname,
+      allowedHosts,
+      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+    };
   }
 
-  const explicitUrl = process.env.APP_BASE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (explicitUrl) return explicitUrl.replace(/\/+$/, '');
+  const explicitPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (explicitPublicAppUrl) {
+    const baseUrl = normalizeBaseUrl(explicitPublicAppUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    const allowedHosts = resolveAllowedRedirectHosts();
+    return {
+      baseUrl,
+      source: 'next_public_app_url',
+      hostname,
+      allowedHosts,
+      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+    };
+  }
+
+  if (typeof window !== 'undefined' && window.location.origin) {
+    const baseUrl = normalizeBaseUrl(window.location.origin);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    const allowedHosts = resolveAllowedRedirectHosts();
+    return {
+      baseUrl,
+      source: 'window_origin',
+      hostname,
+      allowedHosts,
+      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+    };
+  }
 
   const productionDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
   const vercelEnv = (process.env.VERCEL_ENV ?? '').toLowerCase();
   if (vercelEnv === 'production' && productionDomain) {
-    return `https://${productionDomain.replace(/\/+$/, '')}`;
+    const baseUrl = `https://${normalizeBaseUrl(productionDomain)}`;
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    const allowedHosts = resolveAllowedRedirectHosts();
+    return {
+      baseUrl,
+      source: 'vercel_project_production_url',
+      hostname,
+      allowedHosts,
+      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+    };
   }
 
-  if (process.env.VERCEL_URL?.trim()) {
-    return `https://${process.env.VERCEL_URL.trim().replace(/\/+$/, '')}`;
+  const vercelUrl = process.env.VERCEL_URL?.trim();
+  if (vercelUrl) {
+    const baseUrl = `https://${normalizeBaseUrl(vercelUrl)}`;
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    const allowedHosts = resolveAllowedRedirectHosts();
+    return {
+      baseUrl,
+      source: 'vercel_url',
+      hostname,
+      allowedHosts,
+      isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+    };
   }
 
-  return 'http://localhost:3000';
+  const baseUrl = 'http://localhost:3000';
+  const hostname = resolveHostnameFromBaseUrl(baseUrl);
+  const allowedHosts = resolveAllowedRedirectHosts();
+  return {
+    baseUrl,
+    source: 'localhost_fallback',
+    hostname,
+    allowedHosts,
+    isPlausibleForAllowedHosts: allowedHosts.length === 0 || allowedHosts.some((host) => matchesAllowedHost(hostname, host)),
+  };
+}
+
+function resolveAllowedRedirectHosts() {
+  const raw = process.env.APP_ALLOWED_AUTH_REDIRECT_HOSTS?.trim()
+    || process.env.NEXT_PUBLIC_ALLOWED_AUTH_REDIRECT_HOSTS?.trim()
+    || '';
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 export async function registerUser(email: string, password: string, options?: { inviteContextPresent?: boolean }) {
@@ -141,9 +240,18 @@ export async function signOutUser() {
 
 export async function requestPasswordReset(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
+  const baseUrlResolution = resolveAuthBaseUrl();
+  const continueUrl = `${baseUrlResolution.baseUrl}/reset-password`;
   const actionCodeSettings = {
-    url: `${resolveAuthBaseUrl()}/login`,
+    url: continueUrl,
   };
+  console.info('auth.password_reset.continue_url', {
+    continueUrl,
+    source: baseUrlResolution.source,
+    hostname: baseUrlResolution.hostname,
+    allowedHostsConfigured: baseUrlResolution.allowedHosts,
+    isPlausibleForAllowedHosts: baseUrlResolution.isPlausibleForAllowedHosts,
+  });
   console.info('auth.password_reset.request.start', { email: maskEmailForLog(normalizedEmail) });
 
   try {
