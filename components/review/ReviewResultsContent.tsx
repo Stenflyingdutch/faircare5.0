@@ -586,16 +586,31 @@ function ResultBreakdown({
         </div>
       </div>
       <div className="stack category-list individual-result-categories">
-        {sortedCategories.map(([category, value]) => (
+        {sortedCategories.map(([category, value]) => {
+          const categoryLabel = resolveCategoryLabel(category, ageGroup ?? undefined);
+          const categoryDescription = resolveCategoryDescription(category, ageGroup ?? undefined);
+
+          return (
           <div key={category} className="category-progress-row">
-            <strong>{resolveCategoryLabel(category, ageGroup ?? undefined)}</strong>
+            <div
+              className="category-label-popover"
+              tabIndex={0}
+              aria-label={`Details zu ${categoryLabel}`}
+            >
+              <strong className="category-label-trigger">{categoryLabel}</strong>
+              <div className="category-label-tooltip" role="note">
+                <p className="category-label-tooltip-title">{categoryLabel}</p>
+                <p className="category-label-tooltip-text">{categoryDescription}</p>
+              </div>
+            </div>
             <div className="category-progress-track">
               <div className="category-progress-self" style={{ width: `${value}%` }} />
               <div className="category-progress-partner" style={{ width: `${100 - value}%` }} />
             </div>
             <strong className="category-value">{value}%</strong>
           </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
