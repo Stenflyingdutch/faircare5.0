@@ -56,18 +56,9 @@ export default function HomePage() {
           <>
             <CTAButton href="/quiz/filter">{t('landing.hero.cta_primary')}</CTAButton>
             <button
+              type="button"
+              className="cta-button secondary hero-info-button"
               onClick={() => setIsModalOpen(true)}
-              style={{
-                backgroundColor: 'var(--color-secondary)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-button)',
-                padding: '0.9rem 1.5rem',
-                fontWeight: 600,
-                fontSize: '1rem',
-                cursor: 'pointer',
-                minHeight: '46px',
-              }}
             >
               {t('landing.hero.cta_secondary')}
             </button>
@@ -140,7 +131,9 @@ export default function HomePage() {
             description={t('landing.links.what_is_faircare.text')}
           >
             <div style={{ marginTop: '1rem' }}>
-              <CTAButton href="/about" variant="secondary">{t('landing.links.what_is_faircare.button')}</CTAButton>
+              <button type="button" className="cta-button secondary" onClick={() => setIsModalOpen(true)}>
+                {t('landing.links.what_is_faircare.button')}
+              </button>
             </div>
           </Card>
           <Card
