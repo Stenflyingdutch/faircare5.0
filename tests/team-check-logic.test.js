@@ -24,13 +24,13 @@ test('team check badge is a dot only in personal nav and not a number/text badge
   assert.match(css, /width:\s*8px/);
 });
 
-test('settings gear stays available even on results pages before the full personal nav is shown', () => {
+test('results pages no longer expose an Einstellungen entry point', () => {
   const shell = read('components/personal/PersonalAreaShell.tsx');
   const results = read('components/review/ReviewResultsContent.tsx');
   assert.match(shell, /const showNavigation = !pathname\.startsWith\('\/app\/ergebnisse'\)/);
   assert.match(shell, /\{showNavigation && \(/);
-  assert.match(results, /href="\/app\/einstellungen"/);
-  assert.match(results, />\s*Einstellungen\s*</);
+  assert.doesNotMatch(results, /href="\/app\/einstellungen"/);
+  assert.doesNotMatch(results, />\s*Einstellungen\s*</);
 });
 
 test('settings start page contains the base entries and gates admin area by role', () => {
