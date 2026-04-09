@@ -15,25 +15,158 @@ function maskEmailForLog(email: string) {
   return `${localPart.slice(0, 2)}***@${domainPart}`;
 }
 
-function resolveAuthBaseUrl() {
-  if (typeof window !== 'undefined' && window.location.origin) {
-    return window.location.origin;
+type AuthBaseUrlResolution = {
+  baseUrl: string;
+  source:
+    | 'password_reset_base_url'
+    | 'app_url'
+    | 'app_base_url'
+    | 'next_public_site_url'
+    | 'next_public_app_url'
+    | 'vercel_project_production_url'
+    | 'vercel_project_production_url_for_preview'
+    | 'vercel_url'
+    | 'window_origin_local'
+    | 'localhost_fallback';
+  hostname: string;
+  isLocalhost: boolean;
+};
+
+function normalizeBaseUrl(url: string) {
+  return url.trim().replace(/\/+$/, '');
+}
+
+function resolveHostnameFromBaseUrl(baseUrl: string) {
+  try {
+    return new URL(baseUrl).hostname;
+  } catch {
+    return 'invalid';
+  }
+}
+
+function isLocalHostname(hostname: string) {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === 'localhost' || normalized === '127.0.0.1';
+}
+
+function resolveAuthBaseUrl(): AuthBaseUrlResolution {
+  const explicitPasswordResetBaseUrl = process.env.PASSWORD_RESET_BASE_URL?.trim();
+  if (explicitPasswordResetBaseUrl) {
+    const baseUrl = normalizeBaseUrl(explicitPasswordResetBaseUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'password_reset_base_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
   }
 
-  const explicitUrl = process.env.APP_BASE_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (explicitUrl) return explicitUrl.replace(/\/+$/, '');
+  const explicitAppUrl = process.env.APP_URL?.trim();
+  if (explicitAppUrl) {
+    const baseUrl = normalizeBaseUrl(explicitAppUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'app_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
+  }
+
+  const explicitAppBaseUrl = process.env.APP_BASE_URL?.trim();
+  if (explicitAppBaseUrl) {
+    const baseUrl = normalizeBaseUrl(explicitAppBaseUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'app_base_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
+  }
+
+  const explicitPublicSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (explicitPublicSiteUrl) {
+    const baseUrl = normalizeBaseUrl(explicitPublicSiteUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'next_public_site_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
+  }
+
+  const explicitPublicAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (explicitPublicAppUrl) {
+    const baseUrl = normalizeBaseUrl(explicitPublicAppUrl);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'next_public_app_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
+  }
 
   const productionDomain = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
   const vercelEnv = (process.env.VERCEL_ENV ?? '').toLowerCase();
   if (vercelEnv === 'production' && productionDomain) {
-    return `https://${productionDomain.replace(/\/+$/, '')}`;
+    const baseUrl = `https://${normalizeBaseUrl(productionDomain)}`;
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'vercel_project_production_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
   }
 
-  if (process.env.VERCEL_URL?.trim()) {
-    return `https://${process.env.VERCEL_URL.trim().replace(/\/+$/, '')}`;
+  if (vercelEnv === 'preview' && productionDomain && process.env.PASSWORD_RESET_ALLOW_PREVIEW !== 'true') {
+    const baseUrl = `https://${normalizeBaseUrl(productionDomain)}`;
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'vercel_project_production_url_for_preview',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
   }
 
-  return 'http://localhost:3000';
+  const vercelUrl = process.env.VERCEL_URL?.trim();
+  if (vercelUrl && (vercelEnv !== 'preview' || process.env.PASSWORD_RESET_ALLOW_PREVIEW === 'true')) {
+    const baseUrl = `https://${normalizeBaseUrl(vercelUrl)}`;
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    return {
+      baseUrl,
+      source: 'vercel_url',
+      hostname,
+      isLocalhost: isLocalHostname(hostname),
+    };
+  }
+
+  if (typeof window !== 'undefined' && window.location.origin) {
+    const baseUrl = normalizeBaseUrl(window.location.origin);
+    const hostname = resolveHostnameFromBaseUrl(baseUrl);
+    if (isLocalHostname(hostname)) {
+      return {
+        baseUrl,
+        source: 'window_origin_local',
+        hostname,
+        isLocalhost: true,
+      };
+    }
+  }
+
+  const baseUrl = 'http://localhost:3000';
+  const hostname = resolveHostnameFromBaseUrl(baseUrl);
+  return {
+    baseUrl,
+    source: 'localhost_fallback',
+    hostname,
+    isLocalhost: true,
+  };
 }
 
 export async function registerUser(email: string, password: string, options?: { inviteContextPresent?: boolean }) {
@@ -141,9 +274,19 @@ export async function signOutUser() {
 
 export async function requestPasswordReset(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
+  const baseUrlResolution = resolveAuthBaseUrl();
+  const continueUrl = `${baseUrlResolution.baseUrl}/reset-password`;
   const actionCodeSettings = {
-    url: `${resolveAuthBaseUrl()}/login`,
+    url: continueUrl,
   };
+  console.info('auth.password_reset.continue_url', {
+    continueUrl,
+    source: baseUrlResolution.source,
+    hostname: baseUrlResolution.hostname,
+    isLocalhost: baseUrlResolution.isLocalhost,
+    vercelEnv: process.env.VERCEL_ENV ?? null,
+    previewResetEnabled: process.env.PASSWORD_RESET_ALLOW_PREVIEW === 'true',
+  });
   console.info('auth.password_reset.request.start', { email: maskEmailForLog(normalizedEmail) });
 
   try {
@@ -166,7 +309,7 @@ export function resolvePasswordResetErrorMessage(error: unknown) {
   }
 
   if (code === 'auth/user-not-found') {
-    return 'Zu dieser E-Mail-Adresse gibt es kein Konto.';
+    return 'Wenn ein Konto zu dieser E-Mail existiert, wurde eine Reset-E-Mail versendet.';
   }
 
   if (code === 'auth/too-many-requests') {
