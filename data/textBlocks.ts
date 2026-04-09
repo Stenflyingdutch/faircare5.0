@@ -29,7 +29,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'quiz',
     label: 'Quiz-Filter Titel',
     description: 'Titel auf der Einstiegsseite vor dem Quiz.',
-    text: { de: 'Vor dem Quiz', en: 'Before the quiz', nl: 'Voor de quiz' },
+    text: { de: 'Mach sichtbar, was im Alltag oft unsichtbar mitläuft.', en: 'Make visible what often runs invisibly in everyday life.', nl: 'Maak zichtbaar wat in het dagelijks leven vaak onzichtbaar meeloopt.' },
   },
   {
     key: 'quiz.filter.step',
