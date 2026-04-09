@@ -102,6 +102,7 @@ export function ReviewResultsContent() {
   );
   const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
   const [inviteMessage, setInviteMessage] = useState('');
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [unlockState, setUnlockState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [unlockMessage, setUnlockMessage] = useState('');
   const [unlockProgress, setUnlockProgress] = useState(0);
@@ -286,8 +287,10 @@ export function ReviewResultsContent() {
   const invitationPartnerName = deriveNameFromEmail(bundle?.invitationPartnerEmail);
   const partnerLabel = resolveDisplayName(resolvedPartnerName, invitationPartnerName ?? 'Partner');
   const firstName = resolveFirstName(bundle?.profile?.firstName)
-    || resolveFirstName(bundle?.profile?.displayName)
-    || 'Du';
+    || resolveFirstName(bundle?.profile?.displayName);
+  const personalGreeting = firstName
+    ? `Hi ${firstName}, hier ist Deine Bewertung.`
+    : 'Hi, hier ist Deine Bewertung.';
   const activeAgeGroup = bundle?.ownResult?.questionSetSnapshot?.[0]?.ageGroup
     ?? bundle?.partnerResult?.questionSetSnapshot?.[0]?.ageGroup
     ?? bundle?.ageGroupForOwnership
@@ -315,6 +318,12 @@ export function ReviewResultsContent() {
     && !hasUnlockedResults;
   const discussedDate = formatDiscussedDate(bundle?.family?.resultsDiscussedAt ?? null);
   const hasActiveOwnershipCards = ownershipCards.some(resolveCardIsActive);
+
+  useEffect(() => {
+    if (bundle?.invitationPartnerEmail) {
+      setIsInviteDialogOpen(false);
+    }
+  }, [bundle?.invitationPartnerEmail]);
 
   const ownershipSignals = useMemo(() => {
     if (!bundle?.ownResult) return [];
@@ -377,14 +386,14 @@ export function ReviewResultsContent() {
     <section className="section">
       <div className="container stack">
         <article className="card stack">
-          <h2 className="card-title">
-            {`${firstName}, das hier ist deine persönliche Zusammenfassung:`}
-          </h2>
-          {discussedDate && <p className="helper" style={{ margin: 0 }}>Zuletzt gemeinsam besprochen am {discussedDate}.</p>}
-        </article>
-
-        <article className="card stack">
           <h2 className="card-title">Eigenes Ergebnis</h2>
+          <div className="stack" style={{ gap: 8 }}>
+            <p className="card-description" style={{ margin: 0, fontWeight: 600 }}>{personalGreeting}</p>
+            <p className="helper" style={{ margin: 0 }}>
+              Das ist eine subjektive Momentaufnahme. Sie soll Euch als Anregung dienen, miteinander ins Gespräch zu kommen und gemeinsam auf Eure Verteilung zu schauen.
+            </p>
+            {discussedDate && <p className="helper" style={{ margin: 0 }}>Zuletzt gemeinsam besprochen am {discussedDate}.</p>}
+          </div>
           {!ownResultText
             ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
             : (
@@ -400,35 +409,19 @@ export function ReviewResultsContent() {
             )}
         </article>
 
-        {canInvitePartner && (
+        {canInvitePartner && !bundle?.invitationPartnerEmail && (
           <article className="card stack">
-            <h2 className="card-title">Partner einladen</h2>
-            {!bundle?.invitationPartnerEmail ? (
-              <form className="stack" onSubmit={onInviteSubmit}>
-                <input
-                  type="email"
-                  className="input"
-                  required
-                  placeholder="E-Mail deines Partners"
-                  value={inviteEmail}
-                  onChange={(event) => setInviteEmail(event.target.value)}
-                  disabled={inviteState === 'loading'}
-                />
-                <textarea
-                  className="input"
-                  rows={5}
-                  value={invitePersonalMessage}
-                  onChange={(event) => setInvitePersonalMessage(event.target.value)}
-                  aria-label="Persönliche Nachricht"
-                  placeholder="Persönliche Nachricht"
-                />
-                <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
-                  {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Partner zum Quiz einladen'}
-                </button>
-              </form>
-            ) : (
-              <p className="card-description">Partner wurde per E-Mail eingeladen. Du wirst benachrichtigt, sobald er/sie das Quiz fertiggestellt hat.</p>
-            )}
+            <p className="helper" style={{ margin: 0 }}>
+              Um einen guten Startpunkt zu haben, Euch gemeinsam Gedanken darüber zu machen, was für Euch eine faire Verteilung bedeutet, kannst Du Deinen Partner einladen, dieses Quiz aus seiner Sicht auszufüllen.
+            </p>
+            <button
+              type="button"
+              className="button secondary"
+              style={{ width: 'fit-content' }}
+              onClick={() => setIsInviteDialogOpen(true)}
+            >
+              Deinen Partner einladen
+            </button>
             {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
             {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
             {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
@@ -490,9 +483,6 @@ export function ReviewResultsContent() {
                 {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
               </>
             )}
-            <Link href="/app/einstellungen" className="button primary" style={{ width: '100%' }}>
-              Einstellungen
-            </Link>
           </article>
         )}
 
@@ -540,6 +530,53 @@ export function ReviewResultsContent() {
           </article>
         )}
       </div>
+      {isInviteDialogOpen && canInvitePartner && !bundle?.invitationPartnerEmail && (
+        <div
+          className="ownership-modal-backdrop"
+          onClick={() => setIsInviteDialogOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="card stack ownership-modal"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Partner einladen"
+          >
+            <div className="ownership-modal-header">
+              <h3 className="card-title" style={{ margin: 0 }}>Partner einladen</h3>
+              <button type="button" className="ownership-modal-close" onClick={() => setIsInviteDialogOpen(false)}>
+                Schließen
+              </button>
+            </div>
+            <form className="stack" onSubmit={onInviteSubmit}>
+              <input
+                type="email"
+                className="input"
+                required
+                placeholder="E-Mail deines Partners"
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                disabled={inviteState === 'loading'}
+              />
+              <textarea
+                className="input"
+                rows={5}
+                value={invitePersonalMessage}
+                onChange={(event) => setInvitePersonalMessage(event.target.value)}
+                aria-label="Persönliche Nachricht"
+                placeholder="Persönliche Nachricht"
+              />
+              <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
+                {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Partner zum Quiz einladen'}
+              </button>
+            </form>
+            {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
+            {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
+            {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -649,7 +686,6 @@ function ResultBreakdown({
 
   return (
     <>
-      <h2 className="card-title">{displayName}, das hier ist deine persönliche Zusammenfassung:</h2>
       <p className="helper" style={{ margin: 0 }}>{result.statement}</p>
       <div className="personal-result-summary detailed individual-result-panel individual-result-light">
         <div className="result-overview-grid">
