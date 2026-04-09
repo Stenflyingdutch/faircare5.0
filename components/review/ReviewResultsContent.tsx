@@ -97,6 +97,7 @@ export function ReviewResultsContent() {
   const [loading, setLoading] = useState(true);
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteEmailConfirm, setInviteEmailConfirm] = useState('');
   const [invitePersonalMessage, setInvitePersonalMessage] = useState(
     'Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.',
   );
@@ -200,6 +201,7 @@ export function ReviewResultsContent() {
   async function onInviteSubmit(event: FormEvent) {
     event.preventDefault();
     const email = inviteEmail.trim();
+    const emailConfirm = inviteEmailConfirm.trim();
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email) {
       setInviteState('error');
@@ -209,6 +211,16 @@ export function ReviewResultsContent() {
     if (!emailPattern.test(email)) {
       setInviteState('error');
       setInviteMessage('Bitte gib eine gültige E-Mail-Adresse ein.');
+      return;
+    }
+    if (!emailConfirm) {
+      setInviteState('error');
+      setInviteMessage('Bitte gib die E-Mail-Adresse Deines Partners erneut ein.');
+      return;
+    }
+    if (email.toLowerCase() !== emailConfirm.toLowerCase()) {
+      setInviteState('error');
+      setInviteMessage('Die E-Mail-Adressen stimmen nicht überein.');
       return;
     }
 
@@ -223,6 +235,8 @@ export function ReviewResultsContent() {
         setInviteState('success');
         setInviteMessage(`Einladung an ${result.partnerEmail} versendet.`);
       }
+      setInviteEmail('');
+      setInviteEmailConfirm('');
       if (currentUserId) {
         const profile = await fetchAppUserProfile(currentUserId);
         if (profile?.id) {
@@ -316,6 +330,14 @@ export function ReviewResultsContent() {
   const canInvitePartner = bundle?.profile?.role !== 'partner'
     && !bundle?.family?.partnerRegistered
     && !hasUnlockedResults;
+  const hasSentInvitation = Boolean(bundle?.invitationPartnerEmail);
+  const partnerQuizCompleted = Boolean(bundle?.family?.partnerRegistered);
+  const jointResultVisible = Boolean(bundle?.family?.resultsUnlocked && bundle?.family?.sharedResultsOpened);
+  const showInviteHint = canInvitePartner && !hasSentInvitation;
+  const showWaitingHint = canInvitePartner && hasSentInvitation;
+  const showJointResultCta = !jointResultVisible && bundle?.profile?.role !== 'partner' && partnerQuizCompleted;
+  const showOwnershipCta = jointResultVisible && bundle?.profile?.role !== 'partner';
+  const inviteButtonLabel = hasSentInvitation ? 'Partner erneut einladen' : 'Deinen Partner einladen';
   const discussedDate = formatDiscussedDate(bundle?.family?.resultsDiscussedAt ?? null);
   const hasActiveOwnershipCards = ownershipCards.some(resolveCardIsActive);
 
@@ -387,12 +409,72 @@ export function ReviewResultsContent() {
       <div className="container stack">
         <article className="card stack">
           <h2 className="card-title">Eigenes Ergebnis</h2>
+          <Link href="/app/einstellungen" className="button" style={{ width: 'fit-content' }}>
+            Einstellungen
+          </Link>
           <div className="stack" style={{ gap: 8 }}>
             <p className="card-description" style={{ margin: 0, fontWeight: 600 }}>{personalGreeting}</p>
             <p className="helper" style={{ margin: 0 }}>
               Das ist eine subjektive Momentaufnahme. Sie soll Euch als Anregung dienen, miteinander ins Gespräch zu kommen und gemeinsam auf Eure Verteilung zu schauen.
             </p>
             {discussedDate && <p className="helper" style={{ margin: 0 }}>Zuletzt gemeinsam besprochen am {discussedDate}.</p>}
+            {showInviteHint && (
+              <p className="helper" style={{ margin: 0 }}>
+                Um einen guten Startpunkt zu haben, Euch gemeinsam Gedanken darüber zu machen, was für Euch eine faire Verteilung bedeutet, kannst Du Deinen Partner einladen, dieses Quiz aus seiner Sicht auszufüllen.
+              </p>
+            )}
+            {showWaitingHint && (
+              <p className="helper" style={{ margin: 0 }}>
+                Gemeinsame Ergebnisse erscheinen hier, sobald Dein Partner das Quiz ausgefüllt hat.
+              </p>
+            )}
+            {canInvitePartner && (
+              <button
+                type="button"
+                className="button secondary"
+                style={{ width: 'fit-content' }}
+                onClick={() => setIsInviteDialogOpen(true)}
+              >
+                {inviteButtonLabel}
+              </button>
+            )}
+            {showJointResultCta && (
+              <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
+                {unlockState === 'loading' ? 'Gemeinsame Ergebnisse werden berechnet …' : 'Gemeinsames Ergebnis anschauen'}
+              </button>
+            )}
+            {showOwnershipCta && (
+              <>
+                <Link href="/app/ownership-dashboard" className="button primary" style={{ width: 'fit-content' }}>
+                  Unsere gemeinsamen Verantwortungen anschauen
+                </Link>
+                <p className="helper" style={{ margin: 0 }}>
+                  Im Bereich Unser könnt Ihr nun Eure gemeinsamen Verantwortlichkeiten zuordnen.
+                </p>
+                <p className="helper" style={{ margin: 0 }}>
+                  Ihr tragt als Paar die Verantwortung immer gemeinsam. Hier geht es darum festzulegen, wer eine Aufgabe dauerhaft im Blick hat.
+                </p>
+              </>
+            )}
+            {unlockState === 'loading' && (
+              <>
+                <div className="quiz-progress" aria-label="Berechnungsfortschritt">
+                  <div className="quiz-progress-bar" style={{ width: `${unlockProgress}%`, transition: 'width 100ms linear' }} />
+                </div>
+                <p className="helper">{unlockProgress}%</p>
+                <div className="card" style={{ overflow: 'hidden' }}>
+                  <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Denkaufgaben sichtbar gemacht</p>
+                  <p style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {Array.from({ length: 4 }).map((_, offset) => unlockBannerPool[(unlockBannerIndex + offset) % unlockBannerPool.length]).join(' - ')}
+                  </p>
+                </div>
+              </>
+            )}
+            {inviteState === 'success' && <p className="helper" style={{ margin: 0 }}>{inviteMessage}</p>}
+            {inviteState === 'warning' && <p className="inline-error" style={{ margin: 0 }}>{inviteMessage}</p>}
+            {inviteState === 'error' && <p className="inline-error" style={{ margin: 0 }}>{inviteMessage}</p>}
+            {unlockState === 'success' && <p className="helper" style={{ margin: 0 }}>{unlockMessage}</p>}
+            {unlockState === 'error' && <p className="inline-error" style={{ margin: 0 }}>{unlockMessage}</p>}
           </div>
           {!ownResultText
             ? <p className="card-description">Noch kein Ergebnis verknüpft.</p>
@@ -409,41 +491,9 @@ export function ReviewResultsContent() {
             )}
         </article>
 
-        {canInvitePartner && !bundle?.invitationPartnerEmail && (
-          <article className="card stack">
-            <p className="helper" style={{ margin: 0 }}>
-              Um einen guten Startpunkt zu haben, Euch gemeinsam Gedanken darüber zu machen, was für Euch eine faire Verteilung bedeutet, kannst Du Deinen Partner einladen, dieses Quiz aus seiner Sicht auszufüllen.
-            </p>
-            <button
-              type="button"
-              className="button secondary"
-              style={{ width: 'fit-content' }}
-              onClick={() => setIsInviteDialogOpen(true)}
-            >
-              Deinen Partner einladen
-            </button>
-            {inviteState === 'success' && <p className="helper">{inviteMessage}</p>}
-            {inviteState === 'warning' && <p className="inline-error">{inviteMessage}</p>}
-            {inviteState === 'error' && <p className="inline-error">{inviteMessage}</p>}
-          </article>
-        )}
-
         {!hasUnlockedResults && (
           <article className="card stack">
-            {bundle?.profile?.role !== 'partner' && !bundle?.family?.partnerRegistered ? (
-              <>
-                <h2 className="card-title">Status</h2>
-                <div className="report-block stack">
-                  <p className="helper">Partner-Ergebnis wird nach Freischaltung hier ergänzt.</p>
-                  {(ownResultText?.categories ?? []).map(([category]) => (
-                    <div key={`ghost-${category}`} className="report-block" style={{ opacity: 0.5 }}>
-                      <strong>{resolveCategoryLabel(category, activeAgeGroup ?? undefined)}</strong>
-                      <div className="result-bar" />
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : bundle?.profile?.role === 'partner' ? (
+            {bundle?.profile?.role === 'partner' && (
               <>
                 <h2 className="card-title">Status</h2>
                 <p className="card-description">
@@ -451,36 +501,6 @@ export function ReviewResultsContent() {
                     ? `${bundle?.initiatorDisplayName ?? 'Der Initiator'} hat eine E-Mail erhalten und kann jetzt euer gemeinsames Ergebnis freischalten.`
                     : 'Warte auf Abschluss der Registrierung.'}
                 </p>
-              </>
-            ) : (
-              <>
-                <h2 className="card-title">Status</h2>
-                <p className="card-description">
-                  {bundle?.family?.partnerRegistered
-                    ? 'Dein Partner hat das Quiz abgeschlossen. Du kannst die gemeinsamen Ergebnisse jetzt generieren.'
-                    : 'Warte auf die Bewertung deines Partners.'}
-                </p>
-                {bundle?.family?.partnerRegistered && (
-                  <button className="button primary" type="button" onClick={unlockSharedResults} disabled={unlockState === 'loading'}>
-                    {unlockState === 'loading' ? 'Gemeinsame Ergebnisse werden berechnet …' : 'Gemeinsame Ergebnisse generieren'}
-                  </button>
-                )}
-                {unlockState === 'loading' && (
-                  <>
-                    <div className="quiz-progress" aria-label="Berechnungsfortschritt">
-                      <div className="quiz-progress-bar" style={{ width: `${unlockProgress}%`, transition: 'width 100ms linear' }} />
-                    </div>
-                    <p className="helper">{unlockProgress}%</p>
-                    <div className="card" style={{ overflow: 'hidden' }}>
-                      <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Denkaufgaben sichtbar gemacht</p>
-                      <p style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {Array.from({ length: 4 }).map((_, offset) => unlockBannerPool[(unlockBannerIndex + offset) % unlockBannerPool.length]).join(' - ')}
-                      </p>
-                    </div>
-                  </>
-                )}
-                {unlockState === 'success' && <p className="helper">{unlockMessage}</p>}
-                {unlockState === 'error' && <p className="inline-error">{unlockMessage}</p>}
               </>
             )}
           </article>
@@ -521,16 +541,8 @@ export function ReviewResultsContent() {
             </div>
           </article>
         )}
-
-        {(bundle?.family?.resultsDiscussedAt || hasActiveOwnershipCards) && (
-          <article className="card stack">
-            <Link href="/app/ownership-dashboard" className="button" style={{ width: 'fit-content' }}>
-              Zu Verantwortungsgebieten
-            </Link>
-          </article>
-        )}
       </div>
-      {isInviteDialogOpen && canInvitePartner && !bundle?.invitationPartnerEmail && (
+      {isInviteDialogOpen && canInvitePartner && (
         <div
           className="ownership-modal-backdrop"
           onClick={() => setIsInviteDialogOpen(false)}
@@ -559,6 +571,15 @@ export function ReviewResultsContent() {
                 onChange={(event) => setInviteEmail(event.target.value)}
                 disabled={inviteState === 'loading'}
               />
+              <input
+                type="email"
+                className="input"
+                required
+                placeholder="E-Mail deines Partners erneut eingeben"
+                value={inviteEmailConfirm}
+                onChange={(event) => setInviteEmailConfirm(event.target.value)}
+                disabled={inviteState === 'loading'}
+              />
               <textarea
                 className="input"
                 rows={5}
@@ -567,6 +588,9 @@ export function ReviewResultsContent() {
                 aria-label="Persönliche Nachricht"
                 placeholder="Persönliche Nachricht"
               />
+              <p className="helper" style={{ margin: 0 }}>
+                Hinweis: Die Einladung landet je nach E-Mail-Anbieter eventuell im Spam-Ordner.
+              </p>
               <button type="submit" className="button primary" disabled={inviteState === 'loading'}>
                 {inviteState === 'loading' ? 'Einladung wird versendet …' : 'Partner zum Quiz einladen'}
               </button>
