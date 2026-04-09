@@ -35,7 +35,7 @@ export function CategoryOverviewCard({ title, previewText, status, details = [],
           onTap();
         }
       }}
-      aria-label={`Aufgabengebiet ${title}. Status ${status === 'unassigned' ? 'noch nicht zugeordnet' : status === 'in_clarification' ? 'in Klärung' : 'zugeordnet'}. Enthält Vorschau ${previewText}.`}
+      aria-label={`Verantwortungsbereich ${title}. Status ${status === 'unassigned' ? 'noch nicht zugeordnet' : status === 'in_clarification' ? 'in Klärung' : 'zugeordnet'}. Enthält Vorschau ${previewText}.`}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-8)' }}>
         <h3 className="h2" style={{ margin: 0, flex: 1 }}>{title}</h3>

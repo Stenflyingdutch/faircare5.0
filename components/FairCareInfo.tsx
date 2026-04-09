@@ -35,7 +35,7 @@ export function FairCareInfo({ onClose }: FairCareInfoProps) {
             Klar verteilen
           </h3>
           <p className="body" style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-            Ordnet Aufgaben strukturiert zu und haltet die Vereinbarungen nachvollziehbar fest.
+            Ordnet Verantwortlichkeiten strukturiert zu und haltet die Vereinbarungen nachvollziehbar fest.
             Mit regelmäßigen Check-ins bleibt alles transparent.
           </p>
         </div>

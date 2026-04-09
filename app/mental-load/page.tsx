@@ -124,7 +124,7 @@ export default function MentalLoadPage() {
             <article className="card stack">
               <h2 className="card-title">Warum das relevant ist</h2>
               <p className="card-description">
-                Die Datenlage in Deutschland ist klar: Es geht nicht nur um einzelne Aufgaben, sondern um Gesamtverantwortung.
+                Die Datenlage in Deutschland ist klar: Es geht nicht nur um einzelne Verantwortlichkeiten, sondern um Gesamtverantwortung.
                 {' '}Wer im Alltag dauerhaft den Überblick trägt, trägt oft auch die größere Erschöpfung.
               </p>
               <div className="mental-load-pill-list">

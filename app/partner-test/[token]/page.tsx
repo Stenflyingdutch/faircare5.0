@@ -108,7 +108,7 @@ export default function PartnerTestPage() {
         <div className="quiz-progress"><div className="quiz-progress-bar" style={{ width: `${progress}%` }} /></div>
         {!session.perceptionAnswer ? (
           <div className="quiz-pre-question-layout">
-            <h1 className="test-title quiz-intro-title">Mach sichtbar, was im Alltag oft unsichtbar mitläuft.</h1>
+            <h1 className="test-title quiz-intro-title">Mach sichtbar, was sonst untergeht.</h1>
             <PreQuestionStep question="Wie klar ist eure Aufteilung heute?" questionId="partner-test-perception-question">
                 {splitClarityOptions.map((option) => (
                   <button

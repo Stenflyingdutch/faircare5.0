@@ -68,7 +68,7 @@ export default function QuizPreparingPage() {
         <p className="helper">{progress}%</p>
 
         <div className="card" style={{ overflow: 'hidden' }}>
-          <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Denkaufgaben sichtbar gemacht</p>
+          <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Verantwortlichkeiten sichtbar gemacht</p>
           <p style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bannerText}</p>
         </div>
       </div>

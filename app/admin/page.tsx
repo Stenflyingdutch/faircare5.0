@@ -5,7 +5,7 @@ import { resolveAgeGroupLabel } from '@/components/test/test-config';
 import Link from 'next/link';
 import { LoginBackButton } from '@/components/personal/LoginBackButton';
 
-const adminAreas = ['Ergebnis-Texte', 'Aufgabenkatalog', 'Seiteninhalte', 'Weekly Check-in Templates', 'Ownership-Vorlagen'];
+const adminAreas = ['Ergebnis-Texte', 'Katalog für Verantwortlichkeiten', 'Seiteninhalte', 'Weekly Check-in Templates', 'Ownership-Vorlagen'];
 const ageGroups = ['0_1', '1_3', '3_6', '6_10', '10_plus'] as const;
 
 export default function AdminPage() {
@@ -48,7 +48,7 @@ export default function AdminPage() {
             <Link href="/admin/logic" className="button primary">Zur Logik-Seite</Link>
           </article>
           <article className="card">
-            <h3 className="card-title">Ownership-Aufgabenpakete</h3>
+            <h3 className="card-title">Ownership-Pakete für Verantwortlichkeiten</h3>
             <p className="card-description">Globale Vorlagen pro Altersgruppe, Kategorie und Sprache für den Ownership-Start.</p>
             <Link href="/admin/task-packages" className="button primary">Ownership-Vorlagen verwalten</Link>
           </article>

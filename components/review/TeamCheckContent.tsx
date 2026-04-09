@@ -283,7 +283,7 @@ export function TeamCheckContent() {
                 className="input team-check-preparation-textarea"
                 value={preparationNote}
                 onChange={(event) => setPreparationNote(event.target.value)}
-                placeholder="Was ist gut gelaufen, was möchten wir verbessern, Aufgabenpakete umverteilen?"
+                placeholder="Was ist gut gelaufen, was möchten wir verbessern, Verantwortlichkeiten umverteilen?"
                 style={{ minHeight: 160 }}
               />
             </label>

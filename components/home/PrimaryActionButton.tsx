@@ -31,7 +31,7 @@ export function PrimaryActionButton({ onPress }: PrimaryActionButtonProps) {
         e.currentTarget.style.transform = 'scale(1)';
       }}
     >
-      Aufgaben aufteilen
+      Verantwortlichkeiten zuordnen
     </button>
   );
 }

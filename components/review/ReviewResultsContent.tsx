@@ -379,7 +379,7 @@ export function ReviewResultsContent() {
                   </div>
                   <p className="helper">{unlockProgress}%</p>
                   <div className="card" style={{ overflow: 'hidden' }}>
-                    <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Denkaufgaben sichtbar gemacht</p>
+                    <p className="helper" style={{ marginBottom: 8 }}>Unsichtbare Verantwortlichkeiten sichtbar gemacht</p>
                     <p style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {Array.from({ length: 4 }).map((_, offset) => unlockBannerPool[(unlockBannerIndex + offset) % unlockBannerPool.length]).join(' - ')}
                     </p>
@@ -599,7 +599,7 @@ function ResultBreakdown({
                   <strong>Wichtig:</strong> Unter 50 % heißt <strong>nicht</strong>, dass du zu wenig zur Familie beiträgst.
                 </p>
                 <p style={{ margin: '0 0 8px' }}>
-                  Es zeigt nur einen kleinen Ausschnitt: die <strong>„Dran-Denken“-Aufgaben</strong> bei der Erziehung.
+                  Es zeigt nur einen kleinen Ausschnitt: die <strong>Verantwortlichkeiten rund ums „Dran-Denken“</strong> bei der Erziehung.
                 </p>
               </div>
             ) : (

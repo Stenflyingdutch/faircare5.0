@@ -158,7 +158,7 @@ function OwnershipDashboardPageContent() {
   return (
     <div className="stack">
       <article className="card stack">
-        <h2 className="card-title">Aufgabengebiete</h2>
+        <h2 className="card-title">Verantwortungsbereiche</h2>
         <p className="card-description">
           Jede Karte steht für einen klar zugeordneten Verantwortungsbereich inklusive Planung und Durchführung.
         </p>

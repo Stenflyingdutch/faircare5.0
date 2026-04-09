@@ -29,7 +29,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'quiz',
     label: 'Quiz-Filter Titel',
     description: 'Titel auf der Einstiegsseite vor dem Quiz.',
-    text: { de: 'Mach sichtbar, was im Alltag oft unsichtbar mitläuft.', en: 'Make visible what often runs invisibly in everyday life.', nl: 'Maak zichtbaar wat in het dagelijks leven vaak onzichtbaar meeloopt.' },
+    text: { de: 'Mach sichtbar, was sonst untergeht.', en: 'Make visible what would otherwise go unnoticed.', nl: 'Maak zichtbaar wat anders onder de radar blijft.' },
   },
   {
     key: 'quiz.filter.step',
@@ -44,9 +44,9 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     label: 'Quiz-Filter Einführung Titel',
     description: 'Einladende Überschrift vor den Vorabfragen.',
     text: {
-      de: 'Macht sichtbar, was im Alltag oft unsichtbar mitläuft.',
-      en: 'Make visible what often remains unseen in everyday life.',
-      nl: 'Maak zichtbaar wat in het dagelijks leven vaak onzichtbaar meeloopt.',
+      de: 'Mach sichtbar, was sonst untergeht.',
+      en: 'Make visible what would otherwise go unnoticed.',
+      nl: 'Maak zichtbaar wat anders onder de radar blijft.',
     },
   },
   {
@@ -89,7 +89,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     key: 'quiz.filter.split',
     group: 'quiz',
     label: 'Frage Aufteilung',
-    description: 'Filterfrage zur Klarheit der Aufgabenverteilung.',
+    description: 'Filterfrage zur Klarheit der Verantwortlichkeiten.',
     text: { de: 'Wie klar ist eure Aufteilung heute?', en: 'How clear is your current division?', nl: 'Hoe duidelijk is jullie huidige verdeling?' },
   },
   {
@@ -218,7 +218,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Problem Point 3 Text',
     description: 'Text des dritten Problem-Punkts.',
-    text: { de: 'Aufgaben werden strukturiert und nachvollziehbar', en: 'Tasks are structured and traceable', nl: 'Taken worden gestructureerd en traceerbaar' },
+    text: { de: 'Verantwortlichkeiten werden strukturiert und nachvollziehbar', en: 'Responsibilities are structured and traceable', nl: 'Verantwoordelijkheden worden gestructureerd en traceerbaar' },
   },
   {
     key: 'landing.differentiation.headline',
@@ -232,7 +232,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Differentiation Text',
     description: 'Haupttext des Differentiation-Abschnitts.',
-    text: { de: 'FairCare geht nicht darum, Aufgaben abzuhaken. Es macht sichtbar, wer im Alltag mitdenkt, plant und organisiert.', en: 'FairCare is not about checking off tasks. It makes visible who thinks along, plans and organizes in everyday life.', nl: 'FairCare gaat niet om taken af te vinken. Het maakt zichtbaar wie in het dagelijks leven meedenkt, plant en organiseert.' },
+    text: { de: 'FairCare geht nicht darum, Verantwortlichkeiten abzuhaken. Es macht sichtbar, wer im Alltag mitdenkt, plant und organisiert.', en: 'FairCare is not about checking off responsibilities. It makes visible who thinks along, plans and organizes in everyday life.', nl: 'FairCare gaat niet om verantwoordelijkheden af te vinken. Het maakt zichtbaar wie in het dagelijks leven meedenkt, plant en organiseert.' },
   },
   {
     key: 'landing.differentiation.bullet1',
@@ -302,7 +302,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Process Step 3 Title',
     description: 'Titel des dritten Prozess-Schritts.',
-    text: { de: 'Aufgaben zuordnen', en: 'Assign tasks', nl: 'Taken toewijzen' },
+    text: { de: 'Verantwortungsbereiche zuordnen', en: 'Assign responsibilities', nl: 'Verantwoordelijkheidsgebieden toewijzen' },
   },
   {
     key: 'landing.process.step3.text',

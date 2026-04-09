@@ -14,7 +14,7 @@ Etappe 2 liefert:
 Noch **nicht** enthalten (bewusst):
 - Registrierung und Login-Flow für Testergebnisse
 - Partnervergleich / gemeinsames Ergebnis
-- Aufgaben-Zuordnung
+- Zuordnung von Verantwortlichkeiten
 - Weekly Check-in
 - Admin-Bearbeitung
 

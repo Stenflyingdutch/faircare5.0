@@ -381,7 +381,7 @@ const rawSeedContent: Record<AgeGroup, Record<QuizCategory, OwnershipTemplateSou
         'Vorlesen, Erzählen, Fragen beantworten und sprachliche Entwicklung im Alltag mitdenken.',
       ]),
       item('Selbstständigkeit im Alltag aufbauen', [
-        'Anziehen, Aufräumen, kleine Aufgaben und Mithelfen Schritt für Schritt begleiten.',
+        'Anziehen, Aufräumen, kleine Verantwortlichkeiten und Mithelfen Schritt für Schritt begleiten.',
       ]),
       item('Regeln und Grenzen alltagstauglich halten', [
         'Klare Orientierung, Wiederholungen und passende Konsequenz im Familienalltag im Blick behalten.',
@@ -575,7 +575,7 @@ const rawSeedContent: Record<AgeGroup, Record<QuizCategory, OwnershipTemplateSou
         'Losgehen, Heimkommen, Hausaufgaben und Schlafenszeit verlässlich strukturieren.',
       ]),
       item('Selbstständigkeit im Alltag fördern', [
-        'Tasche packen, Sachen mitnehmen, Aufgaben erledigen und Verantwortung schrittweise übergeben.',
+        'Tasche packen, Sachen mitnehmen, Verantwortlichkeiten übernehmen und Verantwortung schrittweise übergeben.',
       ]),
       item('Sport- und Hobbyausstattung mitdenken', [
         'Sportsachen, Instrument, Schwimmsachen oder Material rechtzeitig bereithalten.',

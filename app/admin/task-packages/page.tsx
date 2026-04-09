@@ -101,7 +101,7 @@ export default function AdminTaskPackagesPage() {
       <div className="container stack">
         <LoginBackButton fallbackHref="/admin" label="Zurück zu Admin" />
         <article className="card stack">
-          <h1 className="test-title">Admin · Ownership-Aufgabenpakete</h1>
+          <h1 className="test-title">Admin · Ownership-Pakete für Verantwortlichkeiten</h1>
           <p className="card-description">Globale Vorlagen werden hier gepflegt und bei Aktivierung in familienlokale Karten kopiert.</p>
           <div className="chip-row">
             {ageGroups.map((group) => (

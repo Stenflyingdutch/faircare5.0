@@ -234,7 +234,7 @@ const questionTextByAgeGroup: Record<AgeGroup, Record<QuizCategory, string[]>> =
       'Wer behält im Blick, was bald wieder gebraucht wird?',
       'Wer denkt daran, dass genug Gläschen, Snacks oder Zutaten für die Beikost da sind?',
       'Wer prüft, ob zu Hause für die nächsten Tage alles da ist?',
-      'Wer hält den Überblick über Vorräte, Einkäufe und babybezogene Haushaltsaufgaben?',
+      'Wer hält den Überblick über Vorräte, Einkäufe und Verantwortlichkeiten rund um Haushalt und Baby?',
     ],
   },
   '1_3': {

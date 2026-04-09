@@ -31,7 +31,7 @@
 - Neue Domain-Typen in `types/ownership.ts`.
 - Neue Ownership-Services in `services/ownership.service.ts`.
 - Erweiterung Dashboard-Bundle um `ageGroupForOwnership`.
-- Neue Admin-Maske für Aufgabenpaket-Vorlagen.
+- Neue Admin-Maske für Vorlagen von Verantwortlichkeiten.
 - Firestore-Rules für Ownership-Subcollections und globale Vorlagen.
 
 ## 5) Offene Punkte
