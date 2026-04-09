@@ -30,7 +30,7 @@ import type {
   QuizResultDocument,
   QuizSessionDocument,
 } from '@/types/partner-flow';
-import type { AgeGroup, OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
 
 type StoredUserResult = {
   questionIds: string[];
@@ -41,6 +41,16 @@ type StoredUserResult = {
   detailedReport?: { summary?: { selfPercent: number } };
   summary?: { selfPercent: number };
 };
+
+function extractChildcareTags(raw: StoredUserResult | null): ChildcareTag[] {
+  const value = raw?.filter?.childcareTags;
+  const list = Array.isArray(value) ? value : [];
+  const mapped = list
+    .map((entry) => String(entry))
+    .map((entry) => (entry === 'tagespflege' ? 'tagesmutter' : entry))
+    .filter((entry): entry is ChildcareTag => ['none', 'kita', 'tagesmutter', 'family', 'babysitter'].includes(entry));
+  return [...new Set(mapped)];
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -1505,6 +1515,7 @@ export async function fetchDashboardBundle(userId: string) {
         partnerDisplayName: null,
         invitationPartnerEmail: null,
         ageGroupForOwnership: null,
+        childcareTagsForOwnership: [],
       };
     }
 
@@ -1618,6 +1629,7 @@ export async function fetchDashboardBundle(userId: string) {
   let partnerDisplayName: string | null = null;
   let invitationPartnerEmail: string | null = null;
   let ageGroupForOwnership: AgeGroup | null = null;
+  let childcareTagsForOwnership: ChildcareTag[] = [];
 
   if (familyId) {
     const familyPath = `${firestoreCollections.families}/${familyId}`;
@@ -1763,6 +1775,11 @@ export async function fetchDashboardBundle(userId: string) {
     if (candidate && ['0_1', '1_3', '3_6', '6_10', '10_plus'].includes(candidate)) {
       ageGroupForOwnership = candidate as AgeGroup;
     }
+    childcareTagsForOwnership = extractChildcareTags(raw);
+  }
+  if (ageGroupForOwnership && profile.role !== 'partner' && childcareTagsForOwnership.length === 0) {
+    const raw = await getLatestInitiatorResultOnce();
+    childcareTagsForOwnership = extractChildcareTags(raw);
   }
 
     const bundle = {
@@ -1776,6 +1793,7 @@ export async function fetchDashboardBundle(userId: string) {
       partnerDisplayName,
       invitationPartnerEmail,
       ageGroupForOwnership,
+      childcareTagsForOwnership,
     };
     logSignupInfo('fetchDashboardBundle.success', {
       step: 'fetchDashboardBundle',

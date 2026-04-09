@@ -20,7 +20,7 @@ import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
 import { ownershipTaskPackageSeedByAgeGroup } from '@/data/ownershipTaskPackageTemplates';
 import type { Locale, LocalizedText, LocalizedTextList } from '@/types/i18n';
-import type { AgeGroup, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, QuizCategory } from '@/types/quiz';
 import type {
   OwnershipCardDocument,
   OwnershipCategoryDocument,
@@ -162,8 +162,24 @@ function getOwnershipTaskPackageSeed(ageGroup: AgeGroup, categoryKey: QuizCatego
   return ownershipTaskPackageSeedByAgeGroup[ageGroup]?.[categoryKey] ?? [];
 }
 
+function mapChildcareToExternalCareTag(tag: ChildcareTag): string | null {
+  if (tag === 'kita') return 'externalCare:kita';
+  if (tag === 'tagesmutter') return 'externalCare:tagespflege';
+  if (tag === 'family') return 'externalCare:familie';
+  if (tag === 'babysitter') return 'externalCare:babysitter';
+  return null;
+}
+
+function filterTemplatesByExternalCare<T extends { filterTags?: string[] }>(templates: T[], childcareTags: ChildcareTag[] = []) {
+  const selectedTags = childcareTags
+    .map(mapChildcareToExternalCareTag)
+    .filter((tag): tag is string => tag !== null);
+  if (selectedTags.length === 0) return templates.filter((template) => !template.filterTags?.length);
+  return templates.filter((template) => !template.filterTags?.length || template.filterTags.some((tag) => selectedTags.includes(tag)));
+}
+
 function buildSeedFallbackTemplates(ageGroup: AgeGroup, categoryKey: QuizCategory, locale: Locale) {
-  return getOwnershipTaskPackageSeed(ageGroup, categoryKey).slice(0, 10).map((entry, index) => {
+  return getOwnershipTaskPackageSeed(ageGroup, categoryKey).map((entry, index) => {
     const details = mapTemplateDetailsLocale(entry.details, locale);
     return {
     id: `seed_${categoryKey}_${index + 1}`,
@@ -172,6 +188,7 @@ function buildSeedFallbackTemplates(ageGroup: AgeGroup, categoryKey: QuizCategor
     details,
     note: composeTemplateNote(details),
     sortOrder: index + 1,
+    filterTags: entry.filterTags ?? [],
   };
   });
 }
@@ -222,6 +239,7 @@ export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: 
         categoryKey: categoryKey as QuizCategory,
         title: entry.title,
         details: entry.details,
+        filterTags: entry.filterTags ?? [],
         note: {
           de: composeTemplateNote(entry.details.de || []),
           en: composeTemplateNote(entry.details.en || []),
@@ -247,6 +265,7 @@ export async function initializeFamilyOwnership(params: {
   recommendations: OwnershipRecommendation[];
   allSignals: OwnershipSignalBreakdown[];
   locale: Locale;
+  childcareTags?: ChildcareTag[];
 }) {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
   const recommendedByCategory = new Map(params.recommendations.map((item, index) => [item.categoryKey, { ...item, rank: index + 1 }]));
@@ -281,10 +300,14 @@ export async function initializeFamilyOwnership(params: {
       initializedAt: nowIso(),
     }, { merge: true });
 
-    const categoryTemplates = templates
-      .filter((template) => template.categoryKey === categoryKey)
-      .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
+    const categoryTemplates = filterTemplatesByExternalCare(
+      templates.filter((template) => template.categoryKey === categoryKey),
+      params.childcareTags,
+    );
+    const fallbackTemplates = filterTemplatesByExternalCare(
+      buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale),
+      params.childcareTags,
+    );
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
@@ -344,6 +367,7 @@ export async function ensureOwnershipCardsForCategories(params: {
   actorUserId: string;
   locale: Locale;
   categoryKeys: QuizCategory[];
+  childcareTags?: ChildcareTag[];
 }) {
   const templates = await fetchTaskPackageTemplates(params.ageGroup);
   const activeCategoryList = [...new Set(params.categoryKeys)];
@@ -362,10 +386,14 @@ export async function ensureOwnershipCardsForCategories(params: {
   let writes = 0;
 
   for (const categoryKey of activeCategoryList) {
-    const categoryTemplates = templates
-      .filter((template) => template.categoryKey === categoryKey)
-      .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
+    const categoryTemplates = filterTemplatesByExternalCare(
+      templates.filter((template) => template.categoryKey === categoryKey),
+      params.childcareTags,
+    );
+    const fallbackTemplates = filterTemplatesByExternalCare(
+      buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale),
+      params.childcareTags,
+    );
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
