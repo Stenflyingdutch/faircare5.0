@@ -211,7 +211,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Problem Point 3 Title',
     description: 'Titel des dritten Problem-Punkts.',
-    text: { de: 'Klar verteilen', en: 'Distribute clearly', nl: 'Duidelijk verdelen' },
+    text: { de: 'Fair verteilen', en: 'Distribute clearly', nl: 'Duidelijk verdelen' },
   },
   {
     key: 'landing.problem.point3.text',

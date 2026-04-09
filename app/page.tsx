@@ -55,6 +55,7 @@ export default function HomePage() {
     t('landing.differentiation.bullet2'),
     t('landing.differentiation.bullet3'),
   ].filter((bullet) => bullet.trim().length > 0);
+  const linksGridClass = siteVisibility.about ? 'grid grid-3' : 'grid grid-2';
 
   return (
     <>
@@ -128,7 +129,7 @@ export default function HomePage() {
       </SectionWrapper>
 
       <SectionWrapper subdued>
-        <div className="grid grid-3">
+        <div className={linksGridClass}>
           <Card
             title={t('landing.links.mental_load.title')}
             description={t('landing.links.mental_load.text')}

@@ -32,7 +32,7 @@ export function FairCareInfo({ onClose }: FairCareInfoProps) {
 
         <div>
           <h3 className="h2" style={{ marginBottom: 'var(--space-8)' }}>
-            Klar verteilen
+            Fair verteilen
           </h3>
           <p className="body" style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
             Ordnet Verantwortlichkeiten strukturiert zu und haltet die Vereinbarungen nachvollziehbar fest.
