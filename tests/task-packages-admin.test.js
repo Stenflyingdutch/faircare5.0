@@ -32,7 +32,7 @@ function loadTsModule(relPath) {
   return module.exports;
 }
 
-test('ownership task package seeds contain 40 final packages for every age group', () => {
+test('ownership task package seeds contain 48 final packages for every age group', () => {
   const { ownershipTaskPackageSeedByAgeGroup } = loadTsModule('data/ownershipTaskPackageTemplates.ts');
   const ageGroups = ['0_1', '1_3', '3_6', '6_10', '10_plus'];
 
@@ -49,11 +49,11 @@ test('ownership task package seeds contain 40 final packages for every age group
     ]);
 
     const itemCount = Object.values(categories).reduce((sum, items) => sum + items.length, 0);
-    assert.equal(itemCount, 40, `expected exactly 40 task packages for ${ageGroup}`);
-
-    for (const [categoryKey, items] of Object.entries(categories)) {
-      assert.equal(items.length, 10, `expected 10 task packages in ${ageGroup}/${categoryKey}`);
-    }
+    assert.equal(itemCount, 48, `expected exactly 48 task packages for ${ageGroup}`);
+    assert.equal(categories.betreuung_entwicklung.length, 13, `expected 13 task packages in ${ageGroup}/betreuung_entwicklung`);
+    assert.equal(categories.gesundheit.length, 9, `expected 9 task packages in ${ageGroup}/gesundheit`);
+    assert.equal(categories.babyalltag_pflege.length, 13, `expected 13 task packages in ${ageGroup}/babyalltag_pflege`);
+    assert.equal(categories.haushalt_einkaeufe_vorraete.length, 13, `expected 13 task packages in ${ageGroup}/haushalt_einkaeufe_vorraete`);
   }
 });
 
@@ -104,9 +104,9 @@ test('admin task packages page supports age filter, language switch, detail list
 test('seed includes the final fixed titles for every age range', () => {
   const { ownershipTaskPackageSeedByAgeGroup } = loadTsModule('data/ownershipTaskPackageTemplates.ts');
 
-  assert.equal(ownershipTaskPackageSeedByAgeGroup['0_1'].betreuung_entwicklung[0].title.de, 'Wer wählt passende Spiel- und Lernimpulse aus');
-  assert.equal(ownershipTaskPackageSeedByAgeGroup['1_3'].betreuung_entwicklung[0].title.de, 'Tagesrhythmus passend steuern');
-  assert.equal(ownershipTaskPackageSeedByAgeGroup['3_6'].gesundheit[0].title.de, 'Vorsorge, Zahnarzt und Impfungen steuern');
+  assert.equal(ownershipTaskPackageSeedByAgeGroup['0_1'].betreuung_entwicklung[0].title.de, 'Schlafrhythmus im Blick behalten');
+  assert.equal(ownershipTaskPackageSeedByAgeGroup['1_3'].betreuung_entwicklung[0].title.de, 'Schlaf, Pausen und Tagesablauf planen');
+  assert.equal(ownershipTaskPackageSeedByAgeGroup['3_6'].gesundheit[0].title.de, 'Vorsorge, Impfungen und Zahnarzt nachhalten');
   assert.equal(ownershipTaskPackageSeedByAgeGroup['6_10'].haushalt_einkaeufe_vorraete[0].title.de, 'Schulmaterial rechtzeitig ergänzen');
   assert.equal(ownershipTaskPackageSeedByAgeGroup['10_plus'].babyalltag_pflege[0].title.de, 'Essen, Trinken und Tagesstruktur im Blick behalten');
 });
