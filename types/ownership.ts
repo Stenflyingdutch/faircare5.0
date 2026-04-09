@@ -13,6 +13,7 @@ export interface TaskPackageTemplate {
   title: LocalizedText;
   details: LocalizedTextList;
   note: LocalizedText;
+  filterTags?: string[];
   sortOrder: number;
   isActive: boolean;
   version: number;
@@ -34,6 +35,7 @@ export interface OwnershipCardDocument {
   id: string;
   categoryKey: QuizCategory;
   sourceTemplateId?: string | null;
+  filterTags?: string[];
   title: string;
   note: string;
   ownerUserId?: string | null;

@@ -20,7 +20,7 @@ import { db } from '@/lib/firebase';
 import { firestoreCollections } from '@/types/domain';
 import { ownershipTaskPackageSeedByAgeGroup } from '@/data/ownershipTaskPackageTemplates';
 import type { Locale, LocalizedText, LocalizedTextList } from '@/types/i18n';
-import type { AgeGroup, QuizCategory } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, QuizCategory } from '@/types/quiz';
 import type {
   OwnershipCardDocument,
   OwnershipCategoryDocument,
@@ -33,6 +33,7 @@ import type {
 } from '@/types/ownership';
 
 const MAX_RECOMMENDATIONS = 2;
+const OWNERSHIP_CATALOG_VERSION = '2026-04-final';
 
 function nowIso() {
   return new Date().toISOString();
@@ -162,18 +163,39 @@ function getOwnershipTaskPackageSeed(ageGroup: AgeGroup, categoryKey: QuizCatego
   return ownershipTaskPackageSeedByAgeGroup[ageGroup]?.[categoryKey] ?? [];
 }
 
-function buildSeedFallbackTemplates(ageGroup: AgeGroup, categoryKey: QuizCategory, locale: Locale) {
-  return getOwnershipTaskPackageSeed(ageGroup, categoryKey).slice(0, 10).map((entry, index) => {
+function mapChildcareToExternalFilterTags(childcareTags: ChildcareTag[] | string[] | undefined): string[] {
+  if (!childcareTags?.length) return [];
+  const mapped = childcareTags.flatMap((tag) => {
+    if (tag === 'kita') return ['externalCare:kita'];
+    if (tag === 'tagesmutter') return ['externalCare:tagespflege'];
+    if (tag === 'family') return ['externalCare:familie'];
+    if (tag === 'babysitter') return ['externalCare:babysitter'];
+    return [];
+  });
+  return [...new Set(mapped)];
+}
+
+function matchesExternalCareFilter(templateTags: string[] | undefined, activeFilterTags: string[]) {
+  if (!templateTags?.length) return true;
+  if (!activeFilterTags.length) return false;
+  return templateTags.some((tag) => activeFilterTags.includes(tag));
+}
+
+function buildSeedFallbackTemplates(ageGroup: AgeGroup, categoryKey: QuizCategory, locale: Locale, activeFilterTags: string[]) {
+  return getOwnershipTaskPackageSeed(ageGroup, categoryKey)
+    .filter((entry) => matchesExternalCareFilter(entry.filterTags, activeFilterTags))
+    .map((entry, index) => {
     const details = mapTemplateDetailsLocale(entry.details, locale);
     return {
-    id: `seed_${categoryKey}_${index + 1}`,
-    categoryKey,
-    title: mapTemplateLocale(entry.title, locale, 'Ownership-Bereich'),
-    details,
-    note: composeTemplateNote(details),
-    sortOrder: index + 1,
-  };
-  });
+      id: `seed_${categoryKey}_${index + 1}`,
+      categoryKey,
+      title: mapTemplateLocale(entry.title, locale, 'Ownership-Bereich'),
+      details,
+      note: composeTemplateNote(details),
+      filterTags: entry.filterTags ?? [],
+      sortOrder: index + 1,
+    };
+    });
 }
 
 export async function fetchTaskPackageTemplates(ageGroup: AgeGroup) {
@@ -227,6 +249,7 @@ export async function seedTaskPackageTemplates(ageGroup: AgeGroup, actorUserId: 
           en: composeTemplateNote(entry.details.en || []),
           nl: composeTemplateNote(entry.details.nl || []),
         },
+        filterTags: entry.filterTags ?? [],
         sortOrder: index + 1,
         isActive: true,
         version: 1,
@@ -281,10 +304,11 @@ export async function initializeFamilyOwnership(params: {
       initializedAt: nowIso(),
     }, { merge: true });
 
+    const activeFilterTags = mapChildcareToExternalFilterTags((familySnap.data() as { ownershipExternalCareTags?: string[] | null })?.ownershipExternalCareTags ?? []);
     const categoryTemplates = templates
       .filter((template) => template.categoryKey === categoryKey)
-      .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
+      .filter((template) => matchesExternalCareFilter(template.filterTags, activeFilterTags));
+    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale, activeFilterTags);
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
@@ -292,6 +316,7 @@ export async function initializeFamilyOwnership(params: {
         title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
         details: mapTemplateDetailsLocale(template.details, params.locale),
         note: composeTemplateNote(mapTemplateDetailsLocale(template.details, params.locale)),
+        filterTags: template.filterTags ?? [],
         sortOrder: template.sortOrder,
       }))
       : fallbackTemplates;
@@ -305,6 +330,7 @@ export async function initializeFamilyOwnership(params: {
         id: cardId,
         categoryKey,
         sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
+        filterTags: template.filterTags ?? [],
         title: template.title,
         note: template.note,
         ownerUserId: null,
@@ -357,6 +383,7 @@ export async function ensureOwnershipCardsForCategories(params: {
     ))
     : null;
   const existingCardIds = new Set(existingCardsSnap?.docs.map((entry) => entry.id) ?? []);
+  const activeFilterTags = mapChildcareToExternalFilterTags((familySnap.data() as { ownershipExternalCareTags?: string[] | null })?.ownershipExternalCareTags ?? []);
 
   const batch = writeBatch(db);
   let writes = 0;
@@ -364,8 +391,8 @@ export async function ensureOwnershipCardsForCategories(params: {
   for (const categoryKey of activeCategoryList) {
     const categoryTemplates = templates
       .filter((template) => template.categoryKey === categoryKey)
-      .slice(0, 10);
-    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale);
+      .filter((template) => matchesExternalCareFilter(template.filterTags, activeFilterTags));
+    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale, activeFilterTags);
     const templatesForFamily = categoryTemplates.length > 0
       ? categoryTemplates.map((template) => ({
         id: template.id,
@@ -373,6 +400,7 @@ export async function ensureOwnershipCardsForCategories(params: {
         title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
         details: mapTemplateDetailsLocale(template.details, params.locale),
         note: composeTemplateNote(mapTemplateDetailsLocale(template.details, params.locale)),
+        filterTags: template.filterTags ?? [],
         sortOrder: template.sortOrder,
       }))
       : fallbackTemplates;
@@ -386,6 +414,7 @@ export async function ensureOwnershipCardsForCategories(params: {
         id: cardId,
         categoryKey,
         sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
+        filterTags: template.filterTags ?? [],
         title: template.title,
         note: template.note,
         ownerUserId: null,
@@ -405,6 +434,99 @@ export async function ensureOwnershipCardsForCategories(params: {
   if (writes > 0) {
     await batch.commit();
   }
+}
+
+export async function hardResetFamilyOwnershipCatalog(params: {
+  familyId: string;
+  ageGroup: AgeGroup;
+  actorUserId: string;
+  locale: Locale;
+  categoryKeys: QuizCategory[];
+  childcareTags: ChildcareTag[];
+}) {
+  const familyRef = doc(db, firestoreCollections.families, params.familyId);
+  const familySnap = await getDoc(familyRef);
+  if (!familySnap.exists()) throw new Error('Familie nicht gefunden.');
+
+  const activeFilterTags = mapChildcareToExternalFilterTags(params.childcareTags);
+  const cardsSnap = await getDocs(collection(db, firestoreCollections.families, params.familyId, 'ownershipCards'));
+  const categoriesSnap = await getDocs(collection(db, firestoreCollections.families, params.familyId, 'ownershipCategories'));
+  const templates = await fetchTaskPackageTemplates(params.ageGroup);
+
+  const deleteBatch = writeBatch(db);
+  cardsSnap.docs.forEach((entry) => deleteBatch.delete(entry.ref));
+  categoriesSnap.docs.forEach((entry) => deleteBatch.delete(entry.ref));
+  await deleteBatch.commit();
+
+  await setDoc(familyRef, {
+    ownershipCatalogVersion: OWNERSHIP_CATALOG_VERSION,
+    ownershipCatalogResetAt: nowIso(),
+    ownershipCatalogResetBy: params.actorUserId,
+    ownershipExternalCareTags: activeFilterTags,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  const createBatch = writeBatch(db);
+  for (const categoryKey of params.categoryKeys) {
+    const categoryRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCategories', categoryKey);
+    createBatch.set(categoryRef, {
+      categoryKey,
+      isRecommended: false,
+      recommendationRank: null,
+      relevanceScore: 0,
+      reasonCodes: [],
+      activatedAt: nowIso(),
+      updatedAt: serverTimestamp(),
+      initializedAt: nowIso(),
+    }, { merge: true });
+
+    const categoryTemplates = templates
+      .filter((template) => template.categoryKey === categoryKey)
+      .filter((template) => matchesExternalCareFilter(template.filterTags, activeFilterTags));
+    const fallbackTemplates = buildSeedFallbackTemplates(params.ageGroup, categoryKey, params.locale, activeFilterTags);
+    const templatesForFamily = categoryTemplates.length > 0
+      ? categoryTemplates.map((template) => ({
+        id: template.id,
+        categoryKey: template.categoryKey,
+        title: mapTemplateLocale(template.title, params.locale, 'Ownership-Bereich'),
+        details: mapTemplateDetailsLocale(template.details, params.locale),
+        note: composeTemplateNote(mapTemplateDetailsLocale(template.details, params.locale)),
+        filterTags: template.filterTags ?? [],
+        sortOrder: template.sortOrder,
+      }))
+      : fallbackTemplates;
+
+    for (const template of templatesForFamily) {
+      const cardId = `${categoryKey}_${template.id}`;
+      const cardRef = doc(db, firestoreCollections.families, params.familyId, 'ownershipCards', cardId);
+      createBatch.set(cardRef, {
+        id: cardId,
+        categoryKey,
+        sourceTemplateId: categoryTemplates.length > 0 ? template.id : null,
+        filterTags: template.filterTags ?? [],
+        title: template.title,
+        note: template.note,
+        ownerUserId: null,
+        focusLevel: null,
+        sortOrder: template.sortOrder,
+        isActive: false,
+        isDeleted: false,
+        createdBy: params.actorUserId,
+        updatedBy: params.actorUserId,
+        createdAt: nowIso(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+  }
+
+  await createBatch.commit();
+}
+
+export async function needsOwnershipCatalogReset(familyId: string) {
+  const familySnap = await getDoc(doc(db, firestoreCollections.families, familyId));
+  if (!familySnap.exists()) return true;
+  const data = familySnap.data() as { ownershipCatalogVersion?: string };
+  return data.ownershipCatalogVersion !== OWNERSHIP_CATALOG_VERSION;
 }
 
 export function observeOwnershipCategories(

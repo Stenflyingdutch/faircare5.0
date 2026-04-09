@@ -24,6 +24,7 @@ function createTemplate(ageGroup: AgeGroup, categoryKey: QuizCategory): TaskPack
     title: { de: '', en: '', nl: '' },
     details: { de: ['', '', ''], en: [], nl: [] },
     note: { de: '', en: '', nl: '' },
+    filterTags: [],
     sortOrder: Date.now(),
     isActive: true,
     version: 1,
@@ -155,6 +156,15 @@ export default function AdminTaskPackagesPage() {
                 ))}
               </div>
               <label><input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} /> Aktiv</label>
+              <input
+                className="input"
+                placeholder="Filter-Tags (comma-separated)"
+                value={(draft.filterTags || []).join(',')}
+                onChange={(e) => setDraft({
+                  ...draft,
+                  filterTags: e.target.value.split(',').map((entry) => entry.trim()).filter(Boolean),
+                })}
+              />
               <button type="button" className="button primary" disabled={saving} onClick={onSave}>{saving ? 'Speichert …' : 'Vorlage speichern'}</button>
             </div>
           )}
@@ -172,6 +182,7 @@ export default function AdminTaskPackagesPage() {
                     ))}
                   </ul>
                   <p className="helper" style={{ margin: 0 }}>Sortierung: {template.sortOrder} · Version: {template.version} · {template.isActive ? 'Aktiv' : 'Inaktiv'}</p>
+                  {!!template.filterTags?.length && <p className="helper" style={{ margin: 0 }}>Filter-Tags: {template.filterTags.join(', ')}</p>}
                   <button type="button" className="button" onClick={() => setDraft(template)}>Bearbeiten</button>
                 </div>
               ))}

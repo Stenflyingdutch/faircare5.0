@@ -30,14 +30,14 @@ import type {
   QuizResultDocument,
   QuizSessionDocument,
 } from '@/types/partner-flow';
-import type { AgeGroup, OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
+import type { AgeGroup, ChildcareTag, OwnershipAnswer, QuestionTemplate, StressSelection } from '@/types/quiz';
 
 type StoredUserResult = {
   questionIds: string[];
   questionSetSnapshot?: QuestionTemplate[];
   answers: Partial<Record<string, OwnershipAnswer>>;
   stressCategories?: StressSelection[];
-  filter: Record<string, string>;
+  filter: Record<string, unknown>;
   detailedReport?: { summary?: { selfPercent: number } };
   summary?: { selfPercent: number };
 };
@@ -58,6 +58,16 @@ function deriveNameFromEmail(email?: string | null) {
   if (!email) return null;
   const local = email.split('@')[0]?.trim();
   return normalizeName(local);
+}
+
+function parseChildcareTags(value: unknown): ChildcareTag[] {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',').map((entry) => entry.trim())
+      : [];
+  const allowed: ChildcareTag[] = ['none', 'kita', 'tagesmutter', 'family', 'babysitter'];
+  return raw.filter((entry): entry is ChildcareTag => allowed.includes(entry as ChildcareTag));
 }
 
 function extractErrorCode(error: unknown) {
@@ -1505,6 +1515,7 @@ export async function fetchDashboardBundle(userId: string) {
         partnerDisplayName: null,
         invitationPartnerEmail: null,
         ageGroupForOwnership: null,
+        childcareTagsForOwnership: [],
       };
     }
 
@@ -1618,6 +1629,7 @@ export async function fetchDashboardBundle(userId: string) {
   let partnerDisplayName: string | null = null;
   let invitationPartnerEmail: string | null = null;
   let ageGroupForOwnership: AgeGroup | null = null;
+  let childcareTagsForOwnership: ChildcareTag[] = [];
 
   if (familyId) {
     const familyPath = `${firestoreCollections.families}/${familyId}`;
@@ -1757,9 +1769,13 @@ export async function fetchDashboardBundle(userId: string) {
   if (ownResult?.questionSetSnapshot?.length) {
     ageGroupForOwnership = ownResult.questionSetSnapshot[0]?.ageGroup ?? null;
   }
+  if (profile.role !== 'partner') {
+    const raw = await getLatestInitiatorResultOnce();
+    childcareTagsForOwnership = parseChildcareTags(raw?.filter?.childcareTags);
+  }
   if (!ageGroupForOwnership && profile.role !== 'partner') {
     const raw = await getLatestInitiatorResultOnce();
-    const candidate = raw?.filter?.youngestAgeGroup;
+    const candidate = typeof raw?.filter?.youngestAgeGroup === 'string' ? raw.filter.youngestAgeGroup : null;
     if (candidate && ['0_1', '1_3', '3_6', '6_10', '10_plus'].includes(candidate)) {
       ageGroupForOwnership = candidate as AgeGroup;
     }
@@ -1776,6 +1792,7 @@ export async function fetchDashboardBundle(userId: string) {
       partnerDisplayName,
       invitationPartnerEmail,
       ageGroupForOwnership,
+      childcareTagsForOwnership,
     };
     logSignupInfo('fetchDashboardBundle.success', {
       step: 'fetchDashboardBundle',
