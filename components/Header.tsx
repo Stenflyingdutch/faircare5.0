@@ -19,7 +19,8 @@ export function Header() {
       <div className="container">
         <div className="header-inner">
           <Link href="/" className="brand">
-            FairCare
+            <span className="brand-fair">Fair</span>
+            <span className="brand-care">Care</span>
           </Link>
           <button
             type="button"

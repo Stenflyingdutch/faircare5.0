@@ -39,6 +39,28 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     text: { de: 'Schritt {current} von {total}', en: 'Step {current} of {total}', nl: 'Stap {current} van {total}' },
   },
   {
+    key: 'quiz.filter.intro.title',
+    group: 'quiz',
+    label: 'Quiz-Filter Einführung Titel',
+    description: 'Einladende Überschrift vor den Vorabfragen.',
+    text: {
+      de: 'Macht sichtbar, was im Alltag oft unsichtbar mitläuft.',
+      en: 'Make visible what often remains unseen in everyday life.',
+      nl: 'Maak zichtbaar wat in het dagelijks leven vaak onzichtbaar meeloopt.',
+    },
+  },
+  {
+    key: 'quiz.filter.intro.text',
+    group: 'quiz',
+    label: 'Quiz-Filter Einführung Text',
+    description: 'Kurze Erklärung vor den Vorabfragen.',
+    text: {
+      de: 'Beantwortet die nächsten Fragen aus eurer Sicht. So entsteht ein ehrlicher Startpunkt für ein gemeinsames Gespräch über Verantwortung und Verteilung.',
+      en: 'Answer the next questions from your perspective. This creates an honest starting point for a shared conversation about responsibility and distribution.',
+      nl: 'Beantwoord de volgende vragen vanuit jullie perspectief. Zo ontstaat een eerlijk startpunt voor een gezamenlijk gesprek over verantwoordelijkheid en verdeling.',
+    },
+  },
+  {
     key: 'quiz.filter.childCount',
     group: 'quiz',
     label: 'Frage Kinderanzahl',

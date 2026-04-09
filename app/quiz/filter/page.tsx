@@ -78,18 +78,17 @@ export default function QuizFilterPage() {
     });
   }
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function createAndStartSession(nextFilter: Partial<QuizFilterInput> = filter) {
     setError(null);
 
-    if (!filter.childCount || !filter.youngestAgeGroup || !(filter.childcareTags ?? []).length || !filter.splitClarity) {
+    if (!nextFilter.childCount || !nextFilter.youngestAgeGroup || !(nextFilter.childcareTags ?? []).length || !nextFilter.splitClarity) {
       setError(t('quiz.error.selectFirst', locale, undefined, textDictionary));
       return;
     }
 
     setIsSubmitting(true);
     const tempSessionId = createTempSessionId();
-    const normalized = filter as QuizFilterInput;
+    const normalized = nextFilter as QuizFilterInput;
     let catalog = questionCatalogFallback;
     try {
       catalog = await fetchQuizCatalog();
@@ -125,6 +124,11 @@ export default function QuizFilterPage() {
     router.push('/quiz/question/0');
   }
 
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    await createAndStartSession(filter);
+  }
+
   function canGoNext() {
     if (step === 0) return Boolean(filter.childCount);
     if (step === 1) return Boolean(filter.youngestAgeGroup);
@@ -137,6 +141,8 @@ export default function QuizFilterPage() {
     <section className="section">
       <div className="container test-shell stack">
         <h1 className="test-title">{t('quiz.filter.title', locale, undefined, textDictionary)}</h1>
+        <p className="quiz-filter-intro-title">{t('quiz.filter.intro.title', locale, undefined, textDictionary)}</p>
+        <p className="helper quiz-filter-intro-text">{t('quiz.filter.intro.text', locale, undefined, textDictionary)}</p>
         <p className="helper">{t('quiz.filter.step', locale, { current: step + 1, total: 4 }, textDictionary)}</p>
         <form className="stack" onSubmit={handleSubmit}>
           {step === 0 && (
@@ -144,7 +150,15 @@ export default function QuizFilterPage() {
               <legend>{t('quiz.filter.childCount', locale, undefined, textDictionary)}</legend>
               <div className="stack">
                 {childCountOptions.map((option) => (
-                  <button key={option.value} type="button" className={`option-chip ${filter.childCount === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, childCount: option.value }))}>
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`option-chip ${filter.childCount === option.value ? 'selected' : ''}`}
+                    onClick={() => {
+                      setFilter((c) => ({ ...c, childCount: option.value }));
+                      setStep(1);
+                    }}
+                  >
                     {option.label}
                   </button>
                 ))}
@@ -157,7 +171,15 @@ export default function QuizFilterPage() {
               <legend>{t('quiz.filter.ageGroup', locale, undefined, textDictionary)}</legend>
               <div className="stack">
                 {ageGroupOptions.map((option) => (
-                  <button key={option.value} type="button" className={`option-chip ${filter.youngestAgeGroup === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, youngestAgeGroup: option.value as AgeGroup }))}>
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`option-chip ${filter.youngestAgeGroup === option.value ? 'selected' : ''}`}
+                    onClick={() => {
+                      setFilter((c) => ({ ...c, youngestAgeGroup: option.value as AgeGroup }));
+                      setStep(2);
+                    }}
+                  >
                     {option.label}
                   </button>
                 ))}
@@ -183,7 +205,18 @@ export default function QuizFilterPage() {
               <legend>{t('quiz.filter.split', locale, undefined, textDictionary)}</legend>
               <div className="stack">
                 {splitClarityOptions.map((option) => (
-                  <button key={option.value} type="button" className={`option-chip ${filter.splitClarity === option.value ? 'selected' : ''}`} onClick={() => setFilter((c) => ({ ...c, splitClarity: option.value as SplitClarity }))}>
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`option-chip ${filter.splitClarity === option.value ? 'selected' : ''}`}
+                    onClick={async () => {
+                      if (isSubmitting) return;
+                      const nextFilter = { ...filter, splitClarity: option.value as SplitClarity };
+                      setFilter(nextFilter);
+                      await createAndStartSession(nextFilter);
+                    }}
+                    disabled={isSubmitting}
+                  >
                     {option.label}
                   </button>
                 ))}
@@ -197,15 +230,15 @@ export default function QuizFilterPage() {
             <button type="button" className="button" disabled={step === 0 || isSubmitting} onClick={() => setStep((current) => Math.max(0, current - 1))}>
               {t('common.back', locale, undefined, textDictionary)}
             </button>
-            {step < 3 ? (
+            {step === 2 ? (
               <button type="button" className="button primary" disabled={!canGoNext() || isSubmitting} onClick={() => setStep((current) => Math.min(3, current + 1))}>
                 {t('common.next', locale, undefined, textDictionary)}
               </button>
-            ) : (
+            ) : step === 3 ? (
               <button type="submit" className="button primary" disabled={isSubmitting || !canGoNext()}>
                 {isSubmitting ? t('quiz.preparing', locale, undefined, textDictionary) : t('common.next', locale, undefined, textDictionary)}
               </button>
-            )}
+            ) : null}
           </div>
         </form>
       </div>
