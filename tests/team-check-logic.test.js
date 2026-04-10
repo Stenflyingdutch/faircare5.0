@@ -34,13 +34,12 @@ test('results pages no longer expose an Einstellungen entry point', () => {
   assert.doesNotMatch(results, />\s*Einstellungen\s*</);
 });
 
-test('settings start page contains the base entries and gates admin area by role', () => {
+test('settings start page contains base entries and always shows admin area', () => {
   const src = read('app/app/einstellungen/page.tsx');
   assert.match(src, /Persönliche Einstellungen/);
   assert.match(src, /Check-in Planung/);
   assert.match(src, /Quizergebnisse einsehen/);
   assert.match(src, /Adminbereich/);
-  assert.match(src, /isAdminProfile/);
   assert.doesNotMatch(src, /Team-Check Rhythmus/);
 });
 

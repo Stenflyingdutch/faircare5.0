@@ -2,13 +2,10 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
 
-import { observeAuthState, signOutUser } from '@/services/auth.service';
-import { fetchAppUserProfile } from '@/services/partnerFlow.service';
-import { isAdminProfile } from '@/services/user-profile.service';
+import { signOutUser } from '@/services/auth.service';
 
-const baseSettingsEntries = [
+const settingsEntries = [
   {
     title: 'Persönliche Einstellungen',
     description: 'Profil, E-Mail-Adresse und Passwort verwalten',
@@ -24,36 +21,15 @@ const baseSettingsEntries = [
     description: 'Zur bestehenden Ergebnisübersicht wechseln',
     href: '/app/transparenz',
   },
+  {
+    title: 'Adminbereich',
+    description: 'Nutzerverwaltung, Inhalte und Systembereiche öffnen',
+    href: '/admin',
+  },
 ] as const;
-
-const adminSettingsEntry = {
-  title: 'Adminbereich',
-  description: 'Nutzerverwaltung, Inhalte und Systembereiche für Admins öffnen',
-  href: '/admin',
-} as const;
 
 export default function EinstellungenPage() {
   const router = useRouter();
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => observeAuthState(async (user) => {
-    if (!user) {
-      setIsAdmin(false);
-      return;
-    }
-
-    try {
-      const profile = await fetchAppUserProfile(user.uid);
-      setIsAdmin(isAdminProfile(profile));
-    } catch {
-      setIsAdmin(false);
-    }
-  }), []);
-
-  const settingsEntries = useMemo(
-    () => (isAdmin ? [...baseSettingsEntries, adminSettingsEntry] : baseSettingsEntries),
-    [isAdmin],
-  );
 
   async function onLogout() {
     await signOutUser();
