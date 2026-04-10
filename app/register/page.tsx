@@ -274,7 +274,6 @@ export default function RegisterPage() {
   return (
     <section className="section">
       <div className="container test-shell stack">
-        <h1 className="test-title">Registrieren für ausführlichen Bericht</h1>
         <form className="form-shell" onSubmit={handleSubmit}>
           <input required placeholder="Name" className="input" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
           <input required type="email" placeholder="E-Mail" className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
