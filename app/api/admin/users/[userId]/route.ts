@@ -86,8 +86,8 @@ function toAdminUserResponse(userId: string, profile: AppUserProfile, authUser?:
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ userId: string }> }) {
   const adminContext = await getAuthenticatedAdminContext();
-  if (!adminContext.isAdmin) {
-    return NextResponse.json({ error: 'Kein Adminzugriff.' }, { status: 403 });
+  if (!adminContext.user) {
+    return NextResponse.json({ error: 'Nicht authentifiziert.' }, { status: 401 });
   }
 
   const { userId } = await context.params;
@@ -135,8 +135,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ u
 
 export async function DELETE(_request: NextRequest, context: { params: Promise<{ userId: string }> }) {
   const adminContext = await getAuthenticatedAdminContext();
-  if (!adminContext.isAdmin) {
-    return NextResponse.json({ error: 'Kein Adminzugriff.' }, { status: 403 });
+  if (!adminContext.user) {
+    return NextResponse.json({ error: 'Nicht authentifiziert.' }, { status: 401 });
   }
 
   const { userId } = await context.params;

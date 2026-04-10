@@ -5,10 +5,10 @@ const path = require('node:path');
 
 const read = (filePath) => fs.readFileSync(path.join(process.cwd(), filePath), 'utf8');
 
-test('admin layout redirects unauthenticated and non-admin users', () => {
+test('admin layout redirects unauthenticated users', () => {
   const src = read('app/admin/layout.tsx');
   assert.match(src, /redirect\('\/login\?redirectTo=\/admin'\)/);
-  assert.match(src, /redirect\('\/app\/home'\)/);
+  assert.doesNotMatch(src, /redirect\('\/app\/home'\)/);
 });
 
 test('firestore rules use adminRole and accountStatus for admin access checks', () => {

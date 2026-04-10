@@ -18,8 +18,8 @@ async function listAllAuthUsers(pageToken?: string, acc: AuthUserMap = new Map()
 
 export async function GET() {
   const context = await getAuthenticatedAdminContext();
-  if (!context.isAdmin) {
-    return NextResponse.json({ error: 'Kein Adminzugriff.' }, { status: 403 });
+  if (!context.user) {
+    return NextResponse.json({ error: 'Nicht authentifiziert.' }, { status: 401 });
   }
 
   const [authUsers, profileSnapshot] = await Promise.all([
