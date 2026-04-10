@@ -67,7 +67,7 @@ function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>, ageG
   if (highestCategories.length === 2) {
     return `${highestCategories[0]} und ${highestCategories[1]} (je ${maxScore} %).`;
   }
-  return `Es wurde in mehreren Bereichen eine hohe Belastung gemessen (je ${maxScore} %).`;
+  return `Es wurde in mehreren Bereichen eine hohe Herausforderung wahrgenommen (je ${maxScore} %).`;
 }
 
 export function ReviewResultsContent() {
@@ -379,7 +379,6 @@ export function ReviewResultsContent() {
                   ageGroup={activeAgeGroup}
                   result={ownResultText}
                 />
-                <p className="helper" style={{ margin: 0 }}>Diese Auswertung bleibt als Referenz für spätere Team-Checks erhalten.</p>
               </>
             )}
         </article>
@@ -503,11 +502,11 @@ function JointResultPanel({ bundle, ageGroup }: {
           );
         })}
         <div className="report-block">
-          <strong>Größte wahrgenommene Belastung</strong>
+          <strong>Größte wahrgenommene Herausforderung</strong>
           <p className="helper" style={{ margin: '8px 0 0' }}>
             {sharedHighestCategory
-              ? `${initiatorName} und ${partnerName} spüren die größte Belastung bei ${resolveCategoryLabel(highestInitiator.category, ageGroup ?? undefined)}.`
-              : `${initiatorName} spürt die größte Belastung bei ${resolveCategoryLabel(highestInitiator.category, ageGroup ?? undefined)}, ${partnerName} bei ${resolveCategoryLabel(highestPartner.category, ageGroup ?? undefined)}.`}
+              ? `${initiatorName} und ${partnerName} spüren die größte Herausforderung bei ${resolveCategoryLabel(highestInitiator.category, ageGroup ?? undefined)}.`
+              : `${initiatorName} spürt die größte Herausforderung bei ${resolveCategoryLabel(highestInitiator.category, ageGroup ?? undefined)}, ${partnerName} bei ${resolveCategoryLabel(highestPartner.category, ageGroup ?? undefined)}.`}
           </p>
         </div>
       </div>
@@ -570,7 +569,7 @@ function ResultBreakdown({
                   <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong> {highestLoadSummary}
                 </p>
                 <p style={{ margin: '0 0 8px' }}>
-                  <strong>Größte empfundene Belastung:</strong> {result.perceivedStressLabel}.
+                  <strong>Größte empfundene Herausforderung:</strong> {result.perceivedStressLabel}.
                 </p>
               </div>
             )}

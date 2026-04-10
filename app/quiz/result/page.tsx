@@ -30,7 +30,7 @@ function buildHighestLoadSummary(categories: Array<[QuizCategory, number]>, ageG
 
   if (highestCategories.length === 1) return `${highestCategories[0]} (${maxScore} %).`;
   if (highestCategories.length === 2) return `${highestCategories[0]} und ${highestCategories[1]} (je ${maxScore} %).`;
-  return `Es wurde in mehreren Bereichen eine hohe Belastung gemessen (je ${maxScore} %).`;
+  return `Es wurde in mehreren Bereichen eine hohe Herausforderung wahrgenommen (je ${maxScore} %).`;
 }
 
 
@@ -109,7 +109,7 @@ export default function QuizResultPage() {
                 {categoryBreakdown.length ? buildHighestLoadSummary(categoryBreakdown, ageGroup) : 'Noch keine ausreichenden Angaben.'}
               </p>
               <p style={{ margin: 0 }}>
-                <strong>Größte empfundene Belastung:</strong> {resolvePerceivedStressLabel(session.stressCategories, ageGroup)}
+                <strong>Größte empfundene Herausforderung:</strong> {resolvePerceivedStressLabel(session.stressCategories, ageGroup)}
               </p>
             </div>
           </div>

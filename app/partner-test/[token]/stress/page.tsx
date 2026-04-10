@@ -54,7 +54,7 @@ export default function PartnerStressPage() {
   return (
     <section className="section">
       <div className="container test-shell stack">
-        <h1 className="test-title">Welcher Bereich belastet dich aktuell am meisten?</h1>
+        <h1 className="test-title">Welcher Bereich fordert dich aktuell am meisten heraus?</h1>
         <p className="helper">Einzelauswahl · Nach Auswahl geht es automatisch weiter</p>
         <div className="stack">
           {stressOptions.map((option) => (
@@ -68,7 +68,7 @@ export default function PartnerStressPage() {
               <strong>{option.value === 'keiner_genannten_bereiche' ? option.label : resolveCategoryLabel(option.value, ageGroup)}</strong>
               <span className="helper" style={{ marginTop: 4, display: 'block' }}>
                 {option.value === 'keiner_genannten_bereiche'
-                  ? 'Aktuell empfinde ich in keinem der genannten Bereiche die größte Belastung.'
+                  ? 'Aktuell empfinde ich in keinem der genannten Bereiche die größte Herausforderung.'
                   : resolveCategoryDescription(option.value, ageGroup)}
               </span>
             </button>
