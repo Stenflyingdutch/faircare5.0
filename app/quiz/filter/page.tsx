@@ -169,7 +169,6 @@ export default function QuizFilterPage() {
           <h2 id="quiz-flow-title" className="quiz-filter-intro-title">
             {t('quiz.filter.intro.title', locale, undefined, textDictionary)}
           </h2>
-          <p className="quiz-filter-intro-text">{t('quiz.filter.intro.text', locale, undefined, textDictionary)}</p>
           <div className="quiz-flow-grid" role="list">
             <div className="quiz-flow-step" role="listitem">
               <span className="quiz-flow-step-number">1</span>

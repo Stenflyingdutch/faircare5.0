@@ -121,13 +121,11 @@ export default function HomePage() {
           </Card>
           <Card
             className="card--link"
-            title={t('landing.links.what_is_faircare.title')}
-            description={t('landing.links.what_is_faircare.text')}
+            title={heroPrimaryText}
+            description={t('landing.cta_final.text')}
           >
             <div className="card-action card-action--centered">
-              <button type="button" className="cta-button secondary" onClick={() => setIsModalOpen(true)}>
-                {t('landing.links.what_is_faircare.button')}
-              </button>
+              <CTAButton href="/quiz/filter">{finalCtaButtonText}</CTAButton>
             </div>
           </Card>
           {siteVisibility.about && (

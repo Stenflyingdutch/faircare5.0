@@ -51,8 +51,10 @@ export default function QuizStressPage() {
   return (
     <section className="section">
       <div className="container test-shell stack">
-        <h1 className="test-title">Welcher Bereich fordert dich aktuell am meisten heraus?</h1>
-        <p className="helper">Einzelauswahl · Nach Auswahl geht es automatisch weiter</p>
+        <div className="quiz-stress-header">
+          <h1 className="test-title quiz-stress-title">Welcher Bereich fordert dich aktuell am meisten heraus?</h1>
+          <p className="helper quiz-stress-helper">Einzelauswahl · Nach Auswahl geht es automatisch weiter</p>
+        </div>
         <div className="stack">
           {stressOptions.map((option) => (
             <button

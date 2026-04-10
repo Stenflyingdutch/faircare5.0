@@ -871,6 +871,20 @@ textarea.input {
   line-height: 1.45;
 }
 
+.quiz-stress-header {
+  display: grid;
+  gap: 1.4rem;
+}
+
+.quiz-stress-title {
+  margin: 0;
+  line-height: 1.28;
+}
+
+.quiz-stress-helper {
+  margin: 0;
+}
+
 .quiz-fieldset {
   border: 1px solid var(--color-line);
   border-radius: 14px;
