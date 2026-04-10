@@ -142,6 +142,9 @@ export default function QuizFilterPage() {
     <section className="section">
       <div className="container test-shell stack quiz-pre-question-layout">
         <h1 className="test-title quiz-intro-title">{t('quiz.filter.title', locale, undefined, textDictionary)}</h1>
+        <p className="helper" style={{ marginTop: -4 }}>
+          Kein Test mit richtig oder falsch: Die Antworten helfen euch, Unterschiede in der Wahrnehmung fair zu besprechen.
+        </p>
         <form className="stack quiz-pre-question-form" onSubmit={handleSubmit}>
           {step === 0 && (
             <PreQuestionStep question={t('quiz.filter.childCount', locale, undefined, textDictionary)} questionId="quiz-filter-child-count-question">

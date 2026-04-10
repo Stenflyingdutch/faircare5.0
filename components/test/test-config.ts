@@ -1,11 +1,11 @@
 import type { AgeGroup, ChildcareTag, OwnershipAnswer, SplitClarity, StressSelection } from '@/types/quiz';
 
 export const ownershipOptions: Array<{ value: OwnershipAnswer; label: string }> = [
-  { value: 'ich', label: 'ich' },
+  { value: 'ich', label: 'meistens ich' },
   { value: 'eher_ich', label: 'eher ich' },
-  { value: 'beide', label: 'beide' },
-  { value: 'eher_partner', label: 'eher Partner' },
-  { value: 'partner', label: 'Partner' },
+  { value: 'beide', label: 'wir beide etwa gleich' },
+  { value: 'eher_partner', label: 'eher mein*e Partner*in' },
+  { value: 'partner', label: 'meistens mein*e Partner*in' },
 ];
 
 export function resolveAgeGroupLabel(ageGroup: AgeGroup) {

@@ -239,21 +239,33 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Differentiation Bullet 1',
     description: 'Erster Bullet im Differentiation-Abschnitt.',
-    text: { de: '', en: '', nl: '' },
+    text: {
+      de: 'Keine Schuldzuweisung: Die Auswertung ist ein Gesprächsstart, kein Urteil.',
+      en: 'No blame: The evaluation is a conversation starter, not a verdict.',
+      nl: 'Geen schuldvraag: de uitkomst is een gespreksstarter, geen oordeel.',
+    },
   },
   {
     key: 'landing.differentiation.bullet2',
     group: 'landing',
     label: 'Differentiation Bullet 2',
     description: 'Zweiter Bullet im Differentiation-Abschnitt.',
-    text: { de: '', en: '', nl: '' },
+    text: {
+      de: 'Beide Perspektiven zählen: Ihr beantwortet Fragen aus eurer jeweils eigenen Sicht.',
+      en: 'Both perspectives matter: each of you answers from your own point of view.',
+      nl: 'Beide perspectieven tellen: ieder antwoordt vanuit het eigen perspectief.',
+    },
   },
   {
     key: 'landing.differentiation.bullet3',
     group: 'landing',
     label: 'Differentiation Bullet 3',
     description: 'Dritter Bullet im Differentiation-Abschnitt.',
-    text: { de: '', en: '', nl: '' },
+    text: {
+      de: 'Konkrete nächste Schritte: Aus Ergebnissen werden alltagstaugliche Vereinbarungen.',
+      en: 'Concrete next steps: turn insights into practical agreements.',
+      nl: 'Concrete vervolgstappen: van inzichten naar werkbare afspraken.',
+    },
   },
   {
     key: 'landing.differentiation.additional',
