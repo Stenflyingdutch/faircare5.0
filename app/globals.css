@@ -302,6 +302,26 @@ main {
   margin-top: 1.7rem;
 }
 
+.hero-action-stack {
+  width: 100%;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.hero-quick-result {
+  margin: 0;
+  padding: 0.52rem 0.8rem;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 82, 212, 0.3);
+  background: rgba(255, 255, 255, 0.78);
+  color: #453f74;
+  font-size: clamp(0.88rem, 1.8vw, 1rem);
+  line-height: 1.35;
+  font-weight: 600;
+}
+
 .badge {
   display: inline-flex;
   border-radius: 999px;
@@ -840,6 +860,14 @@ textarea.input {
 
   .landing-hero .hero-title {
     max-width: 10.7ch;
+  }
+
+  .hero-quick-result {
+    width: 100%;
+    text-align: center;
+    border-radius: 12px;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
   }
 
   .landing-mental-load-focus {

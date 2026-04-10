@@ -56,6 +56,9 @@ export default function HomePage() {
 
   const linksGridClass = siteVisibility.about ? 'grid grid-3' : 'grid grid-2';
   const heroPrimaryText = locale === 'de' ? 'Quiz starten' : t('landing.hero.cta_primary');
+  const heroQuickResultText = locale === 'de'
+    ? 'Innerhalb 3 Minuten anonym zum ersten Ergebnis.'
+    : t('landing.hero.quick_result');
   const problemPointOneText = locale === 'de'
     ? 'Das Quiz zeigt, wie Verantwortung heute verteilt ist.'
     : t('landing.problem.point1.text');
@@ -97,8 +100,11 @@ export default function HomePage() {
         title={t('landing.hero.headline')}
         subtitle={t('landing.hero.subline')}
         actions={
-          <div className="hero-quiz-action">
-            <CTAButton href="/quiz/filter">{heroPrimaryText}</CTAButton>
+          <div className="hero-action-stack">
+            <p className="hero-quick-result">{heroQuickResultText}</p>
+            <div className="hero-quiz-action">
+              <CTAButton href="/quiz/filter">{heroPrimaryText}</CTAButton>
+            </div>
           </div>
         }
       />

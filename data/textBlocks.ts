@@ -287,6 +287,17 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     text: { de: 'Mehr erfahren', en: 'Learn more', nl: 'Meer weten' },
   },
   {
+    key: 'landing.hero.quick_result',
+    group: 'landing',
+    label: 'Hero Quick Result Hint',
+    description: 'Kurzer Hinweis zwischen Hero-Text und primärem CTA.',
+    text: {
+      de: 'Innerhalb 3 Minuten anonym zum ersten Ergebnis.',
+      en: 'Get your first anonymous result in about 3 minutes.',
+      nl: 'Binnen 3 minuten anoniem naar een eerste resultaat.',
+    },
+  },
+  {
     key: 'landing.quiz_focus.title',
     group: 'landing',
     label: 'Quiz Focus Title',
