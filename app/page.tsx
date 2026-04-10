@@ -14,7 +14,6 @@ import { siteVisibility } from '@/utils/siteVisibility';
 const ageFocusTextKeys = [
   'quiz.filter.start.focus.age.0_1',
   'quiz.filter.start.focus.age.1_3',
-  'quiz.filter.start.focus.age.3_6',
   'quiz.filter.start.focus.age.6_12',
   'quiz.filter.start.focus.age.12_18',
 ] as const;
@@ -71,7 +70,7 @@ export default function HomePage() {
     ? 'Jede Altersgruppe bringt neue Verantwortungen mit sich.'
     : t('landing.quiz_focus.text');
   const landingFocusHint = locale === 'de'
-    ? 'FairCare hilft euch, die gemeinsamen Verantwortlichkeiten immer gut im Blick zu haben.'
+    ? 'FairCare hilft euch, die sich je Altersklasse ständig ändernden Verantwortungen klar im Blick zu behalten.'
     : t('landing.quiz_focus.hint');
   const landingProblemCards = [
     {
@@ -94,6 +93,7 @@ export default function HomePage() {
   return (
     <>
       <PageHero
+        className="landing-hero"
         title={t('landing.hero.headline')}
         subtitle={t('landing.hero.subline')}
         actions={

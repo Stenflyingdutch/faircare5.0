@@ -76,14 +76,14 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'quiz',
     label: 'Quiz-Start Altersfokus 0-1',
     description: 'Bezeichnung für Altersfokus 0 bis 1 Jahre.',
-    text: { de: 'Babys (0-1 Jahre)', en: 'Babies (0-1 years)', nl: "Baby's (0-1 jaar)" },
+    text: { de: 'Babys', en: 'Babies', nl: "Baby's" },
   },
   {
     key: 'quiz.filter.start.focus.age.1_3',
     group: 'quiz',
     label: 'Quiz-Start Altersfokus 1-3',
     description: 'Bezeichnung für Altersfokus 1 bis 3 Jahre.',
-    text: { de: 'Kleinkinder (1-3 Jahre)', en: 'Toddlers (1-3 years)', nl: 'Peuters (1-3 jaar)' },
+    text: { de: 'Kleinkinder', en: 'Toddlers', nl: 'Peuters' },
   },
   {
     key: 'quiz.filter.start.focus.age.3_6',
@@ -97,14 +97,14 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'quiz',
     label: 'Quiz-Start Altersfokus 6-12',
     description: 'Bezeichnung für Altersfokus 6 bis 12 Jahre.',
-    text: { de: 'Schulkinder (6-12 Jahre)', en: 'School-age children (6-12 years)', nl: 'Schoolkinderen (6-12 jaar)' },
+    text: { de: 'Schulkinder', en: 'School-age children', nl: 'Schoolkinderen' },
   },
   {
     key: 'quiz.filter.start.focus.age.12_18',
     group: 'quiz',
     label: 'Quiz-Start Altersfokus 12-18',
     description: 'Bezeichnung für Altersfokus 12 bis 18 Jahre.',
-    text: { de: 'Jugendliche (12-18 Jahre)', en: 'Teenagers (12-18 years)', nl: 'Jongeren (12-18 jaar)' },
+    text: { de: 'Jugendliche', en: 'Teenagers', nl: 'Jongeren' },
   },
   {
     key: 'quiz.filter.step',
@@ -314,7 +314,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     label: 'Quiz Focus Hint',
     description: 'Zusätzlicher Hinweistext im Mental-Load-Fokusblock.',
     text: {
-      de: 'FairCare hilft euch, die gemeinsamen Verantwortlichkeiten immer gut im Blick zu haben.',
+      de: 'FairCare hilft euch, die sich je Altersklasse ständig ändernden Verantwortungen klar im Blick zu behalten.',
       en: 'FairCare helps you keep shared responsibilities in view at all times.',
       nl: 'FairCare helpt jullie om gezamenlijke verantwoordelijkheden steeds goed in beeld te houden.',
     },
