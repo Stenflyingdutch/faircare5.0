@@ -1194,7 +1194,10 @@ export async function buildOrUpdateInitiatorResult(userId: string) {
   return resultId;
 }
 
-export async function ensureInitiatorFamilySetup(userId: string, options?: { inviteContextPresent?: boolean }) {
+export async function ensureInitiatorFamilySetup(
+  userId: string,
+  options?: { inviteContextPresent?: boolean; deferResultBootstrap?: boolean },
+) {
   const profile = await fetchAppUserProfile(userId);
   const inviteContextPresent = options?.inviteContextPresent ?? false;
   if (!profile || profile.role === 'partner') return null;
@@ -1290,36 +1293,50 @@ export async function ensureInitiatorFamilySetup(userId: string, options?: { inv
     });
   }
 
-  logSignupInfo('initiator_result.bootstrap.start', {
-    step: 'ensureInitiatorFamilySetup',
-    path: `${firestoreCollections.quizResults}`,
-    uid: userId,
-    inviteContextPresent,
-  });
-  try {
-    await buildOrUpdateInitiatorResult(userId);
-    logSignupInfo('initiator_result.bootstrap.success', {
+  const runResultBootstrap = async () => {
+    logSignupInfo('initiator_result.bootstrap.start', {
       step: 'ensureInitiatorFamilySetup',
       path: `${firestoreCollections.quizResults}`,
       uid: userId,
       inviteContextPresent,
+      extra: { deferred: Boolean(options?.deferResultBootstrap) },
     });
-  } catch (error) {
-    logSignupError('initiator_result.bootstrap.failed', error, {
-      step: 'ensureInitiatorFamilySetup',
-      path: `${firestoreCollections.quizResults}`,
-      uid: userId,
-      inviteContextPresent,
+    try {
+      await buildOrUpdateInitiatorResult(userId);
+      logSignupInfo('initiator_result.bootstrap.success', {
+        step: 'ensureInitiatorFamilySetup',
+        path: `${firestoreCollections.quizResults}`,
+        uid: userId,
+        inviteContextPresent,
+        extra: { deferred: Boolean(options?.deferResultBootstrap) },
+      });
+    } catch (error) {
+      logSignupError('initiator_result.bootstrap.failed', error, {
+        step: 'ensureInitiatorFamilySetup',
+        path: `${firestoreCollections.quizResults}`,
+        uid: userId,
+        inviteContextPresent,
+        extra: { deferred: Boolean(options?.deferResultBootstrap) },
+      });
+      throw wrapSignupFlowError({
+        message: 'Initiator-Ergebnis konnte nicht aufgebaut werden.',
+        failedStep: 'ensureInitiatorFamilySetup.buildOrUpdateInitiatorResult',
+        collection: firestoreCollections.quizResults,
+        queryName: 'buildOrUpdateInitiatorResult',
+        path: `${firestoreCollections.quizResults}`,
+        cause: error,
+      });
+    }
+  };
+
+  if (options?.deferResultBootstrap) {
+    void runResultBootstrap().catch(() => {
+      // Fehler ist bereits geloggt; kritischer Signup-Pfad bleibt schnell.
     });
-    throw wrapSignupFlowError({
-      message: 'Initiator-Ergebnis konnte nicht aufgebaut werden.',
-      failedStep: 'ensureInitiatorFamilySetup.buildOrUpdateInitiatorResult',
-      collection: firestoreCollections.quizResults,
-      queryName: 'buildOrUpdateInitiatorResult',
-      path: `${firestoreCollections.quizResults}`,
-      cause: error,
-    });
+    return familyId;
   }
+
+  await runResultBootstrap();
   return familyId;
 }
 

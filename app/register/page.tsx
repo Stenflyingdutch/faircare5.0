@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateProfile } from 'firebase/auth';
 
@@ -9,7 +9,7 @@ import { registerUser, resolveRegistrationErrorMessage, syncAuthSession } from '
 import { ensureInitiatorFamilySetup, ensureUserProfile } from '@/services/partnerFlow.service';
 import { linkAnonymousSessionToUser } from '@/services/sessionLinking';
 import { loadSessionFromStorage } from '@/services/sessionStorage';
-import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
+import { SignupPerfTracker, logSignupError, logSignupInfo, persistSignupPerfMark } from '@/services/signup-debug.service';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -20,12 +20,20 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitGuardRef = useRef(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (submitGuardRef.current) return;
+    submitGuardRef.current = true;
     setIsSubmitting(true);
     setError(null);
     setErrorCode(null);
+    const perf = new SignupPerfTracker();
+    perf.mark('flow.click');
+    perf.mark('flow.submit.start');
+    persistSignupPerfMark('flow.click');
+    persistSignupPerfMark('flow.submit.start');
     const inviteContextPresent = false;
     let userId: string | null = null;
     let finalizeStarted = false;
@@ -47,11 +55,14 @@ export default function RegisterPage() {
       setError('Die Passwörter stimmen nicht überein.');
       setErrorCode(null);
       setIsSubmitting(false);
+      submitGuardRef.current = false;
       return;
     }
 
     try {
       const credential = await registerUser(email, password, { inviteContextPresent });
+      perf.mark('auth.create_user.success');
+      persistSignupPerfMark('auth.create_user.success');
       userId = credential.user.uid;
       lastSuccessfulStep = 'auth.create_user.success';
       failedStep = 'auth.create_user';
@@ -93,9 +104,11 @@ export default function RegisterPage() {
         role: 'initiator',
         inviteContextPresent,
       });
+      perf.mark('user_profile.create.success');
+      persistSignupPerfMark('user_profile.create.success');
       lastSuccessfulStep = 'user_profile.create.success';
       failedStep = 'family_doc.create';
-      await ensureInitiatorFamilySetup(credential.user.uid, { inviteContextPresent });
+      await ensureInitiatorFamilySetup(credential.user.uid, { inviteContextPresent, deferResultBootstrap: true });
       lastSuccessfulStep = 'family_doc.create.success';
       logSignupInfo('after_bootstrap_reached', {
         step: 'register.handleSubmit',
@@ -150,6 +163,21 @@ export default function RegisterPage() {
         uid: credential.user.uid,
         inviteContextPresent,
         extra: { targetRoute },
+      });
+      perf.mark('redirect.start');
+      persistSignupPerfMark('redirect.start');
+      logSignupInfo('signup.perf.pre_redirect', {
+        step: 'register.handleSubmit',
+        path: '/register',
+        uid: credential.user.uid,
+        inviteContextPresent,
+        extra: {
+          T1_click_to_submit_start_ms: perf.measure('flow.click', 'flow.submit.start', 'T1')?.durationMs ?? null,
+          T2_submit_start_to_auth_created_ms: perf.measure('flow.submit.start', 'auth.create_user.success', 'T2')?.durationMs ?? null,
+          T3_auth_created_to_min_profile_written_ms: perf.measure('auth.create_user.success', 'user_profile.create.success', 'T3')?.durationMs ?? null,
+          T4_profile_ready_to_redirect_start_ms: perf.measure('user_profile.create.success', 'redirect.start', 'T4')?.durationMs ?? null,
+          T4_5_total_click_to_redirect_start_ms: perf.measureFromStart('redirect.start', 'click_to_redirect')?.durationMs ?? null,
+        },
       });
       logSignupInfo('signup.redirect.start', {
         step: 'register.handleSubmit',
@@ -268,6 +296,7 @@ export default function RegisterPage() {
       setError(resolveRegistrationErrorMessage(registrationError));
       setErrorCode(typeof code === 'string' && code.trim().length > 0 ? code : null);
       setIsSubmitting(false);
+      submitGuardRef.current = false;
     }
   }
 

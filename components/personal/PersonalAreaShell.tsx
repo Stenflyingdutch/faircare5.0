@@ -5,8 +5,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
 
 import { observeAuthState } from '@/services/auth.service';
-import { ensureUserProfile, fetchDashboardBundle } from '@/services/partnerFlow.service';
-import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
+import { fetchDashboardBundle } from '@/services/partnerFlow.service';
+import {
+  clearPersistedSignupPerfMarks,
+  logSignupError,
+  logSignupInfo,
+  persistSignupPerfMark,
+  readPersistedSignupPerfMarks,
+} from '@/services/signup-debug.service';
 import { isTeamCheckBadgeVisible } from '@/services/teamCheck.logic';
 
 const personalNavItems = [
@@ -20,7 +26,7 @@ const LOCKED_TAB_HINT = 'Dieser Bereich wird sichtbar, sobald dein Partner den T
 export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isReady, setIsReady] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showTeamCheckDot, setShowTeamCheckDot] = useState(false);
   const [partnerCompleted, setPartnerCompleted] = useState(false);
@@ -47,6 +53,23 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         router.replace('/login');
         return;
       }
+      setAuthReady(true);
+      persistSignupPerfMark('target_page.shell.visible');
+      const persistedPerfMarks = readPersistedSignupPerfMarks();
+      const flowClick = persistedPerfMarks?.['flow.click'];
+      const redirectStart = persistedPerfMarks?.['redirect.start'];
+      const shellVisible = persistedPerfMarks?.['target_page.shell.visible'];
+      if (typeof flowClick === 'number' && typeof redirectStart === 'number' && typeof shellVisible === 'number') {
+        logSignupInfo('signup.perf.partial', {
+          step: 'PersonalAreaShell.observeAuthState',
+          path: pathname,
+          uid: user.uid,
+          extra: {
+            T5_redirect_start_to_target_render_ms: Number((shellVisible - redirectStart).toFixed(1)),
+            T7_click_to_target_render_ms: Number((shellVisible - flowClick).toFixed(1)),
+          },
+        });
+      }
       logSignupInfo('personal_area.shell.auth_state.ready', {
         step: 'PersonalAreaShell.observeAuthState',
         path: pathname,
@@ -63,11 +86,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         uid: user.uid,
       });
       try {
-        await ensureUserProfile({
-          userId: user.uid,
-          email: user.email ?? '',
-          displayName: user.displayName ?? undefined,
-        });
         if (!hasLoggedFirstQuery) {
           logSignupInfo('personal_shell_first_query.start', {
             step: 'PersonalAreaShell.observeAuthState',
@@ -109,7 +127,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           reminderActiveAt: bundle.family?.teamCheckPlan?.reminderActiveAt,
         }));
         setPartnerCompleted(Boolean(bundle.family?.partnerCompleted));
-        setIsReady(true);
         setLoadError(null);
         logSignupInfo('personal_shell_ready', {
           step: 'PersonalAreaShell.observeAuthState',
@@ -150,6 +167,36 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [hasLoggedFirstQuery, pathname, router]);
 
+  useEffect(() => {
+    if (!authReady) return;
+    const handleFirstInteraction = () => {
+      persistSignupPerfMark('target_page.first_interaction');
+      const persistedPerfMarks = readPersistedSignupPerfMarks();
+      const click = persistedPerfMarks?.['flow.click'];
+      const shellVisible = persistedPerfMarks?.['target_page.shell.visible'];
+      const interactive = persistedPerfMarks?.['target_page.first_interaction'];
+      if (typeof click === 'number' && typeof shellVisible === 'number' && typeof interactive === 'number') {
+        logSignupInfo('signup.perf.interaction', {
+          step: 'PersonalAreaShell.firstInteraction',
+          path: pathname,
+          extra: {
+            T6_target_render_to_first_interaction_ms: Number((interactive - shellVisible).toFixed(1)),
+            T7_total_click_to_first_interaction_ms: Number((interactive - click).toFixed(1)),
+          },
+        });
+      }
+      clearPersistedSignupPerfMarks();
+      window.removeEventListener('pointerdown', handleFirstInteraction, true);
+      window.removeEventListener('keydown', handleFirstInteraction, true);
+    };
+    window.addEventListener('pointerdown', handleFirstInteraction, true);
+    window.addEventListener('keydown', handleFirstInteraction, true);
+    return () => {
+      window.removeEventListener('pointerdown', handleFirstInteraction, true);
+      window.removeEventListener('keydown', handleFirstInteraction, true);
+    };
+  }, [authReady, pathname]);
+
   if (loadError) {
     return (
       <section className="section">
@@ -160,7 +207,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!isReady) {
+  if (!authReady) {
     return (
       <section className="section">
         <div className="container">Lade persönlichen Bereich …</div>
