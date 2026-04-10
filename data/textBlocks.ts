@@ -287,6 +287,39 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     text: { de: 'Mehr erfahren', en: 'Learn more', nl: 'Meer weten' },
   },
   {
+    key: 'landing.quiz_focus.title',
+    group: 'landing',
+    label: 'Quiz Focus Title',
+    description: 'Titel des Mental-Load-Fokusblocks unter dem Hero.',
+    text: {
+      de: 'FairCare fokussiert auf Mental Load in der Erziehung.',
+      en: 'FairCare focuses on mental load in parenting.',
+      nl: 'FairCare focust op mentale belasting in de opvoeding.',
+    },
+  },
+  {
+    key: 'landing.quiz_focus.text',
+    group: 'landing',
+    label: 'Quiz Focus Text',
+    description: 'Haupttext des Mental-Load-Fokusblocks.',
+    text: {
+      de: 'Jede Altersgruppe bringt neue Verantwortungen mit sich.',
+      en: 'Each age group brings new responsibilities.',
+      nl: 'Elke leeftijdsgroep brengt nieuwe verantwoordelijkheden met zich mee.',
+    },
+  },
+  {
+    key: 'landing.quiz_focus.hint',
+    group: 'landing',
+    label: 'Quiz Focus Hint',
+    description: 'Zusätzlicher Hinweistext im Mental-Load-Fokusblock.',
+    text: {
+      de: 'FairCare hilft euch, die gemeinsamen Verantwortlichkeiten immer gut im Blick zu haben.',
+      en: 'FairCare helps you keep shared responsibilities in view at all times.',
+      nl: 'FairCare helpt jullie om gezamenlijke verantwoordelijkheden steeds goed in beeld te houden.',
+    },
+  },
+  {
     key: 'landing.problem.point1.title',
     group: 'landing',
     label: 'Problem Point 1 Title',

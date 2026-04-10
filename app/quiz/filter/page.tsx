@@ -20,14 +20,6 @@ const childCountOptions: Array<{ value: ChildCount; label: string }> = [
   { value: '3_plus', label: '3+' },
 ];
 
-const ageFocusTextKeys = [
-  'quiz.filter.start.focus.age.0_1',
-  'quiz.filter.start.focus.age.1_3',
-  'quiz.filter.start.focus.age.3_6',
-  'quiz.filter.start.focus.age.6_12',
-  'quiz.filter.start.focus.age.12_18',
-] as const;
-
 export default function QuizFilterPage() {
   const router = useRouter();
   const [filter, setFilter] = useState<Partial<QuizFilterInput>>({ childcareTags: [] });
@@ -150,20 +142,6 @@ export default function QuizFilterPage() {
     <section className="section">
       <div className="container test-shell stack quiz-pre-question-layout">
         <h1 className="test-title quiz-intro-title">{t('quiz.filter.start.title', locale, undefined, textDictionary)}</h1>
-        <p className="quiz-start-subtitle">{t('quiz.filter.start.subtitle', locale, undefined, textDictionary)}</p>
-        <article className="quiz-age-focus-card" aria-labelledby="quiz-age-focus-title">
-          <p className="quiz-age-focus-kicker">{t('quiz.filter.start.focus.kicker', locale, undefined, textDictionary)}</p>
-          <h2 id="quiz-age-focus-title" className="quiz-age-focus-title">
-            {t('quiz.filter.start.focus.title', locale, undefined, textDictionary)}
-          </h2>
-          <div className="quiz-age-focus-grid" role="list">
-            {ageFocusTextKeys.map((key) => (
-              <p key={key} className="quiz-age-focus-pill" role="listitem">
-                {t(key, locale, undefined, textDictionary)}
-              </p>
-            ))}
-          </div>
-        </article>
         <article className="quiz-flow-card" aria-labelledby="quiz-flow-title">
           <p className="quiz-flow-kicker">{t('quiz.filter.intro.kicker', locale, undefined, textDictionary)}</p>
           <h2 id="quiz-flow-title" className="quiz-filter-intro-title">
