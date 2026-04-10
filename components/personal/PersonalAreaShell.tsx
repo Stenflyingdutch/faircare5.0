@@ -218,6 +218,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const showNavigation = !pathname.startsWith('/app/ergebnisse');
   const activeNavItem = personalNavItems.find((item) => pathname.startsWith(item.href)) ?? null;
   const showLockedPlaceholder = Boolean(activeNavItem?.gatedUntilPartnerCompleted) && !partnerCompleted;
+  const showLockedHint = Boolean(activeNavItem?.gatedUntilPartnerCompleted);
   const isSettingsActive = pathname.startsWith('/app/einstellungen');
 
   return (
@@ -269,12 +270,13 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <div className="personal-area-content">
-          {showLockedPlaceholder ? (
-            <article className="card stack">
+          {showLockedHint && (
+            <article className="card stack" aria-live="polite">
               <strong>Noch ein kleiner Schritt</strong>
               <p className="card-description">{LOCKED_TAB_HINT}</p>
             </article>
-          ) : children}
+          )}
+          {showLockedPlaceholder ? null : children}
         </div>
       </div>
     </section>

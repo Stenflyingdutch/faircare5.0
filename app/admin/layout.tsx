@@ -10,9 +10,5 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect('/login?redirectTo=/admin');
   }
 
-  if (!context.isAdmin) {
-    redirect('/app/home');
-  }
-
   return children;
 }
