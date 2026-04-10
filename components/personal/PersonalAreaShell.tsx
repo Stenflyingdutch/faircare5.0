@@ -167,16 +167,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [hasLoggedFirstQuery, pathname, router]);
 
-  if (loadError) {
-    return (
-      <section className="section">
-        <div className="container">
-          Persönlicher Bereich konnte nicht geladen werden: {loadError}
-        </div>
-      </section>
-    );
-  }
-
   useEffect(() => {
     if (!authReady) return;
     const handleFirstInteraction = () => {
@@ -206,6 +196,16 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
       window.removeEventListener('keydown', handleFirstInteraction, true);
     };
   }, [authReady, pathname]);
+
+  if (loadError) {
+    return (
+      <section className="section">
+        <div className="container">
+          Persönlicher Bereich konnte nicht geladen werden: {loadError}
+        </div>
+      </section>
+    );
+  }
 
   if (!authReady) {
     return (
