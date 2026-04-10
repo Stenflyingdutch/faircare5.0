@@ -125,7 +125,7 @@ export default function HomePage() {
         </article>
       </SectionWrapper>
 
-      <SectionWrapper>
+      <SectionWrapper className="landing-problem-section">
         <div className="landing-problem-grid" role="list" aria-label="Drei Schritte für eine faire Verteilung">
           {landingProblemCards.map((item, index) => (
             <article key={item.key} className="landing-problem-card" role="listitem">

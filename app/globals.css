@@ -648,6 +648,10 @@ textarea.input {
   gap: 1rem;
 }
 
+.section.landing-problem-section {
+  padding-top: 1.25rem;
+}
+
 .landing-mental-load-focus {
   position: relative;
   overflow: hidden;
