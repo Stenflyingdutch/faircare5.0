@@ -109,7 +109,7 @@ export default function HomePage() {
         }
       />
 
-      <SectionWrapper>
+      <SectionWrapper className="landing-focus-section">
         <article className="landing-mental-load-focus" aria-labelledby="landing-mental-load-focus-title">
           <p className="landing-mental-load-focus-kicker">{t('quiz.filter.start.focus.kicker')}</p>
           <h2 id="landing-mental-load-focus-title" className="landing-mental-load-focus-title">{landingFocusTitle}</h2>

@@ -652,6 +652,10 @@ textarea.input {
   padding-top: 1.25rem;
 }
 
+.section.landing-focus-section {
+  padding-top: 1rem;
+}
+
 .landing-mental-load-focus {
   position: relative;
   overflow: hidden;
