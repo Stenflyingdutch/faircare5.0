@@ -275,6 +275,7 @@ main {
   border: 0;
   cursor: pointer;
   min-height: 46px;
+  color: var(--color-secondary);
 }
 
 .cta-button.primary,
@@ -710,6 +711,7 @@ textarea.input {
   padding: 0.85rem 1rem;
   text-align: left;
   background: #fff;
+  color: var(--color-secondary);
   font: inherit;
   -webkit-tap-highlight-color: transparent;
 }
@@ -730,6 +732,7 @@ textarea.input {
   border-radius: 14px;
   min-height: 56px;
   background: #fff;
+  color: var(--color-secondary);
   font: inherit;
   text-align: left;
   padding: 0.9rem 1rem;
