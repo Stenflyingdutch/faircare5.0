@@ -52,7 +52,7 @@ function resolveFocusSort(value?: OwnershipFocusLevel | null) {
 
 function toReasonText(reasonCodes: RecommendationReasonCode[]) {
   if (reasonCodes.includes('high_test_load') && reasonCodes.includes('high_perceived_stress')) {
-    return 'Als Startpunkt empfohlen, weil dieser Bereich im Test aktuell stark sichtbar ist und im Alltag als belastend erlebt wird.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich im Quiz aktuell stark sichtbar ist und im Alltag als belastend erlebt wird.';
   }
   if (reasonCodes.includes('high_test_load') && reasonCodes.includes('different_perception')) {
     return 'Als Startpunkt empfohlen, weil dieser Bereich aktuell sichtbar ist und unterschiedlich wahrgenommen wird.';
@@ -61,7 +61,7 @@ function toReasonText(reasonCodes: RecommendationReasonCode[]) {
     return 'Als Startpunkt empfohlen, weil dieser Bereich im Moment besonders relevant wirkt und die Wahrnehmung auseinandergeht.';
   }
   if (reasonCodes.includes('high_test_load')) {
-    return 'Als Startpunkt empfohlen, weil dieser Bereich im Test im Moment besonders relevant ist.';
+    return 'Als Startpunkt empfohlen, weil dieser Bereich im Quiz im Moment besonders relevant ist.';
   }
   if (reasonCodes.includes('high_perceived_stress')) {
     return 'Als Startpunkt empfohlen, weil dieser Bereich aktuell spürbar belastend ist.';

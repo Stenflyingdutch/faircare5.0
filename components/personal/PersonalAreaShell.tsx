@@ -21,7 +21,7 @@ const personalNavItems = [
   { label: 'Austausch', href: '/app/review', tone: 'violet', gatedUntilPartnerCompleted: true },
 ] as const;
 
-const LOCKED_TAB_HINT = 'Dieser Bereich wird sichtbar, sobald dein Partner den Test abgeschlossen hat.';
+const LOCKED_TAB_HINT = 'Dieser Bereich wird sichtbar, sobald dein Partner das Quiz abgeschlossen hat.';
 
 export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const router = useRouter();

@@ -234,7 +234,7 @@ export function TeamCheckContent() {
                 <strong>Quiz-Ergebnisse durchgesprochen</strong>
                 <p className="helper" style={{ margin: 0 }}>am {discussedDate}</p>
                 <Link href="/app/transparenz" className="button" style={{ width: 'fit-content' }}>
-                  Testergebnisse ansehen
+                  Quizergebnisse ansehen
                 </Link>
               </div>
             )}

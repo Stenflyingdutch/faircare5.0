@@ -179,7 +179,7 @@ export function buildClarityConsistencyInsight(
   if (averageDifference < insightThresholds.notableDifference) {
     return `In der Startfrage beschreibt ihr die Aufteilung als „${initiator}“ bzw. „${partner}“. Das passt gut zu eurem insgesamt ähnlichen Antwortbild.`;
   }
-  return `In der Startfrage beschreibt ihr die Aufteilung als „${initiator}“ bzw. „${partner}“. Die Antworten im Test weichen teilweise ab und geben gute Gesprächsanlässe.`;
+  return `In der Startfrage beschreibt ihr die Aufteilung als „${initiator}“ bzw. „${partner}“. Die Antworten im Quiz weichen teilweise ab und geben gute Gesprächsanlässe.`;
 }
 
 export const resultLogicDocumentation = {
@@ -200,5 +200,5 @@ export const resultLogicDocumentation = {
     block1: 'Wahrnehmungsvergleich: ähnliche / teilweise ähnliche / deutlich unterschiedliche Sicht anhand Differenzlevel pro Kategorie.',
     block2: 'Mental-Load-Verteilung: pro Kategorie Gegenüberstellung beider Werte inkl. Differenz und optionaler Spannweite bei starker Abweichung.',
   },
-  consistencyLogic: 'Zusatzprüfung: Startfrage zur Klarheit der Aufteilung wird mit durchschnittlicher Antwortdifferenz aus dem Test gespiegelt.',
+  consistencyLogic: 'Zusatzprüfung: Startfrage zur Klarheit der Aufteilung wird mit durchschnittlicher Antwortdifferenz aus dem Quiz gespiegelt.',
 };
