@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthenticatedAdminContext } from '@/lib/admin-auth';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
+import { UserDeleteError, executeUserDeletion } from '@/services/server/user-delete.service';
 import { buildDisplayName, deriveFirstName, deriveLastName, resolveAccountStatus, resolveAdminRole } from '@/services/user-profile.service';
 import type { AppUserProfile } from '@/types/partner-flow';
 
@@ -23,44 +24,6 @@ async function ensureNotLastAdmin(targetUserId: string) {
   if (adminCount <= 1) {
     throw new Error('Der letzte Admin kann nicht gesperrt, entmachtet oder gelöscht werden.');
   }
-}
-
-async function deleteCollectionByField(collectionName: string, field: string, value: string) {
-  const snapshot = await adminDb.collection(collectionName).where(field, '==', value).get();
-  if (snapshot.empty) return;
-
-  const batch = adminDb.batch();
-  snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-  await batch.commit();
-}
-
-async function deleteFamilyCascade(familyId: string) {
-  const familyRef = adminDb.collection('families').doc(familyId);
-  const familyDoc = await familyRef.get();
-  if (familyDoc.exists) {
-    await adminDb.recursiveDelete(familyRef);
-  }
-
-  await Promise.all([
-    deleteCollectionByField('invitations', 'familyId', familyId),
-    deleteCollectionByField('quizResults', 'familyId', familyId),
-    deleteCollectionByField('jointResults', 'familyId', familyId),
-    deleteCollectionByField('quizSessions', 'familyId', familyId),
-    deleteCollectionByField('mailLogs', 'familyId', familyId),
-  ]);
-}
-
-async function getAdminUserState(userId: string) {
-  const [profileSnapshot, authUser] = await Promise.all([
-    usersCollection().doc(userId).get(),
-    adminAuth.getUser(userId).catch(() => null),
-  ]);
-
-  return {
-    profile: profileSnapshot.exists ? profileSnapshot.data() as AppUserProfile : null,
-    authUser,
-    userRef: usersCollection().doc(userId),
-  };
 }
 
 function toAdminUserResponse(userId: string, profile: AppUserProfile, authUser?: Awaited<ReturnType<typeof adminAuth.getUser>>) {
@@ -140,33 +103,21 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
   }
 
   const { userId } = await context.params;
-  const { profile, authUser, userRef } = await getAdminUserState(userId);
-
-  if (!profile && !authUser) {
-    return NextResponse.json({ error: 'Nutzerkonto nicht gefunden.' }, { status: 404 });
-  }
-
   try {
-    await ensureNotLastAdmin(userId);
+    const outcome = await executeUserDeletion({
+      targetUserId: userId,
+      actorUserId: adminContext.user?.uid ?? 'admin',
+      actorIsAdmin: adminContext.isAdmin,
+      mode: 'admin',
+    });
+    return NextResponse.json({ success: true, alreadyDeleted: outcome.alreadyDeleted });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 409 });
+    if (error instanceof UserDeleteError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
+    return NextResponse.json(
+      { error: 'Nutzerkonto konnte nicht gelöscht werden.', code: 'user_delete/unexpected' },
+      { status: 500 },
+    );
   }
-
-  if (profile?.familyId) {
-    await deleteFamilyCascade(profile.familyId);
-  }
-
-  await Promise.all([
-    deleteCollectionByField('userResults', 'userId', userId),
-    deleteCollectionByField('quizResults', 'userId', userId),
-    deleteCollectionByField('quizSessions', 'userId', userId),
-    deleteCollectionByField('mailLogs', 'userId', userId),
-    profile ? userRef.delete() : Promise.resolve(),
-  ]);
-
-  if (authUser) {
-    await adminAuth.deleteUser(userId);
-  }
-
-  return NextResponse.json({ success: true });
 }

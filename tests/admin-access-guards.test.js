@@ -25,12 +25,18 @@ test('admin user api protects the last admin from destructive actions', () => {
   assert.match(src, /ensureNotLastAdmin/);
 });
 
-test('admin user delete supports auth-only users without a Firestore profile', () => {
+test('admin user delete delegates to the centralized delete service', () => {
   const src = read('app/api/admin/users/[userId]/route.ts');
-  assert.match(src, /const \{ profile, authUser, userRef \} = await getAdminUserState\(userId\)/);
-  assert.match(src, /if \(!profile && !authUser\)/);
-  assert.match(src, /profile \? userRef\.delete\(\) : Promise\.resolve\(\)/);
-  assert.match(src, /if \(authUser\) {\s+await adminAuth\.deleteUser\(userId\);/);
+  assert.match(src, /executeUserDeletion/);
+  assert.match(src, /mode: 'admin'/);
+  assert.match(src, /alreadyDeleted/);
+});
+
+test('centralized user delete keeps last-admin protection and tolerates missing auth user', () => {
+  const src = read('services/server/user-delete.service.ts');
+  assert.match(src, /user_delete\/last_admin/);
+  assert.match(src, /auth\/user-not-found/);
+  assert.match(src, /alreadyDeleted/);
 });
 
 test('admin profile helper requires an active account in addition to adminRole', () => {
