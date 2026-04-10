@@ -51,14 +51,19 @@ export default function HomePage() {
   };
 
   const linksGridClass = siteVisibility.about ? 'grid grid-3' : 'grid grid-2';
+  const heroPrimaryText = locale === 'de' ? 'Quiz starten' : t('landing.hero.cta_primary');
+  const problemPointOneText = locale === 'de'
+    ? 'Das Quiz zeigt, wie Verantwortung heute verteilt ist.'
+    : t('landing.problem.point1.text');
   const problemPointTwoText = locale === 'de'
     ? 'Eine offene Diskussion führen, was für Euch eine faire Verteilung bedeutet.'
     : t('landing.problem.point2.text');
+  const finalCtaButtonText = locale === 'de' ? 'Jetzt Quiz starten' : t('landing.cta_final.button');
   const landingProblemCards = [
     {
       key: 'point1',
       title: t('landing.problem.point1.title'),
-      text: t('landing.problem.point1.text'),
+      text: problemPointOneText,
     },
     {
       key: 'point2',
@@ -79,7 +84,7 @@ export default function HomePage() {
         subtitle={t('landing.hero.subline')}
         actions={
           <>
-            <CTAButton href="/quiz/filter">{t('landing.hero.cta_primary')}</CTAButton>
+            <CTAButton href="/quiz/filter">{heroPrimaryText}</CTAButton>
             <button
               type="button"
               className="cta-button secondary hero-info-button"
@@ -164,7 +169,7 @@ export default function HomePage() {
       <SectionWrapper>
         <div className="final-cta">
           <p className="final-cta-text">{t('landing.cta_final.text')}</p>
-          <CTAButton href="/quiz/filter">{t('landing.cta_final.button')}</CTAButton>
+          <CTAButton href="/quiz/filter">{finalCtaButtonText}</CTAButton>
         </div>
       </SectionWrapper>
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>

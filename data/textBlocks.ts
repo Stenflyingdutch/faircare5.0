@@ -202,7 +202,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Hero Primary CTA',
     description: 'Primärer Call-to-Action im Hero.',
-    text: { de: 'Test starten', en: 'Start test', nl: 'Test starten' },
+    text: { de: 'Quiz starten', en: 'Start quiz', nl: 'Quiz starten' },
   },
   {
     key: 'landing.hero.cta_secondary',
@@ -223,7 +223,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Problem Point 1 Text',
     description: 'Text des ersten Problem-Punkts.',
-    text: { de: 'Der Test zeigt, wie Verantwortung heute verteilt ist', en: 'The test shows how responsibility is distributed today', nl: 'De test toont hoe verantwoordelijkheid vandaag verdeeld is' },
+    text: { de: 'Das Quiz zeigt, wie Verantwortung heute verteilt ist.', en: 'The quiz shows how responsibility is distributed today.', nl: 'De quiz laat zien hoe verantwoordelijkheid vandaag verdeeld is.' },
   },
   {
     key: 'landing.problem.point2.title',
@@ -433,7 +433,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Final CTA Button',
     description: 'Button-Text des finalen Call-to-Action.',
-    text: { de: 'Jetzt Test starten', en: 'Start test now', nl: 'Start test nu' },
+    text: { de: 'Jetzt Quiz starten', en: 'Start quiz now', nl: 'Start quiz nu' },
   },
 ];
 
