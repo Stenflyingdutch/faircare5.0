@@ -1837,3 +1837,75 @@ textarea.input {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+.admin-console-section {
+  padding-top: 1.5rem;
+}
+
+.admin-console-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.admin-sidebar {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 16px;
+  padding: 0.8rem;
+}
+
+.admin-sidebar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.admin-nav {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.admin-nav-item {
+  border: 1px solid var(--color-border-soft);
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.65rem 0.7rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-nav-item.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.admin-main {
+  min-width: 0;
+}
+
+.admin-header-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 980px) {
+  .admin-console-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .admin-sidebar {
+    position: sticky;
+    top: 90px;
+  }
+
+  .admin-sidebar-head .button {
+    display: none;
+  }
+}
