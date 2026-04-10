@@ -122,17 +122,18 @@ export default function AdminUsersPage() {
 
   async function onDeleteConfirmed() {
     if (!userToDelete) return;
+    const deletingUser = userToDelete;
 
-    setBusyUserId(userToDelete.id);
+    setBusyUserId(deletingUser.id);
     setStatusMessage(null);
     setErrorMessage(null);
 
     try {
-      await deleteAdminUser(userToDelete.id);
-      setUsers((current) => current.filter((entry) => entry.id !== userToDelete.id));
-      setSelectedUserIds((current) => current.filter((entry) => entry !== userToDelete.id));
+      await deleteAdminUser(deletingUser.id);
+      setUsers((current) => current.filter((entry) => entry.id !== deletingUser.id));
+      setSelectedUserIds((current) => current.filter((entry) => entry !== deletingUser.id));
       setStatusMessage('Nutzer und verknüpfte Daten wurden gelöscht.');
-      setUserToDelete(null);
+      setUserToDelete((current) => (current?.id === deletingUser.id ? null : current));
     } catch (error) {
       setErrorMessage((error as Error).message);
     } finally {
@@ -303,28 +304,37 @@ export default function AdminUsersPage() {
         )}
       </div>
 
-      <Modal isOpen={Boolean(userToDelete)} onClose={() => setUserToDelete(null)}>
+      <Modal isOpen={Boolean(userToDelete)} onClose={() => {
+        if (!busyUserId) setUserToDelete(null);
+      }}
+      >
         <div className="stack">
-          <h2 className="card-title">Nutzer wirklich löschen?</h2>
+          <h2 className="card-title">Bist du sicher, dass du dein Konto löschen möchtest?</h2>
           <p className="card-description">
-            {userToDelete?.email} wird zusammen mit verknüpften Profil-, Familien-, Ergebnis-, Einladungs- und Check-in-Daten entfernt.
+            Dein Konto, deine persönlichen Daten, deine Quizdaten und deine persönlichen Ergebnisse werden dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.
           </p>
+          {userToDelete?.email && <p className="helper" style={{ margin: 0 }}>Zu löschendes Konto: {userToDelete.email}</p>}
           <div className="chip-row">
-            <button type="button" className="button secondary" onClick={() => setUserToDelete(null)}>Abbrechen</button>
-            <button type="button" className="button primary" onClick={onDeleteConfirmed}>Jetzt löschen</button>
+            <button type="button" className="button secondary" disabled={Boolean(busyUserId)} onClick={() => setUserToDelete(null)}>Abbrechen</button>
+            <button type="button" className="button primary" disabled={Boolean(busyUserId)} onClick={onDeleteConfirmed}>
+              {busyUserId ? 'Löscht …' : 'Endgültig löschen'}
+            </button>
           </div>
         </div>
       </Modal>
 
       <Modal isOpen={showBulkDeleteConfirm} onClose={() => setShowBulkDeleteConfirm(false)}>
         <div className="stack">
-          <h2 className="card-title">Ausgewählte Nutzer wirklich löschen?</h2>
+          <h2 className="card-title">Bist du sicher, dass du dein Konto löschen möchtest?</h2>
           <p className="card-description">
-            {selectedVisibleUsers.length} ausgewählte Nutzer werden zusammen mit verknüpften Profil-, Familien-, Ergebnis-, Einladungs- und Check-in-Daten entfernt.
+            Dein Konto, deine persönlichen Daten, deine Quizdaten und deine persönlichen Ergebnisse werden dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.
           </p>
+          <p className="helper" style={{ margin: 0 }}>Ausgewählte Konten: {selectedVisibleUsers.length}</p>
           <div className="chip-row">
             <button type="button" className="button secondary" onClick={() => setShowBulkDeleteConfirm(false)}>Abbrechen</button>
-            <button type="button" className="button primary" disabled={bulkBusy} onClick={onBulkDeleteConfirmed}>Jetzt löschen</button>
+            <button type="button" className="button primary" disabled={bulkBusy} onClick={onBulkDeleteConfirmed}>
+              {bulkBusy ? 'Löscht …' : 'Endgültig löschen'}
+            </button>
           </div>
         </div>
       </Modal>

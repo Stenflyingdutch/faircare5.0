@@ -3,10 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
+import { Modal } from '@/components/Modal';
 import { LoginBackButton } from '@/components/personal/LoginBackButton';
-import { observeAuthState } from '@/services/auth.service';
+import { observeAuthState, signOutUser } from '@/services/auth.service';
 import { fetchAppUserProfile } from '@/services/partnerFlow.service';
 import {
+  deleteOwnAccount,
   reauthenticateForPersonalSettings,
   resolvePersonalSettingsError,
   updatePersonalSettings,
@@ -34,6 +36,8 @@ export default function PersonalSettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [requiresReauth, setRequiresReauth] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +175,23 @@ export default function PersonalSettingsPage() {
     }
   }
 
+  async function onDeleteAccountConfirmed() {
+    if (deletingAccount) return;
+    setDeletingAccount(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await deleteOwnAccount();
+      await signOutUser();
+      router.replace('/login');
+    } catch (deleteError) {
+      setError(resolvePersonalSettingsError(deleteError));
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+
   if (loading) {
     return <article className="card stack"><h2 className="card-title">Persönliche Einstellungen</h2><p className="helper">Lade Einstellungen …</p></article>;
   }
@@ -228,8 +249,53 @@ export default function PersonalSettingsPage() {
         </button>
       )}
 
+      <div className="report-block stack">
+        <h3 className="card-title" style={{ margin: 0 }}>Konto löschen</h3>
+        <p className="card-description" style={{ margin: 0 }}>
+          Wenn du dein Konto löschst, werden deine personenbezogenen Daten dauerhaft entfernt.
+        </p>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={saving || deletingAccount}
+          onClick={() => setDeleteDialogOpen(true)}
+        >
+          Konto löschen
+        </button>
+      </div>
+
       {error && <p className="inline-error">{error}</p>}
       {message && <p className="helper" style={{ margin: 0 }}>{message}</p>}
+
+      <Modal isOpen={deleteDialogOpen} onClose={() => {
+        if (!deletingAccount) setDeleteDialogOpen(false);
+      }}
+      >
+        <div className="stack">
+          <h2 className="card-title">Bist du sicher, dass du dein Konto löschen möchtest?</h2>
+          <p className="card-description">
+            Dein Konto, deine persönlichen Daten, deine Quizdaten und deine persönlichen Ergebnisse werden dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.
+          </p>
+          <div className="chip-row">
+            <button
+              type="button"
+              className="button secondary"
+              disabled={deletingAccount}
+              onClick={() => setDeleteDialogOpen(false)}
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              className="button primary"
+              disabled={deletingAccount}
+              onClick={onDeleteAccountConfirmed}
+            >
+              {deletingAccount ? 'Löscht …' : 'Endgültig löschen'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </article>
   );
 }

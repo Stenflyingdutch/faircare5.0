@@ -76,6 +76,19 @@ export async function reauthenticateForPersonalSettings(params: {
   await reauthenticateWithCredential(user, credential);
 }
 
+export async function deleteOwnAccount() {
+  const response = await fetch('/api/users/me/delete', {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  const payload = await response.json().catch(() => null) as { error?: string; code?: string } | null;
+  if (!response.ok) {
+    const wrapped = new Error(payload?.error || 'Dein Konto konnte nicht gelöscht werden.') as Error & { code?: string };
+    wrapped.code = payload?.code ?? 'user_delete/unexpected';
+    throw wrapped;
+  }
+}
+
 export function resolvePersonalSettingsError(error: unknown) {
   const code = (error as { code?: string; message?: string })?.code || (error as { message?: string })?.message;
 
@@ -91,6 +104,10 @@ export function resolvePersonalSettingsError(error: unknown) {
     return 'Das aktuelle Passwort ist nicht korrekt. Bitte prüfe deine Eingabe.';
   }
   if (code === 'not-authenticated') return 'Du bist nicht angemeldet. Bitte melde dich erneut an.';
+  if (code === 'user_delete/last_admin') return 'Der letzte Admin kann nicht gelöscht werden.';
+  if (code === 'user_delete/forbidden_self') return 'Du kannst nur dein eigenes Konto löschen.';
+  if (code === 'user_delete/unauthorized') return 'Deine Anmeldung konnte nicht bestätigt werden. Bitte melde dich erneut an.';
+  if (code === 'user_delete/unexpected') return 'Dein Konto konnte nicht gelöscht werden. Bitte versuche es erneut.';
 
   return 'Die Einstellungen konnten nicht gespeichert werden. Bitte versuche es erneut.';
 }
