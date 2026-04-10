@@ -231,10 +231,6 @@ main {
   padding-top: 4rem;
 }
 
-.landing-hero {
-  padding-top: clamp(1.4rem, 5vw, 4rem);
-}
-
 .landing-hero .container {
   position: relative;
   overflow: hidden;
@@ -648,12 +644,12 @@ textarea.input {
   gap: 1rem;
 }
 
-.section.landing-problem-section {
-  padding-top: 1.25rem;
-}
-
-.section.landing-focus-section {
-  padding-top: 1rem;
+.section.landing-hero,
+.section.landing-focus-section,
+.section.landing-problem-section,
+.section.landing-links-section {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
 }
 
 .landing-mental-load-focus {
