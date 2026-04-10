@@ -5,6 +5,8 @@ import { LoginBackButton } from '@/components/personal/LoginBackButton';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Modal } from '@/components/Modal';
+import { auth } from '@/lib/firebase';
+import { syncAuthSession } from '@/services/auth.service';
 import { fetchAdminUsers, updateAdminUser, deleteAdminUser, type AdminUserRecord } from '@/services/admin.service';
 
 type FilterValue = 'all' | 'admins' | 'active' | 'blocked';
@@ -95,6 +97,9 @@ export default function AdminUsersPage() {
       const nextRole = user.adminRole === 'admin' ? 'user' : 'admin';
       const response = await updateAdminUser(user.id, { adminRole: nextRole });
       setUsers((current) => current.map((entry) => (entry.id === user.id ? response.user : entry)));
+      if (auth.currentUser?.uid === user.id) {
+        await syncAuthSession(auth.currentUser, { forceRefresh: true });
+      }
       setStatusMessage(nextRole === 'admin' ? 'Adminrechte wurden vergeben.' : 'Adminrechte wurden entzogen.');
     } catch (error) {
       setErrorMessage((error as Error).message);

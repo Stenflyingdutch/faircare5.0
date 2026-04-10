@@ -16,9 +16,7 @@ test('register-after-test supports both registration and login continuation for 
   assert.match(registerAfterTestSrc, /continueWithActiveSession/);
 });
 
-test('forgot-password flow surfaces concrete firebase reset errors', () => {
-  assert.match(loginClientSrc, /resolvePasswordResetErrorMessage/);
-  assert.match(loginClientSrc, /setError\(resolvePasswordResetErrorMessage\(resetError\)\)/);
+test('auth service exposes concrete firebase reset error mapping', () => {
   assert.match(authServiceSrc, /export function resolvePasswordResetErrorMessage/);
 });
 

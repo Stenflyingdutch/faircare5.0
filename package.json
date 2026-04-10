@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/**/*.test.js",
-    "admin:upsert-user": "node scripts/upsert-admin-user.mjs"
+    "admin:upsert-user": "node scripts/upsert-admin-user.mjs",
+    "admin:sync-claims": "node scripts/sync-admin-claims.mjs"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",

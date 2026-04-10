@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { signOutUser } from '@/services/auth.service';
+import { auth } from '@/lib/firebase';
+import { getCurrentUserAdminState, signOutUser } from '@/services/auth.service';
 
 const baseSettingsEntries = [
   {
@@ -32,10 +33,35 @@ const adminSettingsEntry = {
 
 export default function EinstellungenPage() {
   const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadAdminClaim() {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        if (mounted) setIsAdmin(false);
+        return;
+      }
+
+      try {
+        const adminState = await getCurrentUserAdminState(currentUser, { forceRefresh: true });
+        if (mounted) setIsAdmin(adminState);
+      } catch {
+        if (mounted) setIsAdmin(false);
+      }
+    }
+
+    void loadAdminClaim();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const settingsEntries = useMemo(
-    () => [...baseSettingsEntries, adminSettingsEntry],
-    [],
+    () => (isAdmin ? [...baseSettingsEntries, adminSettingsEntry] : [...baseSettingsEntries]),
+    [isAdmin],
   );
 
   async function onLogout() {

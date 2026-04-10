@@ -255,9 +255,9 @@ export async function loginUser(email: string, password: string) {
   }
 }
 
-export async function syncAuthSession(user: User) {
+export async function syncAuthSession(user: User, options?: { forceRefresh?: boolean }) {
   console.info('auth.session.sync.start', { userId: user.uid });
-  const idToken = await user.getIdToken();
+  const idToken = await user.getIdToken(options?.forceRefresh === true);
   await postJson(
     '/api/auth/session',
     { idToken },
@@ -265,6 +265,12 @@ export async function syncAuthSession(user: User) {
     'Deine Anmeldung konnte nicht bestätigt werden. Bitte versuche es erneut.',
   );
   console.info('auth.session.sync.success', { userId: user.uid });
+}
+
+
+export async function getCurrentUserAdminState(user: User, options?: { forceRefresh?: boolean }) {
+  const tokenResult = await user.getIdTokenResult(options?.forceRefresh === true);
+  return tokenResult.claims.admin === true;
 }
 
 export async function signOutUser() {

@@ -3,7 +3,6 @@ import 'server-only';
 import { cookies } from 'next/headers';
 
 import { adminDb, verifyAdminSessionCookie } from '@/lib/firebase-admin';
-import { isAdminProfile } from '@/services/user-profile.service';
 import type { AppUserProfile } from '@/types/partner-flow';
 
 export const SESSION_COOKIE_NAME = '__session';
@@ -19,8 +18,7 @@ export async function getAuthenticatedAdminContext() {
 
   const profileSnapshot = await adminDb.collection('users').doc(decodedToken.uid).get();
   const profile = profileSnapshot.exists ? profileSnapshot.data() as AppUserProfile : null;
-  const hasAdminClaim = decodedToken.admin === true || decodedToken.role === 'admin';
-  const isAdmin = isAdminProfile(profile) || hasAdminClaim;
+  const isAdmin = decodedToken.admin === true;
 
   return {
     user: decodedToken,

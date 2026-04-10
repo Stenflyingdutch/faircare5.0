@@ -25,9 +25,8 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return currentUserProfileExists() &&
-        currentUserProfile().data.adminRole == 'admin' &&
-        isActiveAccount();
+      return isSignedIn() &&
+        request.auth.token.admin == true;
     }
 
     function familyDoc(familyId) {

@@ -106,3 +106,24 @@ Falls der Benutzer neu angelegt oder aktualisiert werden soll, zusätzlich Passw
 ```bash
 npm run admin:upsert-user -- --email <email> --password <passwort> --first-name <vorname> [--last-name <nachname>]
 ```
+
+## Admin-Claims synchronisieren (Quelle der Wahrheit)
+Admin-Rechte werden serverseitig ausschließlich über Firebase Custom Claims (`admin: true`) vergeben.
+Das Script synchronisiert alle Firebase-Auth-User gegen eine E-Mail-Allowlist und entfernt Adminrechte bei allen anderen.
+
+Dry-Run (nur Vorschau):
+
+```bash
+npm run admin:sync-claims -- --expected-project-id <firebase-project-id> --allowlist-emails admin1@example.com,admin2@example.com --dry-run
+```
+
+Produktive Ausführung:
+
+```bash
+npm run admin:sync-claims -- --expected-project-id <firebase-project-id> --allowlist-emails admin1@example.com,admin2@example.com
+```
+
+Empfohlene ENV-Varianten:
+- `ADMIN_SYNC_EXPECTED_PROJECT_ID`
+- `ADMIN_ALLOWLIST_EMAILS`
+- `ADMIN_SYNC_DRY_RUN=true`

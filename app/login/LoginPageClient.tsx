@@ -30,7 +30,7 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
     setError(null);
     try {
       const userCredential = await loginUser(email, password);
-      await syncAuthSession(userCredential.user);
+      await syncAuthSession(userCredential.user, { forceRefresh: true });
       const userId = userCredential.user.uid;
       let bundle = await fetchDashboardBundle(userId);
       if (bundle.profile?.role !== 'partner' && !bundle.profile?.familyId) {

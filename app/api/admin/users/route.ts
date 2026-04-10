@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getAuthenticatedAdminContext } from '@/lib/admin-auth';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { buildDisplayName, deriveFirstName, deriveLastName, normalizeEmailAddress, resolveAccountStatus, resolveAdminRole } from '@/services/user-profile.service';
+import { buildDisplayName, deriveFirstName, deriveLastName, normalizeEmailAddress, resolveAccountStatus } from '@/services/user-profile.service';
 import type { AppUserProfile } from '@/types/partner-flow';
 
 type AuthUserMap = Map<string, Awaited<ReturnType<typeof adminAuth.getUser>>>;
@@ -20,6 +20,10 @@ export async function GET() {
   const context = await getAuthenticatedAdminContext();
   if (!context.user) {
     return NextResponse.json({ error: 'Nicht authentifiziert.' }, { status: 401 });
+  }
+
+  if (!context.isAdmin) {
+    return NextResponse.json({ error: 'Kein Admin-Zugriff.' }, { status: 403 });
   }
 
   const [authUsers, profileSnapshot] = await Promise.all([
@@ -48,7 +52,7 @@ export async function GET() {
       firstName,
       lastName,
       role: profile?.role ?? null,
-      adminRole: resolveAdminRole(profile),
+      adminRole: authUser?.customClaims?.admin === true ? 'admin' : 'user',
       accountStatus: resolveAccountStatus(profile),
       familyId: profile?.familyId ?? null,
       createdAt: profile?.createdAt ?? authUser?.metadata.creationTime ?? null,

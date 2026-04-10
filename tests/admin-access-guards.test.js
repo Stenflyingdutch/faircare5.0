@@ -11,10 +11,10 @@ test('admin layout redirects unauthenticated users', () => {
   assert.doesNotMatch(src, /redirect\('\/app\/home'\)/);
 });
 
-test('firestore rules use adminRole and accountStatus for admin access checks', () => {
+test('firestore rules use custom admin claim for admin access checks', () => {
   const src = read('firestore.rules');
-  assert.match(src, /data\.adminRole == 'admin'/);
-  assert.match(src, /accountStatus/);
+  assert.match(src, /request\.auth\.token\.admin == true/);
+  assert.doesNotMatch(src, /data\.adminRole == 'admin'/);
   assert.match(src, /match \/questionPools\/\{docId\}/);
   assert.match(src, /match \/templates\/\{docId\}/);
 });

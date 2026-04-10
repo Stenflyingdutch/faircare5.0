@@ -105,6 +105,13 @@ async function main() {
     });
   }
 
+
+  const nextClaims = {
+    ...(authUser.customClaims ?? {}),
+    admin: true,
+  };
+  await auth.setCustomUserClaims(authUser.uid, nextClaims);
+
   const userRef = db.collection('users').doc(authUser.uid);
   const existingSnapshot = await userRef.get();
   const existingData = existingSnapshot.exists ? existingSnapshot.data() : {};

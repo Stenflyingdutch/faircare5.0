@@ -2,24 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthenticatedAdminContext } from '@/lib/admin-auth';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { buildDisplayName, deriveFirstName, deriveLastName, resolveAccountStatus, resolveAdminRole } from '@/services/user-profile.service';
+import { buildDisplayName, deriveFirstName, deriveLastName, resolveAccountStatus } from '@/services/user-profile.service';
 import type { AppUserProfile } from '@/types/partner-flow';
 
 function usersCollection() {
   return adminDb.collection('users');
 }
 
-async function countAdmins() {
-  const snapshot = await usersCollection().where('adminRole', '==', 'admin').get();
-  return snapshot.size;
+async function countAdminsFromClaims() {
+  let count = 0;
+  let pageToken: string | undefined;
+
+  do {
+    const page = await adminAuth.listUsers(1000, pageToken);
+    count += page.users.filter((entry) => entry.customClaims?.admin === true).length;
+    pageToken = page.pageToken;
+  } while (pageToken);
+
+  return count;
 }
 
 async function ensureNotLastAdmin(targetUserId: string) {
-  const targetSnapshot = await usersCollection().doc(targetUserId).get();
-  const targetProfile = targetSnapshot.exists ? targetSnapshot.data() as AppUserProfile : null;
-  if (resolveAdminRole(targetProfile) !== 'admin') return;
+  const authUser = await adminAuth.getUser(targetUserId).catch(() => null);
+  if (!authUser || authUser.customClaims?.admin !== true) return;
 
-  const adminCount = await countAdmins();
+  const adminCount = await countAdminsFromClaims();
   if (adminCount <= 1) {
     throw new Error('Der letzte Admin kann nicht gesperrt, entmachtet oder gelöscht werden.');
   }
@@ -74,7 +81,7 @@ function toAdminUserResponse(userId: string, profile: AppUserProfile, authUser?:
     firstName,
     lastName,
     role: profile.role ?? null,
-    adminRole: resolveAdminRole(profile),
+    adminRole: authUser?.customClaims?.admin === true ? 'admin' : 'user',
     accountStatus: resolveAccountStatus(profile),
     familyId: profile.familyId ?? null,
     createdAt: profile.createdAt ?? authUser?.metadata.creationTime ?? null,
@@ -84,10 +91,27 @@ function toAdminUserResponse(userId: string, profile: AppUserProfile, authUser?:
   };
 }
 
+async function updateAdminClaim(userId: string, isAdmin: boolean) {
+  const authUser = await adminAuth.getUser(userId);
+  const nextClaims = { ...(authUser.customClaims ?? {}) };
+
+  if (isAdmin) {
+    nextClaims.admin = true;
+  } else {
+    delete nextClaims.admin;
+  }
+
+  await adminAuth.setCustomUserClaims(userId, Object.keys(nextClaims).length ? nextClaims : null);
+}
+
 export async function PATCH(request: NextRequest, context: { params: Promise<{ userId: string }> }) {
   const adminContext = await getAuthenticatedAdminContext();
   if (!adminContext.user) {
     return NextResponse.json({ error: 'Nicht authentifiziert.' }, { status: 401 });
+  }
+
+  if (!adminContext.isAdmin) {
+    return NextResponse.json({ error: 'Kein Admin-Zugriff.' }, { status: 403 });
   }
 
   const { userId } = await context.params;
@@ -104,7 +128,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ u
     return NextResponse.json({ error: 'Nutzerprofil nicht gefunden.' }, { status: 404 });
   }
 
-  const nextAdminRole = body.adminRole ?? resolveAdminRole(profile);
+  const targetAuthUser = await adminAuth.getUser(userId).catch(() => null);
+  if (!targetAuthUser) {
+    return NextResponse.json({ error: 'Nutzerkonto nicht gefunden.' }, { status: 404 });
+  }
+
+  const nextAdminRole = body.adminRole ?? (targetAuthUser.customClaims?.admin === true ? 'admin' : 'user');
   const nextAccountStatus = body.accountStatus ?? resolveAccountStatus(profile);
   const needsLastAdminProtection = nextAdminRole !== 'admin' || nextAccountStatus === 'blocked';
 
@@ -116,6 +145,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ u
     }
   }
 
+  await updateAdminClaim(userId, nextAdminRole === 'admin');
+
   await userRef.set({
     adminRole: nextAdminRole,
     accountStatus: nextAccountStatus,
@@ -126,9 +157,11 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ u
     disabled: nextAccountStatus === 'blocked',
   });
 
-  const updatedSnapshot = await userRef.get();
+  const [updatedSnapshot, authUser] = await Promise.all([
+    userRef.get(),
+    adminAuth.getUser(userId).catch(() => undefined),
+  ]);
   const updatedProfile = updatedSnapshot.data() as AppUserProfile;
-  const authUser = await adminAuth.getUser(userId).catch(() => undefined);
 
   return NextResponse.json({ user: toAdminUserResponse(userId, updatedProfile, authUser) });
 }
@@ -137,6 +170,10 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
   const adminContext = await getAuthenticatedAdminContext();
   if (!adminContext.user) {
     return NextResponse.json({ error: 'Nicht authentifiziert.' }, { status: 401 });
+  }
+
+  if (!adminContext.isAdmin) {
+    return NextResponse.json({ error: 'Kein Admin-Zugriff.' }, { status: 403 });
   }
 
   const { userId } = await context.params;
