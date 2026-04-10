@@ -50,12 +50,27 @@ export default function HomePage() {
     return `[[missing:${key}]]`;
   };
 
-  const differentiationBullets = [
-    t('landing.differentiation.bullet1'),
-    t('landing.differentiation.bullet2'),
-    t('landing.differentiation.bullet3'),
-  ].filter((bullet) => bullet.trim().length > 0);
   const linksGridClass = siteVisibility.about ? 'grid grid-3' : 'grid grid-2';
+  const problemPointTwoText = locale === 'de'
+    ? 'Eine offene Diskussion führen, was für Euch eine faire Verteilung bedeutet.'
+    : t('landing.problem.point2.text');
+  const landingProblemCards = [
+    {
+      key: 'point1',
+      title: t('landing.problem.point1.title'),
+      text: t('landing.problem.point1.text'),
+    },
+    {
+      key: 'point2',
+      title: t('landing.problem.point2.title'),
+      text: problemPointTwoText,
+    },
+    {
+      key: 'point3',
+      title: t('landing.problem.point3.title'),
+      text: t('landing.problem.point3.text'),
+    },
+  ];
 
   return (
     <>
@@ -77,33 +92,15 @@ export default function HomePage() {
       />
 
       <SectionWrapper>
-        <div className="grid grid-3">
-          <Card
-            title={t('landing.problem.point1.title')}
-            description={t('landing.problem.point1.text')}
-          />
-          <Card
-            title={t('landing.problem.point2.title')}
-            description={t('landing.problem.point2.text')}
-          />
-          <Card
-            title={t('landing.problem.point3.title')}
-            description={t('landing.problem.point3.text')}
-          />
+        <div className="landing-problem-grid" role="list" aria-label="Drei Schritte für eine faire Verteilung">
+          {landingProblemCards.map((item, index) => (
+            <article key={item.key} className="landing-problem-card" role="listitem">
+              <span className="landing-problem-index">{`0${index + 1}`}</span>
+              <h3 className="landing-problem-title">{item.title}</h3>
+              <p className="landing-problem-text">{item.text}</p>
+            </article>
+          ))}
         </div>
-      </SectionWrapper>
-
-      <SectionWrapper subdued id="differentiation">
-        <h2 className="section-title">{t('landing.differentiation.headline')}</h2>
-        <p className="section-description">{t('landing.differentiation.text')}</p>
-        {differentiationBullets.length > 0 && (
-          <ul className="bullet-list">
-            {differentiationBullets.map((bullet) => (
-              <li key={bullet}>{bullet}</li>
-            ))}
-          </ul>
-        )}
-        <p className="section-description">{t('landing.differentiation.additional')}</p>
       </SectionWrapper>
 
       <SectionWrapper>

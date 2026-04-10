@@ -142,6 +142,23 @@ export default function QuizFilterPage() {
     <section className="section">
       <div className="container test-shell stack quiz-pre-question-layout">
         <h1 className="test-title quiz-intro-title">{t('quiz.filter.title', locale, undefined, textDictionary)}</h1>
+        <article className="quiz-flow-card" aria-labelledby="quiz-flow-title">
+          <p className="quiz-flow-kicker">{t('quiz.filter.intro.kicker', locale, undefined, textDictionary)}</p>
+          <h2 id="quiz-flow-title" className="quiz-filter-intro-title">
+            {t('quiz.filter.intro.title', locale, undefined, textDictionary)}
+          </h2>
+          <p className="quiz-filter-intro-text">{t('quiz.filter.intro.text', locale, undefined, textDictionary)}</p>
+          <div className="quiz-flow-grid" role="list">
+            <div className="quiz-flow-step" role="listitem">
+              <span className="quiz-flow-step-number">1</span>
+              <p className="quiz-flow-step-text">{t('quiz.filter.intro.step1', locale, undefined, textDictionary)}</p>
+            </div>
+            <div className="quiz-flow-step" role="listitem">
+              <span className="quiz-flow-step-number">2</span>
+              <p className="quiz-flow-step-text">{t('quiz.filter.intro.step2', locale, undefined, textDictionary)}</p>
+            </div>
+          </div>
+        </article>
         <form className="stack quiz-pre-question-form" onSubmit={handleSubmit}>
           {step === 0 && (
             <PreQuestionStep question={t('quiz.filter.childCount', locale, undefined, textDictionary)} questionId="quiz-filter-child-count-question">

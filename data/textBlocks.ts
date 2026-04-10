@@ -44,9 +44,9 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     label: 'Quiz-Filter Einführung Titel',
     description: 'Einladende Überschrift vor den Vorabfragen.',
     text: {
-      de: 'Mach sichtbar, was sonst untergeht.',
-      en: 'Make visible what would otherwise go unnoticed.',
-      nl: 'Maak zichtbaar wat anders onder de radar blijft.',
+      de: 'Innerhalb von etwa 3 Minuten anonym zum ersten Ergebnis.',
+      en: 'Reach your first result anonymously in about 3 minutes.',
+      nl: 'Binnen ongeveer 3 minuten anoniem naar een eerste resultaat.',
     },
   },
   {
@@ -55,9 +55,42 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     label: 'Quiz-Filter Einführung Text',
     description: 'Kurze Erklärung vor den Vorabfragen.',
     text: {
-      de: 'Beantwortet die nächsten Fragen aus eurer Sicht. So entsteht ein ehrlicher Startpunkt für ein gemeinsames Gespräch über Verantwortung und Verteilung.',
-      en: 'Answer the next questions from your perspective. This creates an honest starting point for a shared conversation about responsibility and distribution.',
-      nl: 'Beantwoord de volgende vragen vanuit jullie perspectief. Zo ontstaat een eerlijk startpunt voor een gezamenlijk gesprek over verantwoordelijkheid en verdeling.',
+      de: 'Danach entscheidest du, ob dein Partner das Quiz ebenfalls ausfüllt.',
+      en: 'Afterwards, you decide whether your partner also completes the quiz.',
+      nl: 'Daarna beslissen jullie of je partner de quiz ook invult.',
+    },
+  },
+  {
+    key: 'quiz.filter.intro.kicker',
+    group: 'quiz',
+    label: 'Quiz-Filter Einführung Kicker',
+    description: 'Kurzer Einstieg oberhalb der Ablaufkarte.',
+    text: {
+      de: 'So läuft euer Start ab',
+      en: 'How your start works',
+      nl: 'Zo werkt jullie start',
+    },
+  },
+  {
+    key: 'quiz.filter.intro.step1',
+    group: 'quiz',
+    label: 'Quiz-Filter Einführung Schritt 1',
+    description: 'Erster Ablaufschritt auf der Quiz-Einstiegsseite.',
+    text: {
+      de: 'Du bekommst zuerst allein eine kurze, anonyme Auswertung als klaren ersten Überblick.',
+      en: 'You first get a short anonymous result on your own as a clear initial overview.',
+      nl: 'Je krijgt eerst alleen een korte, anonieme uitkomst als helder eerste overzicht.',
+    },
+  },
+  {
+    key: 'quiz.filter.intro.step2',
+    group: 'quiz',
+    label: 'Quiz-Filter Einführung Schritt 2',
+    description: 'Zweiter Ablaufschritt auf der Quiz-Einstiegsseite.',
+    text: {
+      de: 'Anschließend entscheidest du, ob dein Partner ebenfalls mitmacht, damit ihr die Ergebnisse gemeinsam transparent einordnen könnt.',
+      en: 'Then you can decide if your partner should join too, so you can interpret the results together transparently.',
+      nl: 'Daarna kunnen jullie beslissen of je partner ook meedoet, zodat jullie de resultaten samen transparant kunnen duiden.',
     },
   },
   {
@@ -204,7 +237,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Problem Point 2 Text',
     description: 'Text des zweiten Problem-Punkts.',
-    text: { de: 'Ihr besprecht die Ergebnisse ohne Bewertung', en: 'You discuss the results without judgment', nl: 'Jullie bespreken de resultaten zonder oordeel' },
+    text: { de: 'Eine offene Diskussion führen, was für Euch eine faire Verteilung bedeutet.', en: 'You discuss the results without judgment', nl: 'Jullie bespreken de resultaten zonder oordeel' },
   },
   {
     key: 'landing.problem.point3.title',
@@ -225,14 +258,14 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Differentiation Headline',
     description: 'Überschrift des Differentiation-Abschnitts.',
-    text: { de: 'Keine To-do-App', en: 'No to-do app', nl: 'Geen to-do app' },
+    text: { de: '', en: '', nl: '' },
   },
   {
     key: 'landing.differentiation.text',
     group: 'landing',
     label: 'Differentiation Text',
     description: 'Haupttext des Differentiation-Abschnitts.',
-    text: { de: 'FairCare zeigt nicht, was erledigt werden muss. FairCare zeigt, wer im Alltag mitdenkt, plant und organisiert.', en: 'FairCare is not about checking off responsibilities. It makes visible who thinks along, plans and organizes in everyday life.', nl: 'FairCare gaat niet om verantwoordelijkheden af te vinken. Het maakt zichtbaar wie in het dagelijks leven meedenkt, plant en organiseert.' },
+    text: { de: '', en: '', nl: '' },
   },
   {
     key: 'landing.differentiation.bullet1',
@@ -260,7 +293,7 @@ export const defaultTextBlocks: TextBlockDefinition[] = [
     group: 'landing',
     label: 'Differentiation Additional Text',
     description: 'Zusätzlicher Text im Differentiation-Abschnitt.',
-    text: { de: 'FairCare bewertet nicht. FairCare schafft Klarheit.', en: 'FairCare does not judge. It creates transparency.', nl: 'FairCare beoordeelt niet. Het creëert transparantie.' },
+    text: { de: '', en: '', nl: '' },
   },
   {
     key: 'landing.process.title',
