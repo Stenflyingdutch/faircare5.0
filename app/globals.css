@@ -231,10 +231,6 @@ main {
   padding-top: 4rem;
 }
 
-.landing-hero {
-  padding-top: clamp(1.4rem, 5vw, 4rem);
-}
-
 .landing-hero .container {
   position: relative;
   overflow: hidden;
@@ -247,6 +243,10 @@ main {
     radial-gradient(circle at 5% 95%, rgba(47, 111, 109, 0.16) 0%, transparent 46%),
     linear-gradient(138deg, #ffffff 0%, #f7f3ff 48%, #eef8f6 100%);
   box-shadow: 0 26px 52px rgba(35, 43, 63, 0.14);
+}
+
+.section.landing-hero {
+  padding-bottom: 1.25rem;
 }
 
 .landing-hero .container::before,
@@ -648,12 +648,11 @@ textarea.input {
   gap: 1rem;
 }
 
-.section.landing-problem-section {
+.section.landing-focus-section,
+.section.landing-problem-section,
+.section.landing-links-section {
   padding-top: 1.25rem;
-}
-
-.section.landing-focus-section {
-  padding-top: 1rem;
+  padding-bottom: 1.25rem;
 }
 
 .landing-mental-load-focus {

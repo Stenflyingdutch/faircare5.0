@@ -137,7 +137,7 @@ export default function HomePage() {
         </div>
       </SectionWrapper>
 
-      <SectionWrapper subdued>
+      <SectionWrapper subdued className="landing-links-section">
         <div className={linksGridClass}>
           <Card
             className="card--link"
