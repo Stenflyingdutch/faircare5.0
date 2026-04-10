@@ -53,7 +53,7 @@ export default function PartnerTestPage() {
     return option;
   }), [counterpartName]);
 
-  if (loading || !session) return <section className="section"><div className="container test-shell">Partner-Test wird geladen …</div></section>;
+  if (loading || !session) return <section className="section"><div className="container test-shell">Partner-Quiz wird geladen …</div></section>;
 
   const question = session.questions[index];
   const totalSteps = session.questions.length + 1;

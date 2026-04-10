@@ -95,7 +95,7 @@ export default function InviteLandingPage() {
             <h1 className="test-title">Willkommen zum Partner-Quiz</h1>
             <p className="helper">Du erhältst exakt denselben Fragenkatalog wie der Initiator – gleiche Reihenfolge, gleiche Kategorien, keine Filterfragen.</p>
             <button className="button primary" type="button" onClick={beginPartnerQuiz} disabled={starting}>
-              {starting ? 'Wird vorbereitet …' : 'Partner-Test starten'}
+              {starting ? 'Wird vorbereitet …' : 'Partner-Quiz starten'}
             </button>
           </>
         ) : (
