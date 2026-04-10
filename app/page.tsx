@@ -108,28 +108,6 @@ export default function HomePage() {
         </div>
       </SectionWrapper>
 
-      <SectionWrapper>
-        <h2 className="section-title">{t('landing.process.title')}</h2>
-        <div className="process-timeline">
-          <div className="process-step">
-            <h3 className="process-step-title">{t('landing.process.step1.title')}</h3>
-            <p className="process-step-text">{t('landing.process.step1.text')}</p>
-          </div>
-          <div className="process-step">
-            <h3 className="process-step-title">{t('landing.process.step2.title')}</h3>
-            <p className="process-step-text">{t('landing.process.step2.text')}</p>
-          </div>
-          <div className="process-step">
-            <h3 className="process-step-title">{t('landing.process.step3.title')}</h3>
-            <p className="process-step-text">{t('landing.process.step3.text')}</p>
-          </div>
-          <div className="process-step">
-            <h3 className="process-step-title">{t('landing.process.step4.title')}</h3>
-            <p className="process-step-text">{t('landing.process.step4.text')}</p>
-          </div>
-        </div>
-      </SectionWrapper>
-
       <SectionWrapper subdued>
         <div className={linksGridClass}>
           <Card
