@@ -648,12 +648,11 @@ textarea.input {
   gap: 1rem;
 }
 
-.section.landing-problem-section {
+.section.landing-focus-section,
+.section.landing-problem-section,
+.section.landing-links-section {
   padding-top: 1.25rem;
-}
-
-.section.landing-focus-section {
-  padding-top: 1rem;
+  padding-bottom: 1.25rem;
 }
 
 .landing-mental-load-focus {
