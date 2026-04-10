@@ -3,7 +3,6 @@ import { PageHero } from '@/components/PageHero';
 import { SectionWrapper } from '@/components/SectionWrapper';
 import { resolveAgeGroupLabel } from '@/components/test/test-config';
 import Link from 'next/link';
-import { LoginBackButton } from '@/components/personal/LoginBackButton';
 
 const adminAreas = ['Ergebnis-Texte', 'Katalog für Verantwortlichkeiten', 'Seiteninhalte', 'Weekly Check-in Templates', 'Ownership-Vorlagen'];
 const ageGroups = ['0_1', '1_3', '3_6', '6_10', '10_plus'] as const;
@@ -17,7 +16,7 @@ export default function AdminPage() {
         subtitle="Hier werden Inhalte gepflegt und strukturiert verwaltet."
       />
       <SectionWrapper>
-        <LoginBackButton fallbackHref="/app/einstellungen" label="Zurück zu Einstellungen" />
+        <Link href="/app/einstellungen" className="button settings-back-button">Zurück zu Einstellungen</Link>
         <article className="card stack" style={{ marginBottom: 16 }}>
           <h3 className="card-title">Altersgruppen</h3>
           <p className="card-description">Die bestehenden Admin-Bereiche sind für alle aktuell gepflegten Altersgruppen befüllt.</p>

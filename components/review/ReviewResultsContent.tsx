@@ -41,6 +41,13 @@ function deriveNameFromEmail(email?: string | null) {
   return normalizeName(local);
 }
 
+function deriveFirstName(value?: string | null) {
+  const normalized = normalizeName(value);
+  if (!normalized) return null;
+  const firstName = normalized.split(/\s+/)[0];
+  return normalizeName(firstName);
+}
+
 
 function buildNeutralDistributionStatement(selfPercent: number, partnerName: string) {
   if (selfPercent > 55) return 'Aus deiner Sicht liegt aktuell ein größerer Teil der Mental Load bei dir.';
@@ -261,6 +268,8 @@ export function ReviewResultsContent() {
     ?? bundle?.partnerResult?.questionSetSnapshot?.[0]?.ageGroup
     ?? bundle?.ageGroupForOwnership
     ?? null;
+  const ownFirstName = deriveFirstName(bundle?.profile?.displayName) ?? deriveNameFromEmail(bundle?.profile?.email);
+  const greetingText = ownFirstName ? `Servus ${ownFirstName}!` : 'Servus!';
   const ownResultText = useMemo(() => {
     if (!bundle?.ownResult) return null;
     return {
@@ -296,6 +305,7 @@ export function ReviewResultsContent() {
   return (
     <section className="section">
       <div className="container stack">
+        <h1 className="display" style={{ margin: 0 }}>{greetingText}</h1>
         {showStatusCard && (
           <article className="card stack">
             {canInvitePartner && !bundle?.invitationPartnerEmail && (
