@@ -8,6 +8,13 @@ import type { AppUserProfile } from '@/types/partner-flow';
 
 export const SESSION_COOKIE_NAME = '__session';
 
+/**
+ * TEMPORARY HOTFIX:
+ * Alle aktuell eingeloggten Nutzer erhalten Adminzugang.
+ * Kann über FAIRCARE_TEMP_ALL_USERS_ADMIN=false deaktiviert werden.
+ */
+const TEMP_ALL_USERS_ADMIN_ENABLED = process.env.FAIRCARE_TEMP_ALL_USERS_ADMIN !== 'false';
+
 export async function getAuthenticatedAdminContext() {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -23,6 +30,6 @@ export async function getAuthenticatedAdminContext() {
   return {
     user: decodedToken,
     profile,
-    isAdmin: isAdminProfile(profile),
+    isAdmin: TEMP_ALL_USERS_ADMIN_ENABLED ? true : isAdminProfile(profile),
   } as const;
 }
