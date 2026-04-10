@@ -210,7 +210,7 @@ export default function MentalLoadPage() {
               <h2 className="section-title">Mental Load ist empirisch belegt</h2>
               <p className="section-description">
                 Die Datenlage in Deutschland ist klar. Wer gerechter verteilen will, muss zuerst sichtbar machen,
-                wer im Alltag den Überblick trägt. Genau dafür kann ein strukturierter Mental-Load-Test ein guter Anfang sein.
+                wer im Alltag den Überblick trägt. Genau dafür kann ein strukturiertes Mental-Load-Quiz ein guter Anfang sein.
               </p>
             </div>
           </article>

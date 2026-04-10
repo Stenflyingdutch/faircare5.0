@@ -315,7 +315,7 @@ async function notifyInitiatorIfPossible(familyId: string, invitationId: string)
       invitationId,
       html: `
         <h2>Dein Partner hat FairCare abgeschlossen</h2>
-        <p>Dein Partner hat den Test und die Registrierung erfolgreich abgeschlossen.</p>
+        <p>Dein Partner hat das Quiz und die Registrierung erfolgreich abgeschlossen.</p>
         <p>Melde dich jetzt an, um die Partner- und Gesamtergebnisse freizuschalten.</p>
         <p><a href="${loginUrl}">Zum Login</a></p>
       `,
@@ -507,7 +507,7 @@ export async function finalizePartnerRegistrationWithAdmin(params: {
     throw new PartnerRegistrationFinalizeError('Diese Partner-Session gehört bereits zu einem anderen Konto.', 409, 'partner_registration/session_claimed');
   }
   if (!session.completedAt) {
-    throw new PartnerRegistrationFinalizeError('Bitte schließe erst den Partner-Test ab.', 409, 'partner_registration/session_incomplete');
+    throw new PartnerRegistrationFinalizeError('Bitte schließe erst das Partner-Quiz ab.', 409, 'partner_registration/session_incomplete');
   }
 
   const normalizedEmail = normalizeEmailAddress(params.email);

@@ -718,12 +718,12 @@ async function sendPartnerInvitationFallback(partnerEmail: string, userId: strin
     const mailOutcome = await sendAppMail({
       type: 'partner_invitation',
       to: partnerEmail,
-      subject: 'Mach den FairCare Test mit mir',
+      subject: 'Mach das FairCare Quiz mit mir',
       familyId,
       invitationId: invitationRef.id,
       html: `
-        <h2>Mach den FairCare Test mit mir</h2>
-        <p>${personalMessage?.trim() || 'Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.'}</p>
+        <h2>Mach das FairCare Quiz mit mir</h2>
+        <p>${personalMessage?.trim() || 'Ich habe das FairCare Quiz gemacht und würde mich freuen, wenn du es auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.'}</p>
         <p><a href="${inviteUrl}">${inviteUrl}</a></p>
       `,
     });

@@ -42,12 +42,12 @@ export default function PartnerStressPage() {
       savePartnerLocalSession({ ...updated, completedAt: completed.resultDraft.completedAt });
       router.push(`/register-after-test?token=${session.invitationToken}`);
     } catch {
-      setError('Der Partner-Test konnte nicht final gespeichert werden. Bitte erneut versuchen.');
+      setError('Das Partner-Quiz konnte nicht final gespeichert werden. Bitte erneut versuchen.');
       setIsSaving(false);
     }
   }
 
-  if (!session) return <section className="section"><div className="container test-shell">Partner-Test wird geladen …</div></section>;
+  if (!session) return <section className="section"><div className="container test-shell">Partner-Quiz wird geladen …</div></section>;
 
   const ageGroup = session.questions[0]?.ageGroup;
 

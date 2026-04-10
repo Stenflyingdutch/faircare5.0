@@ -76,7 +76,7 @@ export function ReviewResultsContent() {
   const [bundle, setBundle] = useState<Awaited<ReturnType<typeof fetchDashboardBundle>> | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [invitePersonalMessage, setInvitePersonalMessage] = useState(
-    'Ich habe den FairCare Test gemacht und würde mich freuen, wenn du ihn auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.',
+    'Ich habe das FairCare Quiz gemacht und würde mich freuen, wenn du es auch ausfüllst. Danach können wir unsere Ergebnisse gemeinsam anschauen.',
   );
   const [inviteState, setInviteState] = useState<'idle' | 'loading' | 'success' | 'warning' | 'error'>('idle');
   const [inviteMessage, setInviteMessage] = useState('');

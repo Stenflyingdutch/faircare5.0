@@ -52,7 +52,7 @@ export default function AdminResultLogicPage() {
             <p>{resultLogicDocumentation.blockLogic.block2}</p>
           </div>
           <div className="report-block">
-            <strong>Konsistenzprüfung Startfrage ↔ Test</strong>
+            <strong>Konsistenzprüfung Startfrage ↔ Quiz</strong>
             <p>{resultLogicDocumentation.consistencyLogic}</p>
           </div>
         </article>
