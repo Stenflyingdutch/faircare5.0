@@ -19,10 +19,12 @@ export async function getAuthenticatedAdminContext() {
 
   const profileSnapshot = await adminDb.collection('users').doc(decodedToken.uid).get();
   const profile = profileSnapshot.exists ? profileSnapshot.data() as AppUserProfile : null;
+  const hasAdminClaim = decodedToken.admin === true || decodedToken.role === 'admin';
+  const isAdmin = isAdminProfile(profile) || hasAdminClaim;
 
   return {
     user: decodedToken,
     profile,
-    isAdmin: isAdminProfile(profile),
+    isAdmin,
   } as const;
 }
