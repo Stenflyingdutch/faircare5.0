@@ -104,13 +104,15 @@ export default function QuizResultPage() {
               <p className="helper"><strong>Gesamtanteil</strong></p>
             </div>
             <div className="result-highlight-grid">
-              <p style={{ margin: 0 }}>
-                <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong>{' '}
-                {categoryBreakdown.length ? buildHighestLoadSummary(categoryBreakdown, ageGroup) : 'Noch keine ausreichenden Angaben.'}
-              </p>
-              <p style={{ margin: 0 }}>
-                <strong>Größte empfundene Herausforderung:</strong> {resolvePerceivedStressLabel(session.stressCategories, ageGroup)}
-              </p>
+              <div className="result-highlight-copy">
+                <p className="result-highlight-paragraph">
+                  <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong>{' '}
+                  {categoryBreakdown.length ? buildHighestLoadSummary(categoryBreakdown, ageGroup) : 'Noch keine ausreichenden Angaben.'}
+                </p>
+                <p className="result-highlight-paragraph">
+                  <strong>Größte empfundene Herausforderung:</strong> {resolvePerceivedStressLabel(session.stressCategories, ageGroup)}
+                </p>
+              </div>
             </div>
           </div>
           <div className="stack">

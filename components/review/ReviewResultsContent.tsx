@@ -555,20 +555,20 @@ function ResultBreakdown({
           </div>
           <div className="result-highlight-grid">
             {hasNoCategoryAboveHalf ? (
-              <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
-                <p style={{ margin: '0 0 8px' }}>
+              <div className="helper result-highlight-copy">
+                <p className="result-highlight-paragraph">
                   <strong>Wichtig:</strong> Unter 50 % heißt <strong>nicht</strong>, dass du zu wenig zur Familie beiträgst.
                 </p>
-                <p style={{ margin: '0 0 8px' }}>
+                <p className="result-highlight-paragraph">
                   Es zeigt nur einen kleinen Ausschnitt: die <strong>Verantwortlichkeiten rund ums „Dran-Denken“</strong> bei der Erziehung.
                 </p>
               </div>
             ) : (
-              <div className="helper" style={{ margin: 0, lineHeight: 1.55, fontSize: '1rem' }}>
-                <p style={{ margin: '0 0 8px' }}>
+              <div className="helper result-highlight-copy">
+                <p className="result-highlight-paragraph">
                   <strong>Bereich mit der höchsten Mental-Load-Bewertung:</strong> {highestLoadSummary}
                 </p>
-                <p style={{ margin: '0 0 8px' }}>
+                <p className="result-highlight-paragraph">
                   <strong>Größte empfundene Herausforderung:</strong> {result.perceivedStressLabel}.
                 </p>
               </div>

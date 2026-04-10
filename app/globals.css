@@ -1079,6 +1079,18 @@ textarea.input {
   align-content: center;
 }
 
+.result-highlight-copy {
+  display: grid;
+  gap: 0.95rem;
+  margin: 0;
+  line-height: 1.6;
+  font-size: 1rem;
+}
+
+.result-highlight-paragraph {
+  margin: 0;
+}
+
 .result-highlight-primary,
 .result-highlight-accent {
   margin: 0.15rem 0 0;
