@@ -77,6 +77,14 @@ export default function HomePage() {
       />
 
       <SectionWrapper>
+        <div className="card stack" style={{ gap: 8 }}>
+          <p className="helper" style={{ margin: 0 }}><strong>⏱ In ca. 4 Minuten erledigt</strong></p>
+          <p className="helper" style={{ margin: 0 }}><strong>🤝 Ohne Schuldzuweisung – als Gesprächsstart gedacht</strong></p>
+          <p className="helper" style={{ margin: 0 }}><strong>🔒 Anonym startbar mit direkter Kurz-Auswertung</strong></p>
+        </div>
+      </SectionWrapper>
+
+      <SectionWrapper>
         <div className="grid grid-3">
           <Card
             title={t('landing.problem.point1.title')}

@@ -90,6 +90,10 @@ export default function QuizResultPage() {
         <h1 className="test-title">Du, das hier ist deine persönliche Zusammenfassung:</h1>
         <div className="result-card personal-result-summary detailed individual-result-panel single-result-dark stack">
           <p>{summary.summaryText}</p>
+          <p className="helper" style={{ marginTop: -4 }}>
+            Hinweis zur Einordnung: Die Prozentzahl ist kein Urteil, sondern ein Näherungswert auf Basis eurer Antworten
+            (Antwortskala von „meistens ich“ bis „meistens Partner*in“).
+          </p>
           <div className="result-overview-grid">
             <div className="result-donut-wrap">
               <div
@@ -112,6 +116,12 @@ export default function QuizResultPage() {
                 <strong>Größte empfundene Belastung:</strong> {resolvePerceivedStressLabel(session.stressCategories, ageGroup)}
               </p>
             </div>
+          </div>
+          <div className="card stack" style={{ gap: 8 }}>
+            <strong>Nächster Schritt (10 Minuten als Team)</strong>
+            <p className="helper" style={{ margin: 0 }}>1) Jede Person nennt einen Bereich, der sich schwer anfühlt.</p>
+            <p className="helper" style={{ margin: 0 }}>2) Legt eine kleine Veränderung für die nächste Woche fest.</p>
+            <p className="helper" style={{ margin: 0 }}>3) Prüft in 7 Tagen gemeinsam: Was hat entlastet?</p>
           </div>
           <div className="stack">
             <button type="button" className="button primary" onClick={() => router.push('/register')}>
