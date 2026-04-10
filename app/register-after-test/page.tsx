@@ -10,6 +10,7 @@ import {
   observeAuthState,
   registerUser,
   resolveLoginErrorMessage,
+  resolvePostLoginBootstrapErrorMessage,
   resolveRegistrationErrorMessage,
   syncAuthSession,
 } from '@/services/auth.service';
@@ -190,7 +191,9 @@ function RegisterAfterTestContent() {
       });
       setError(mode === 'register'
         ? resolveRegistrationErrorMessage(submitError)
-        : resolveLoginErrorMessage(submitError));
+        : finalizeStarted
+          ? resolvePostLoginBootstrapErrorMessage(submitError)
+          : resolveLoginErrorMessage(submitError));
       setIsSubmitting(false);
     }
   }
@@ -346,7 +349,7 @@ function RegisterAfterTestContent() {
           >
             {mode === 'register' ? 'Ich habe bereits ein Konto' : 'Ich habe noch kein Konto'}
           </button>
-          {activeSessionEmail && (
+          {mode === 'login' && activeSessionEmail && (
             <button type="button" className="button secondary" onClick={continueWithActiveSession} disabled={isSubmitting}>
               Als {activeSessionEmail} fortfahren
             </button>

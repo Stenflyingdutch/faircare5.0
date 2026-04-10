@@ -1459,12 +1459,22 @@ export async function openSharedResultsView(userId: string) {
 }
 
 export async function fetchDashboardBundle(userId: string) {
+  logSignupInfo('bootstrap.dashboard.load.start', {
+    step: 'fetchDashboardBundle',
+    path: `${firestoreCollections.users}/${userId}`,
+    uid: userId,
+  });
   logSignupInfo('fetchDashboardBundle.start', {
     step: 'fetchDashboardBundle',
     path: `${firestoreCollections.users}/${userId}`,
     uid: userId,
   });
   try {
+    logSignupInfo('bootstrap.user_profile.read.start', {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.users}/${userId}`,
+      uid: userId,
+    });
     logSignupInfo('partner_personal_area.profile_read.start', {
       step: 'fetchDashboardBundle',
       path: `${firestoreCollections.users}/${userId}`,
@@ -1473,6 +1483,12 @@ export async function fetchDashboardBundle(userId: string) {
     let profile: AppUserProfile | null = null;
     try {
       profile = await fetchAppUserProfile(userId);
+      logSignupInfo('bootstrap.user_profile.read.success', {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+        extra: { profilePresent: Boolean(profile) },
+      });
       logSignupInfo('partner_personal_area.profile_read.success', {
         step: 'fetchDashboardBundle',
         path: `${firestoreCollections.users}/${userId}`,
@@ -1480,6 +1496,11 @@ export async function fetchDashboardBundle(userId: string) {
         extra: { profilePresent: Boolean(profile) },
       });
     } catch (error) {
+      logSignupError('bootstrap.user_profile.read.failed', error, {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+      });
       logSignupError('partner_personal_area.profile_read.failed', error, {
         step: 'fetchDashboardBundle',
         path: `${firestoreCollections.users}/${userId}`,
@@ -1488,6 +1509,17 @@ export async function fetchDashboardBundle(userId: string) {
       throw error;
     }
     if (!profile) {
+      logSignupInfo('bootstrap.user_profile.read.missing_document', {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+      });
+      logSignupInfo('bootstrap.dashboard.load.success', {
+        step: 'fetchDashboardBundle',
+        path: `${firestoreCollections.users}/${userId}`,
+        uid: userId,
+        extra: { profilePresent: false, familyId: null },
+      });
       logSignupInfo('fetchDashboardBundle.success', {
         step: 'fetchDashboardBundle',
         path: `${firestoreCollections.users}/${userId}`,
@@ -1621,6 +1653,12 @@ export async function fetchDashboardBundle(userId: string) {
 
   if (familyId) {
     const familyPath = `${firestoreCollections.families}/${familyId}`;
+    logSignupInfo('bootstrap.family.read.start', {
+      step: 'fetchDashboardBundle',
+      path: familyPath,
+      uid: userId,
+      extra: { role: profile.role ?? null },
+    });
     logSignupInfo('partner_personal_area.family_read.start', {
       step: 'fetchDashboardBundle',
       path: familyPath,
@@ -1633,16 +1671,36 @@ export async function fetchDashboardBundle(userId: string) {
       try {
         const familySnapshot = await getDoc(doc(db, firestoreCollections.families, familyId));
         family = familySnapshot.exists() ? (familySnapshot.data() as FamilyDocument) : null;
+        logSignupInfo('bootstrap.family.read.success', {
+          step: 'fetchDashboardBundle',
+          path: familyPath,
+          uid: userId,
+          extra: { exists: familySnapshot.exists(), attempt, retries, partnerUserId: family?.partnerUserId ?? null },
+        });
         logSignupInfo('partner_personal_area.family_read.success', {
           step: 'fetchDashboardBundle',
           path: familyPath,
           uid: userId,
           extra: { exists: familySnapshot.exists(), attempt, retries, partnerUserId: family?.partnerUserId ?? null },
         });
+        if (!familySnapshot.exists()) {
+          logSignupInfo('bootstrap.family.read.missing_document', {
+            step: 'fetchDashboardBundle',
+            path: familyPath,
+            uid: userId,
+            extra: { attempt, retries },
+          });
+        }
         familyReadError = null;
         break;
       } catch (error) {
         familyReadError = error;
+        logSignupError('bootstrap.family.read.failed', error, {
+          step: 'fetchDashboardBundle',
+          path: familyPath,
+          uid: userId,
+          extra: { attempt, retries, role: profile.role ?? null },
+        });
         logSignupError('partner_personal_area.family_read.failed', error, {
           step: 'fetchDashboardBundle',
           path: familyPath,
@@ -1666,6 +1724,13 @@ export async function fetchDashboardBundle(userId: string) {
         cause: familyReadError,
       });
     }
+  } else {
+    logSignupInfo('bootstrap.family.read.skipped_missing_family_id', {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.families}/(missing-family-id)`,
+      uid: userId,
+      extra: { role: profile.role ?? null },
+    });
   }
 
   if (family) {
@@ -1777,6 +1842,17 @@ export async function fetchDashboardBundle(userId: string) {
       invitationPartnerEmail,
       ageGroupForOwnership,
     };
+    logSignupInfo('bootstrap.dashboard.load.success', {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.users}/${userId}`,
+      uid: userId,
+      extra: {
+        familyId: profile.familyId ?? null,
+        profilePresent: true,
+        familyPresent: Boolean(family),
+        ownResultPresent: Boolean(ownResult),
+      },
+    });
     logSignupInfo('fetchDashboardBundle.success', {
       step: 'fetchDashboardBundle',
       path: `${firestoreCollections.users}/${userId}`,
@@ -1785,6 +1861,11 @@ export async function fetchDashboardBundle(userId: string) {
     });
     return bundle;
   } catch (error) {
+    logSignupError('bootstrap.dashboard.load.failed', error, {
+      step: 'fetchDashboardBundle',
+      path: `${firestoreCollections.users}/${userId}`,
+      uid: userId,
+    });
     logSignupError('fetchDashboardBundle.failed', error, {
       step: 'fetchDashboardBundle',
       path: `${firestoreCollections.users}/${userId}`,

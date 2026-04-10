@@ -12,6 +12,7 @@ const partnerFlowSrc = read('services/partnerFlow.service.ts');
 const signupDebugSrc = read('services/signup-debug.service.ts');
 const rulesSrc = read('firestore.rules');
 const loginClientSrc = read('app/login/LoginPageClient.tsx');
+const personalAreaShellSrc = read('components/personal/PersonalAreaShell.tsx');
 
 test('signup debug helper logs auth state and invite context metadata without exposing tokens', () => {
   assert.match(signupDebugSrc, /hasAuthCurrentUser: Boolean\(currentUser\)/);
@@ -81,10 +82,33 @@ test('dashboard and initiator bootstrap fetch own quizResults via userId-constra
   assert.match(partnerFlowSrc, /fetchOwnResultByRole\(userId, 'initiator', profile\.familyId\)/);
 });
 
-test('firestore rules allow initial self-read for a missing users document but keep update guarded by active accounts', () => {
+test('dashboard bootstrap emits explicit profile and family diagnostics for login forensics', () => {
+  assert.match(partnerFlowSrc, /bootstrap\.dashboard\.load\.start/);
+  assert.match(partnerFlowSrc, /bootstrap\.dashboard\.load\.success/);
+  assert.match(partnerFlowSrc, /bootstrap\.dashboard\.load\.failed/);
+  assert.match(partnerFlowSrc, /bootstrap\.user_profile\.read\.start/);
+  assert.match(partnerFlowSrc, /bootstrap\.user_profile\.read\.success/);
+  assert.match(partnerFlowSrc, /bootstrap\.user_profile\.read\.failed/);
+  assert.match(partnerFlowSrc, /bootstrap\.family\.read\.start/);
+  assert.match(partnerFlowSrc, /bootstrap\.family\.read\.success/);
+  assert.match(partnerFlowSrc, /bootstrap\.family\.read\.failed/);
+  assert.match(partnerFlowSrc, /bootstrap\.family\.read\.skipped_missing_family_id/);
+});
+
+test('personal area shell logs dedicated bootstrap read lifecycle around dashboard hydration', () => {
+  assert.match(personalAreaShellSrc, /bootstrap\.personal_area\.read\.start/);
+  assert.match(personalAreaShellSrc, /bootstrap\.personal_area\.read\.success/);
+  assert.match(personalAreaShellSrc, /bootstrap\.personal_area\.read\.failed/);
+});
+
+test('firestore rules allow initial self-read for a missing users document while protecting admin fields on self writes', () => {
   assert.match(rulesSrc, /allow read: if \(isSelf\(userId\) && \(/);
   assert.match(rulesSrc, /!exists\(\/databases\/\$\(database\)\/documents\/users\/\$\(userId\)\)/);
-  assert.match(rulesSrc, /allow update: if \(isSelf\(userId\) && isActiveAccount\(\)\) \|\| isAdmin\(\);/);
+  assert.match(rulesSrc, /allow create: if isSelf\(userId\)/);
+  assert.match(rulesSrc, /!\('adminRole' in request\.resource\.data\)/);
+  assert.match(rulesSrc, /!\('accountStatus' in request\.resource\.data\)/);
+  assert.match(rulesSrc, /request\.resource\.data\.adminRole == resource\.data\.adminRole/);
+  assert.match(rulesSrc, /request\.resource\.data\.accountStatus == resource\.data\.accountStatus/);
   assert.doesNotMatch(rulesSrc, /allow read,\s*write:\s*if true;/);
 });
 
@@ -97,4 +121,16 @@ test('login flow still repairs auth-only initiator accounts after a failed first
   assert.match(loginClientSrc, /let bundle = await fetchDashboardBundle\(userId\)/);
   assert.match(loginClientSrc, /if \(bundle\.profile\?\.role !== 'partner' && !bundle\.profile\?\.familyId\) \{/);
   assert.match(loginClientSrc, /await ensureInitiatorFamilySetup\(userId\)/);
+});
+
+test('login flow separates auth failures from post-login bootstrap failures in the UI', () => {
+  assert.match(authServiceSrc, /export function resolvePostLoginBootstrapErrorMessage/);
+  assert.match(authServiceSrc, /Dein Login war erfolgreich, aber die zugehoerigen Familiendaten konnten nicht geladen werden/);
+  assert.match(loginClientSrc, /resolvePostLoginBootstrapErrorMessage/);
+  assert.match(loginClientSrc, /bootstrap\.session\.sync\.failed/);
+  assert.match(loginClientSrc, /bootstrap\.dashboard\.load\.start/);
+  assert.match(loginClientSrc, /bootstrap\.dashboard\.load\.failed/);
+  assert.match(loginClientSrc, /login\.ui\.error\.set/);
+  assert.match(loginClientSrc, /phase: 'auth'/);
+  assert.match(loginClientSrc, /phase: 'bootstrap'/);
 });

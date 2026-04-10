@@ -32,3 +32,8 @@ test('admin user delete supports auth-only users without a Firestore profile', (
   assert.match(src, /profile \? userRef\.delete\(\) : Promise\.resolve\(\)/);
   assert.match(src, /if \(authUser\) {\s+await adminAuth\.deleteUser\(userId\);/);
 });
+
+test('admin profile helper requires an active account in addition to adminRole', () => {
+  const src = read('services/user-profile.service.ts');
+  assert.match(src, /resolveAdminRole\(profile\) === 'admin' && resolveAccountStatus\(profile\) === 'active'/);
+});

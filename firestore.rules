@@ -57,8 +57,15 @@ service cloud.firestore {
         !exists(/databases/$(database)/documents/users/$(userId)) ||
         isActiveAccount()
       )) || isAdmin();
-      allow create: if isSelf(userId);
-      allow update: if (isSelf(userId) && isActiveAccount()) || isAdmin();
+      allow create: if isSelf(userId)
+        && !('adminRole' in request.resource.data)
+        && !('accountStatus' in request.resource.data);
+      allow update: if (
+        isSelf(userId) &&
+        isActiveAccount() &&
+        request.resource.data.adminRole == resource.data.adminRole &&
+        request.resource.data.accountStatus == resource.data.accountStatus
+      ) || isAdmin();
       allow delete: if isAdmin();
     }
 

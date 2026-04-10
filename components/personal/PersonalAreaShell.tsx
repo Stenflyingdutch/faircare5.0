@@ -76,7 +76,22 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
             extra: { queryName: 'fetchDashboardBundle', collection: 'users/families/userResults' },
           });
         }
+        logSignupInfo('bootstrap.personal_area.read.start', {
+          step: 'PersonalAreaShell.observeAuthState',
+          path: pathname,
+          uid: user.uid,
+        });
         const bundle = await fetchDashboardBundle(user.uid);
+        logSignupInfo('bootstrap.personal_area.read.success', {
+          step: 'PersonalAreaShell.observeAuthState',
+          path: pathname,
+          uid: user.uid,
+          extra: {
+            profilePresent: Boolean(bundle.profile),
+            familyId: bundle.profile?.familyId ?? null,
+            familyPresent: Boolean(bundle.family),
+          },
+        });
         logSignupInfo('personal_area.shell.family_load.success', {
           step: 'PersonalAreaShell.observeAuthState',
           path: pathname,
@@ -125,6 +140,11 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
             extra: { queryName: 'fetchDashboardBundle', collection: 'users/families/userResults' },
           });
         }
+        logSignupError('bootstrap.personal_area.read.failed', error, {
+          step: 'PersonalAreaShell.observeAuthState',
+          path: pathname,
+          uid: user.uid,
+        });
         logSignupError('target_page.load.failed', error, {
           step: 'PersonalAreaShell.observeAuthState',
           path: pathname,

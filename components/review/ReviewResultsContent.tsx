@@ -482,11 +482,7 @@ function JointResultPanel({ bundle, ageGroup }: {
               <p className="helper" style={{ margin: '6px 0 0' }}>
                 {resolveCategoryDescription(entry.category, ageGroup ?? undefined)}
               </p>
-              <p className="helper" style={{ margin: '14px 0 16px' }}>
-                {hasGap
-                  ? 'Hier gibt es eine größere Abweichung zwischen Selbst- und Fremdwahrnehmung.'
-                  : 'Hier stimmen Fremd- und Selbstbild weitgehend überein.'}
-              </p>
+              <div style={{ height: '16px' }} aria-hidden="true" />
               <p className="helper" style={{ marginBottom: 4 }}>{initiatorName} selbst</p>
               <div className="result-bar"><div className="result-bar-me" style={{ width: `${initiatorSelf}%` }} /></div>
               <p className="helper" style={{ marginTop: 2 }}>{initiatorSelf}%</p>

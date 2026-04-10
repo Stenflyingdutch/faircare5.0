@@ -30,8 +30,8 @@ export function resolveAccountStatus(profile?: Pick<AppUserProfile, 'accountStat
   return profile?.accountStatus === 'blocked' ? 'blocked' : 'active';
 }
 
-export function isAdminProfile(profile?: Pick<AppUserProfile, 'adminRole'> | null) {
-  return resolveAdminRole(profile) === 'admin';
+export function isAdminProfile(profile?: Pick<AppUserProfile, 'adminRole' | 'accountStatus'> | null) {
+  return resolveAdminRole(profile) === 'admin' && resolveAccountStatus(profile) === 'active';
 }
 
 export function isBlockedProfile(profile?: Pick<AppUserProfile, 'accountStatus'> | null) {

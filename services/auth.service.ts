@@ -386,6 +386,51 @@ export function resolveRegistrationErrorMessage(error: unknown) {
   return 'Registrierung fehlgeschlagen. Bitte prüfe deine Eingaben und versuche es erneut.';
 }
 
+function isPermissionDeniedCode(code?: string) {
+  return code === 'permission-denied' || code === 'firestore/permission-denied';
+}
+
+export function resolvePostLoginBootstrapErrorMessage(error: unknown) {
+  const errorObject = error as {
+    code?: string;
+    message?: string;
+    failedStep?: string;
+  };
+  const code = errorObject?.code;
+  const message = errorObject?.message?.trim();
+  const failedStep = errorObject?.failedStep ?? null;
+
+  if (code === 'auth/session-sync-failed') {
+    return message || 'Deine Anmeldung konnte nicht bestätigt werden. Bitte versuche es erneut.';
+  }
+
+  if (failedStep === 'fetchDashboardBundle.familyRead') {
+    return 'Dein Login war erfolgreich, aber die zugehoerigen Familiendaten konnten nicht geladen werden. Bitte versuche es erneut.';
+  }
+
+  if (failedStep === 'ensureInitiatorFamilySetup.userLink') {
+    return 'Dein Login war erfolgreich, aber dein Profil konnte nicht vollstaendig mit deiner Familie verknuepft werden. Bitte versuche es erneut.';
+  }
+
+  if (failedStep === 'ensureInitiatorFamilySetup.buildOrUpdateInitiatorResult' || failedStep === 'getLatestInitiatorResult.read') {
+    return 'Dein Login war erfolgreich, aber dein Dashboard konnte noch nicht vollstaendig vorbereitet werden. Bitte versuche es erneut.';
+  }
+
+  if (isPermissionDeniedCode(code)) {
+    return 'Dein Login war erfolgreich, aber auf verknuepfte Konto- oder Familiendaten konnte nicht zugegriffen werden. Bitte versuche es erneut.';
+  }
+
+  if (message && isNetworkLikeError(error)) {
+    return 'Die Verbindung zum Server ist fehlgeschlagen. Bitte lade die Seite neu und versuche es erneut.';
+  }
+
+  if (message && !code?.startsWith('auth/')) {
+    return message;
+  }
+
+  return 'Dein Login war erfolgreich, aber der persoenliche Bereich konnte nicht vollstaendig geladen werden. Bitte versuche es erneut.';
+}
+
 export function resolveLoginErrorMessage(error: unknown) {
   const code = (error as { code?: string })?.code;
   const message = (error as { message?: string })?.message?.trim();
