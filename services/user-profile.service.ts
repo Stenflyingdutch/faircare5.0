@@ -34,6 +34,14 @@ export function isAdminProfile(profile?: Pick<AppUserProfile, 'adminRole' | 'acc
   return resolveAdminRole(profile) === 'admin' && resolveAccountStatus(profile) === 'active';
 }
 
+export function resolveSuperuserFlag(profile?: Pick<AppUserProfile, 'isSuperuser'> | null) {
+  return profile?.isSuperuser === true;
+}
+
+export function isSuperuserProfile(profile?: Pick<AppUserProfile, 'isSuperuser' | 'accountStatus'> | null) {
+  return resolveSuperuserFlag(profile) && resolveAccountStatus(profile) === 'active';
+}
+
 export function isBlockedProfile(profile?: Pick<AppUserProfile, 'accountStatus'> | null) {
   return resolveAccountStatus(profile) === 'blocked';
 }

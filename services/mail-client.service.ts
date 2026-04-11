@@ -9,7 +9,8 @@ export type MailType =
   | 'partner_completed_notify_initiator'
   | 'results_unlocked_notify_partner'
   | 'resend_invitation'
-  | 'reminder';
+  | 'reminder'
+  | 'password_reset';
 
 interface SendMailInput {
   type: MailType;

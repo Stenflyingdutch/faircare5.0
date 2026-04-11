@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedAdminContext } from '@/lib/admin-auth';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { UserDeleteError, executeUserDeletion } from '@/services/server/user-delete.service';
-import { buildDisplayName, deriveFirstName, deriveLastName, resolveAccountStatus, resolveAdminRole } from '@/services/user-profile.service';
+import { buildDisplayName, deriveFirstName, deriveLastName, resolveAccountStatus, resolveAdminRole, resolveSuperuserFlag } from '@/services/user-profile.service';
 import type { AppUserProfile } from '@/types/partner-flow';
 
 function usersCollection() {
@@ -38,6 +38,7 @@ function toAdminUserResponse(userId: string, profile: AppUserProfile, authUser?:
     lastName,
     role: profile.role ?? null,
     adminRole: resolveAdminRole(profile),
+    isSuperuser: resolveSuperuserFlag(profile),
     accountStatus: resolveAccountStatus(profile),
     familyId: profile.familyId ?? null,
     createdAt: profile.createdAt ?? authUser?.metadata.creationTime ?? null,
@@ -56,6 +57,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ u
   const { userId } = await context.params;
   const body = await request.json() as {
     adminRole?: 'user' | 'admin';
+    isSuperuser?: boolean;
     accountStatus?: 'active' | 'blocked';
   };
 
@@ -68,6 +70,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ u
   }
 
   const nextAdminRole = body.adminRole ?? resolveAdminRole(profile);
+  const nextIsSuperuser = body.isSuperuser ?? resolveSuperuserFlag(profile);
   const nextAccountStatus = body.accountStatus ?? resolveAccountStatus(profile);
   const needsLastAdminProtection = nextAdminRole !== 'admin' || nextAccountStatus === 'blocked';
 
@@ -81,6 +84,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ u
 
   await userRef.set({
     adminRole: nextAdminRole,
+    isSuperuser: nextIsSuperuser,
     accountStatus: nextAccountStatus,
     updatedAt: new Date().toISOString(),
   }, { merge: true });

@@ -256,6 +256,10 @@ export default function AdminUsersPage() {
                     <strong>{user.adminRole === 'admin' ? 'Admin' : 'Nutzer'}</strong>
                   </div>
                   <div className="stack" style={{ gap: 4 }}>
+                    <span className="helper">Superuser</span>
+                    <strong>{user.isSuperuser ? 'Freigeschaltet' : 'Nein'}</strong>
+                  </div>
+                  <div className="stack" style={{ gap: 4 }}>
                     <span className="helper">Status</span>
                     <strong>{user.accountStatus === 'blocked' ? 'Gesperrt' : 'Aktiv'}</strong>
                   </div>
@@ -283,6 +287,28 @@ export default function AdminUsersPage() {
                 <div className="chip-row">
                   <button type="button" className="button" disabled={isBusy} onClick={() => onToggleAdmin(user)}>
                     {isBusy ? 'Speichert …' : user.adminRole === 'admin' ? 'Admin entziehen' : 'Admin geben'}
+                  </button>
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={isBusy}
+                    onClick={async () => {
+                      setBusyUserId(user.id);
+                      setStatusMessage(null);
+                      setErrorMessage(null);
+
+                      try {
+                        const response = await updateAdminUser(user.id, { isSuperuser: !user.isSuperuser });
+                        setUsers((current) => current.map((entry) => (entry.id === user.id ? response.user : entry)));
+                        setStatusMessage(!user.isSuperuser ? 'Superuser wurde freigeschaltet.' : 'Superuser-Freigabe wurde entfernt.');
+                      } catch (error) {
+                        setErrorMessage((error as Error).message);
+                      } finally {
+                        setBusyUserId(null);
+                      }
+                    }}
+                  >
+                    {isBusy ? 'Speichert …' : user.isSuperuser ? 'Superuser entziehen' : 'Superuser geben'}
                   </button>
                   <button type="button" className="button" disabled={isBusy} onClick={() => onToggleBlock(user)}>
                     {isBusy ? 'Speichert …' : user.accountStatus === 'blocked' ? 'Entsperren' : 'Sperren'}

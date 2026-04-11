@@ -17,6 +17,7 @@ import { isBlockedProfile } from '@/services/user-profile.service';
 
 type LoginPageClientProps = {
   redirectTo?: string | null;
+  resetNotice?: string | null;
 };
 
 function readErrorMetadata(error: unknown) {
@@ -38,7 +39,7 @@ function readErrorMetadata(error: unknown) {
   };
 }
 
-export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
+export default function LoginPageClient({ redirectTo, resetNotice }: LoginPageClientProps) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -197,6 +198,7 @@ export default function LoginPageClient({ redirectTo }: LoginPageClientProps) {
       <div className="container test-shell stack">
         <h1 className="test-title">Login</h1>
         <form className="form-shell" onSubmit={submit}>
+          {resetNotice && <p className="helper">{resetNotice}</p>}
           <input type="email" required className="input" placeholder="E-Mail" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input type="password" required className="input" placeholder="Passwort" value={password} onChange={(e) => setPassword(e.target.value)} />
           {error && <p className="inline-error">{error}</p>}

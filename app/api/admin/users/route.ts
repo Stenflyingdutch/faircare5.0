@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getAuthenticatedAdminContext } from '@/lib/admin-auth';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { buildDisplayName, deriveFirstName, deriveLastName, normalizeEmailAddress, resolveAccountStatus, resolveAdminRole } from '@/services/user-profile.service';
+import { buildDisplayName, deriveFirstName, deriveLastName, normalizeEmailAddress, resolveAccountStatus, resolveAdminRole, resolveSuperuserFlag } from '@/services/user-profile.service';
 import type { AppUserProfile } from '@/types/partner-flow';
 
 type AuthUserMap = Map<string, Awaited<ReturnType<typeof adminAuth.getUser>>>;
@@ -49,6 +49,7 @@ export async function GET() {
       lastName,
       role: profile?.role ?? null,
       adminRole: resolveAdminRole(profile),
+      isSuperuser: resolveSuperuserFlag(profile),
       accountStatus: resolveAccountStatus(profile),
       familyId: profile?.familyId ?? null,
       createdAt: profile?.createdAt ?? authUser?.metadata.creationTime ?? null,

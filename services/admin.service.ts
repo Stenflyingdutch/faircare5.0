@@ -10,6 +10,7 @@ export interface AdminUserRecord {
   lastName: string;
   role: string | null;
   adminRole: UserRole;
+  isSuperuser: boolean;
   accountStatus: UserAccountStatus;
   familyId: string | null;
   createdAt: string | null;
@@ -36,7 +37,7 @@ export async function fetchAdminUsers() {
 
 export async function updateAdminUser(
   userId: string,
-  payload: Partial<Pick<AdminUserRecord, 'adminRole' | 'accountStatus'>>,
+  payload: Partial<Pick<AdminUserRecord, 'adminRole' | 'accountStatus' | 'isSuperuser'>>,
 ) {
   const response = await fetch(`/api/admin/users/${userId}`, {
     method: 'PATCH',

@@ -17,6 +17,10 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
+    function profileIsSuperuser(data) {
+      return ('isSuperuser' in data) && data.isSuperuser == true;
+    }
+
     function isActiveAccount() {
       return currentUserProfileExists() && (
         !('accountStatus' in currentUserProfile().data) ||
@@ -27,6 +31,12 @@ service cloud.firestore {
     function isAdmin() {
       return currentUserProfileExists() &&
         currentUserProfile().data.adminRole == 'admin' &&
+        isActiveAccount();
+    }
+
+    function isSuperuser() {
+      return currentUserProfileExists() &&
+        profileIsSuperuser(currentUserProfile().data) &&
         isActiveAccount();
     }
 
@@ -59,11 +69,13 @@ service cloud.firestore {
       )) || isAdmin();
       allow create: if isSelf(userId)
         && !('adminRole' in request.resource.data)
+        && !('isSuperuser' in request.resource.data)
         && !('accountStatus' in request.resource.data);
       allow update: if (
         isSelf(userId) &&
         isActiveAccount() &&
         request.resource.data.adminRole == resource.data.adminRole &&
+        profileIsSuperuser(request.resource.data) == profileIsSuperuser(resource.data) &&
         request.resource.data.accountStatus == resource.data.accountStatus
       ) || isAdmin();
       allow delete: if isAdmin();
@@ -119,6 +131,14 @@ service cloud.firestore {
       match /teamCheckRecords/{recordId} {
         allow read, create, update: if (isActiveAccount() && isFamilyMember(familyId)) || isAdmin();
         allow delete: if isAdmin();
+      }
+
+      match /tasks/{taskId} {
+        allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+      }
+
+      match /taskDelegations/{delegationId} {
+        allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
       }
     }
 

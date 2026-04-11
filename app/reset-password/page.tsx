@@ -15,6 +15,9 @@ export default async function ResetPasswordPage({ searchParams }: ResetPasswordP
     <ResetPasswordPageClient
       mode={firstParam(resolvedSearchParams?.mode) ?? null}
       oobCode={firstParam(resolvedSearchParams?.oobCode) ?? null}
+      continueUrl={firstParam(resolvedSearchParams?.continueUrl) ?? null}
+      languageCode={firstParam(resolvedSearchParams?.lang) ?? null}
+      apiKey={firstParam(resolvedSearchParams?.apiKey) ?? null}
     />
   );
 }

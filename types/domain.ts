@@ -11,6 +11,7 @@ export interface UserProfile {
   lastName?: string;
   role?: string;
   adminRole?: UserRole;
+  isSuperuser?: boolean;
   accountStatus?: UserAccountStatus;
   familyId?: string | null;
   lastLoginAt?: string | null;
@@ -103,6 +104,16 @@ export const firestoreCollections = {
   weeklyCheckins: 'weeklyCheckins',
   taskPackageTemplates: 'taskPackageTemplates',
   newsletterSubscribers: 'newsletterSubscribers',
+} as const;
+
+export const familySubcollections = {
+  ownershipCategories: 'ownershipCategories',
+  ownershipCards: 'ownershipCards',
+  auditEvents: 'auditEvents',
+  teamCheckPreparations: 'teamCheckPreparations',
+  teamCheckRecords: 'teamCheckRecords',
+  tasks: 'tasks',
+  taskDelegations: 'taskDelegations',
 } as const;
 
 export type FirestoreCollectionName =

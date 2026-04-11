@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import type { Responsibility, ResponsibilityPriority, ResponsibilityOwner } from '@/services/responsibilities.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
@@ -8,6 +9,8 @@ interface ResponsibilityCardProps {
   onExpandDetails?: () => void;
   onPriorityChange?: (priority: ResponsibilityPriority) => void;
   onAssignmentChange?: (assignedTo: ResponsibilityOwner) => void;
+  headerAction?: ReactNode;
+  children?: ReactNode;
 }
 
 type PriorityType = 'act' | 'plan' | 'observe';
@@ -86,6 +89,8 @@ export function ResponsibilityCard({
   onExpandDetails,
   onPriorityChange,
   onAssignmentChange,
+  headerAction,
+  children,
 }: ResponsibilityCardProps) {
   const categoryLabel = categoryLabelMap[responsibility.categoryKey] || responsibility.categoryKey;
   const [isLoading, setIsLoading] = useState(false);
@@ -158,28 +163,36 @@ export function ResponsibilityCard({
         transition: 'background 0.3s ease, box-shadow 0.2s ease, transform 0.2s ease',
       }}
     >
-      <div
-        className="responsibility-card-hit-area"
-        onClick={onExpandDetails}
-        style={{ cursor: onExpandDetails ? 'pointer' : 'default' }}
-        role={onExpandDetails ? 'button' : undefined}
-        tabIndex={onExpandDetails ? 0 : undefined}
-        onKeyDown={(e) => {
-          if (onExpandDetails && (e.key === 'Enter' || e.key === ' ')) {
-            e.preventDefault();
-            onExpandDetails();
-          }
-        }}
-        onPointerDown={(event) => {
-          event.preventDefault();
-        }}
-      >
-        <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: mode === 'start' && optimisticPriority === 'act' ? 'rgba(255,255,255,0.84)' : 'var(--color-text-secondary)', opacity: 0.95 }}>
-          {categoryLabel}
-        </p>
-        <h3 style={{ margin: '12px 0 0 0', fontSize: '20px', lineHeight: 1.2, fontWeight: 600, color: textColor }}>
-          {responsibility.title}
-        </h3>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+        <div
+          className="responsibility-card-hit-area"
+          onClick={onExpandDetails}
+          style={{ cursor: onExpandDetails ? 'pointer' : 'default', flex: 1 }}
+          role={onExpandDetails ? 'button' : undefined}
+          tabIndex={onExpandDetails ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (onExpandDetails && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault();
+              onExpandDetails();
+            }
+          }}
+          onPointerDown={(event) => {
+            event.preventDefault();
+          }}
+        >
+          <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: mode === 'start' && optimisticPriority === 'act' ? 'rgba(255,255,255,0.84)' : 'var(--color-text-secondary)', opacity: 0.95 }}>
+            {categoryLabel}
+          </p>
+          <h3 style={{ margin: '12px 0 0 0', fontSize: '20px', lineHeight: 1.2, fontWeight: 600, color: textColor }}>
+            {responsibility.title}
+          </h3>
+        </div>
+
+        {headerAction ? (
+          <div style={{ flexShrink: 0 }}>
+            {headerAction}
+          </div>
+        ) : null}
       </div>
 
       <div style={{ margin: '18px 0 14px', height: '1px', backgroundColor: dividerColor }} />
@@ -221,6 +234,15 @@ export function ResponsibilityCard({
       >
         {ctaLabel}
       </div>
+
+      {children ? (
+        <>
+          <div style={{ margin: '14px 0 0', height: '1px', backgroundColor: dividerColor }} />
+          <div style={{ marginTop: '14px' }}>
+            {children}
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

@@ -26,6 +26,7 @@ export interface AppUserProfile {
   familyId?: string | null;
   role?: FamilyRole;
   adminRole?: UserRole;
+  isSuperuser?: boolean;
   accountStatus?: UserAccountStatus;
   teamCheckEmailReminderEnabled?: boolean;
   createdAt?: string;
