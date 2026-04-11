@@ -7,15 +7,17 @@ import { HomeHeader } from '@/components/home/HomeHeader';
 import { CategoryFilterButtons } from '@/components/home/CategoryFilterButtons';
 import { ResponsibilityCard } from '@/components/home/ResponsibilityCard';
 import { ResponsibilityCardDetails } from '@/components/home/ResponsibilityCardDetails';
-import {
-  TaskActionModal,
-  TaskComposerModal,
-  TaskDelegationModal,
-  TaskEditModal,
-  type TaskEditSubmit,
-} from '@/components/home/TaskDialogs';
+import { ResponsibilityTaskSection } from '@/components/home/ResponsibilityTaskSection';
 import { SkeletonCategoryCard } from '@/components/home/SkeletonCategoryCard';
 import { SortToggle } from '@/components/home/SortToggle';
+import {
+  TaskComposerModal,
+  TaskEditModal,
+  TaskEditScopeModal,
+  TaskInstanceEditModal,
+} from '@/components/home/TaskDialogs';
+import { TaskListItem } from '@/components/home/TaskListItem';
+import { useTaskInteractionFlow } from '@/components/home/useTaskInteractionFlow';
 import { WeeklyDateStrip } from '@/components/home/WeeklyDateStrip';
 import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
@@ -30,11 +32,10 @@ import {
   type ResponsibilityPriority,
 } from '@/services/responsibilities.service';
 import { addDays, buildWeek, formatDateLabel, isToday, startOfWeek, toDateKey } from '@/services/task-date';
-import { getTaskTimingLabel } from '@/services/tasks.logic';
-import { clearTaskDelegation, createTask, fetchTaskOverview, saveTaskDelegation, updateTask } from '@/services/tasks.service';
+import { createTask, fetchTaskOverview } from '@/services/tasks.service';
 import { isSuperuserProfile } from '@/services/user-profile.service';
 import type { QuizCategory } from '@/types/quiz';
-import type { SaveTaskDelegationInput, TaskOverviewItem } from '@/types/tasks';
+import type { TaskOverviewItem } from '@/types/tasks';
 
 type SortMode = 'relevance' | 'area';
 
@@ -69,31 +70,6 @@ function PlusIcon() {
   );
 }
 
-function PencilIcon() {
-  return (
-    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m14.5 3.5 2 2" />
-      <path d="M4 13.9V16h2.1L15 7.1 12.9 5z" />
-    </svg>
-  );
-}
-
-function getTaskChips(task: TaskOverviewItem) {
-  const chips: string[] = [];
-
-  if (task.recurrenceType === 'none') {
-    chips.push('Einmalig');
-  } else {
-    chips.push(getTaskTimingLabel(task));
-  }
-
-  if (task.isDelegated) {
-    chips.push('Delegiert');
-  }
-
-  return chips;
-}
-
 export default function PersonalHomePage() {
   const router = useRouter();
   const today = useMemo(() => toDateKey(new Date()), []);
@@ -107,18 +83,16 @@ export default function PersonalHomePage() {
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [isSuperuser, setIsSuperuser] = useState(false);
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
+  const [expandedTaskSections, setExpandedTaskSections] = useState<Record<string, boolean>>({});
   const [selectedDate, setSelectedDate] = useState(today);
   const [visibleWeekStart, setVisibleWeekStart] = useState(startOfWeek(today));
   const [dayTasks, setDayTasks] = useState<TaskOverviewItem[]>([]);
   const [responsibilityTasks, setResponsibilityTasks] = useState<TaskOverviewItem[]>([]);
   const [isTaskLoading, setIsTaskLoading] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
-  const [isTaskMutationPending, setIsTaskMutationPending] = useState(false);
   const [taskRefreshNonce, setTaskRefreshNonce] = useState(0);
   const [composerState, setComposerState] = useState<ComposerState | null>(null);
-  const [actionTaskId, setActionTaskId] = useState<string | null>(null);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [delegatingTaskId, setDelegatingTaskId] = useState<string | null>(null);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
   const previousSortMode = useRef<SortMode>('relevance');
 
   useEffect(() => {
@@ -250,15 +224,32 @@ export default function PersonalHomePage() {
     return map;
   }, new Map()), [responsibilityTasks]);
 
-  const taskMap = useMemo(() => {
-    const map = new Map<string, TaskOverviewItem>();
-    [...dayTasks, ...responsibilityTasks].forEach((task) => map.set(task.id, task));
-    return map;
-  }, [dayTasks, responsibilityTasks]);
+  const allKnownTasks = useMemo(
+    () => [...dayTasks, ...responsibilityTasks],
+    [dayTasks, responsibilityTasks],
+  );
 
-  const activeTask = actionTaskId ? taskMap.get(actionTaskId) ?? null : null;
-  const editingTask = editingTaskId ? taskMap.get(editingTaskId) ?? null : null;
-  const delegatingTask = delegatingTaskId ? taskMap.get(delegatingTaskId) ?? null : null;
+  const {
+    editingTask,
+    instanceEditingDate,
+    instanceEditingTask,
+    isTaskMutationPending,
+    openInstanceEditFromScope,
+    openSeriesEditFromScope,
+    requestTaskEdit,
+    scopeTask,
+    setEditingTaskId,
+    setInstanceEditingState,
+    setScopeTaskId,
+    submitTaskEdit,
+    submitTaskInstanceEdit,
+    toggleTaskCompletion,
+  } = useTaskInteractionFlow({
+    selectedDate,
+    tasks: allKnownTasks,
+    onError: setTaskError,
+    onRefresh: () => setTaskRefreshNonce((current) => current + 1),
+  });
 
   async function handlePriorityChange(responsibility: Responsibility, newPriority: ResponsibilityPriority) {
     if (!familyId || !userId) return;
@@ -270,7 +261,7 @@ export default function PersonalHomePage() {
   }
 
   async function handleCreateTask(input: Parameters<typeof createTask>[0]) {
-    setIsTaskMutationPending(true);
+    setIsCreatingTask(true);
     setTaskError(null);
     try {
       await createTask(input);
@@ -278,73 +269,15 @@ export default function PersonalHomePage() {
         setSelectedDate(input.selectedDate);
         setVisibleWeekStart(startOfWeek(input.selectedDate));
       }
+      if (input.taskType === 'responsibilityTask' && input.responsibilityId) {
+        setExpandedTaskSections((current) => ({ ...current, [input.responsibilityId!]: true }));
+      }
       setComposerState(null);
       setTaskRefreshNonce((current) => current + 1);
     } catch (error) {
       setTaskError(error instanceof Error ? error.message : 'Aufgabe konnte nicht erstellt werden.');
     } finally {
-      setIsTaskMutationPending(false);
-    }
-  }
-
-  async function handleEditTask(input: TaskEditSubmit) {
-    if (!editingTask) return;
-
-    setIsTaskMutationPending(true);
-    setTaskError(null);
-
-    try {
-      await updateTask(editingTask.id, input.taskUpdate);
-
-      if (input.delegationAction.type === 'clear') {
-        await clearTaskDelegation(editingTask.id);
-      } else {
-        await saveTaskDelegation(editingTask.id, input.delegationAction.input);
-      }
-
-      setEditingTaskId(null);
-      setActionTaskId(null);
-      setTaskRefreshNonce((current) => current + 1);
-    } catch (error) {
-      setTaskError(error instanceof Error ? error.message : 'Aufgabe konnte nicht aktualisiert werden.');
-    } finally {
-      setIsTaskMutationPending(false);
-    }
-  }
-
-  async function handleSaveDelegation(input: SaveTaskDelegationInput) {
-    if (!delegatingTask) return;
-
-    setIsTaskMutationPending(true);
-    setTaskError(null);
-
-    try {
-      await saveTaskDelegation(delegatingTask.id, input);
-      setDelegatingTaskId(null);
-      setActionTaskId(null);
-      setTaskRefreshNonce((current) => current + 1);
-    } catch (error) {
-      setTaskError(error instanceof Error ? error.message : 'Delegation konnte nicht gespeichert werden.');
-    } finally {
-      setIsTaskMutationPending(false);
-    }
-  }
-
-  async function handleClearDelegation() {
-    if (!delegatingTask) return;
-
-    setIsTaskMutationPending(true);
-    setTaskError(null);
-
-    try {
-      await clearTaskDelegation(delegatingTask.id);
-      setDelegatingTaskId(null);
-      setActionTaskId(null);
-      setTaskRefreshNonce((current) => current + 1);
-    } catch (error) {
-      setTaskError(error instanceof Error ? error.message : 'Delegation konnte nicht entfernt werden.');
-    } finally {
-      setIsTaskMutationPending(false);
+      setIsCreatingTask(false);
     }
   }
 
@@ -410,49 +343,15 @@ export default function PersonalHomePage() {
                 </p>
               ) : (
                 <div className="task-day-list">
-                  {dayTasks.map((task) => {
-                    const responsibility = task.responsibilityId ? responsibilityMap.get(task.responsibilityId) : null;
-                    return (
-                      <div
-                        key={task.id}
-                        className="task-day-row"
-                        onClick={() => setActionTaskId(task.id)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            setActionTaskId(task.id);
-                          }
-                        }}
-                      >
-                        <div className="task-row-copy">
-                          <strong className="task-row-title">{task.title}</strong>
-                          {responsibility ? (
-                            <span className="task-row-subtitle">{responsibility.title}</span>
-                          ) : task.categoryKey ? (
-                            <span className="task-row-subtitle">{categoryLabelMap[task.categoryKey] || task.categoryKey}</span>
-                          ) : null}
-                          <div className="task-chip-row">
-                            {getTaskChips(task).map((chip) => (
-                              <span key={`${task.id}-${chip}`} className="task-chip">{chip}</span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="task-row-icon-button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setEditingTaskId(task.id);
-                          }}
-                        >
-                          <PencilIcon />
-                        </button>
-                      </div>
-                    );
-                  })}
+                  {dayTasks.map((task) => (
+                    <TaskListItem
+                      key={task.id}
+                      task={task}
+                      selectedDate={selectedDate}
+                      onEdit={() => requestTaskEdit(task)}
+                      onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
+                    />
+                  ))}
                 </div>
               )}
             </section>
@@ -485,6 +384,8 @@ export default function PersonalHomePage() {
           ) : (
             filteredResponsibilities.map((responsibility) => {
               const cardTasks = responsibilityTasksByCard.get(responsibility.id) ?? [];
+              const isExpanded = expandedTaskSections[responsibility.id] ?? false;
+
               return (
                 <ResponsibilityCard
                   key={responsibility.id}
@@ -504,30 +405,17 @@ export default function PersonalHomePage() {
                   ) : null}
                 >
                   {isSuperuser ? (
-                    cardTasks.length ? (
-                      <div className="responsibility-task-list">
-                        {cardTasks.map((task) => (
-                          <div key={task.id} className="responsibility-task-row">
-                            <div className="task-row-copy">
-                              <strong className="task-row-title">{task.title}</strong>
-                              <span className="task-row-subtitle">{getTaskTimingLabel(task)}</span>
-                            </div>
-                            <button
-                              type="button"
-                              className="task-row-icon-button"
-                              aria-label={`Aufgabe ${task.title} bearbeiten`}
-                              onClick={() => setEditingTaskId(task.id)}
-                            >
-                              <PencilIcon />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="caption" style={{ margin: 0, color: 'var(--color-text-secondary)' }}>
-                        Noch keine Aufgaben für dieses Verantwortungsgebiet.
-                      </p>
-                    )
+                    <ResponsibilityTaskSection
+                      tasks={cardTasks}
+                      selectedDate={selectedDate}
+                      isExpanded={isExpanded}
+                      onToggle={() => setExpandedTaskSections((current) => ({
+                        ...current,
+                        [responsibility.id]: !isExpanded,
+                      }))}
+                      onEditTask={requestTaskEdit}
+                      onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
+                    />
                   ) : null}
                 </ResponsibilityCard>
               );
@@ -550,46 +438,36 @@ export default function PersonalHomePage() {
         mode={composerState?.mode ?? 'day'}
         selectedDate={selectedDate}
         responsibility={composerState?.mode === 'responsibility' ? composerState.responsibility : null}
-        isSubmitting={isTaskMutationPending}
+        isSubmitting={isCreatingTask}
         onClose={() => setComposerState(null)}
         onSubmit={handleCreateTask}
       />
 
-      <TaskActionModal
-        isOpen={Boolean(actionTaskId)}
-        task={activeTask}
+      <TaskEditScopeModal
+        isOpen={Boolean(scopeTask)}
+        task={scopeTask}
         selectedDate={selectedDate}
-        responsibilityTitle={activeTask?.responsibilityId ? responsibilityMap.get(activeTask.responsibilityId)?.title : null}
-        onClose={() => setActionTaskId(null)}
-        onEdit={() => {
-          if (!activeTask) return;
-          setActionTaskId(null);
-          setEditingTaskId(activeTask.id);
-        }}
-        onDelegate={() => {
-          if (!activeTask) return;
-          setActionTaskId(null);
-          setDelegatingTaskId(activeTask.id);
-        }}
+        onClose={() => setScopeTaskId(null)}
+        onEditSeries={openSeriesEditFromScope}
+        onEditInstance={openInstanceEditFromScope}
       />
 
       <TaskEditModal
-        isOpen={Boolean(editingTaskId)}
+        isOpen={Boolean(editingTask)}
         task={editingTask}
         selectedDate={selectedDate}
         isSubmitting={isTaskMutationPending}
         onClose={() => setEditingTaskId(null)}
-        onSubmit={handleEditTask}
+        onSubmit={submitTaskEdit}
       />
 
-      <TaskDelegationModal
-        isOpen={Boolean(delegatingTaskId)}
-        task={delegatingTask}
-        selectedDate={selectedDate}
+      <TaskInstanceEditModal
+        isOpen={Boolean(instanceEditingTask && instanceEditingDate)}
+        task={instanceEditingTask}
+        instanceDate={instanceEditingDate}
         isSubmitting={isTaskMutationPending}
-        onClose={() => setDelegatingTaskId(null)}
-        onSubmit={handleSaveDelegation}
-        onClear={handleClearDelegation}
+        onClose={() => setInstanceEditingState(null)}
+        onSubmit={submitTaskInstanceEdit}
       />
     </div>
   );

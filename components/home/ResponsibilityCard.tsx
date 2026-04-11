@@ -160,7 +160,7 @@ export function ResponsibilityCard({
         border: `1px solid ${borderColor}`,
         borderLeft: `6px solid ${borderColor}`,
         boxShadow: 'var(--shadow-card)',
-        transition: 'background 0.3s ease, box-shadow 0.2s ease, transform 0.2s ease',
+        transition: 'background 0.3s ease, box-shadow 0.2s ease',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
@@ -180,7 +180,7 @@ export function ResponsibilityCard({
             event.preventDefault();
           }}
         >
-          <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: mode === 'start' && optimisticPriority === 'act' ? 'rgba(255,255,255,0.84)' : 'var(--color-text-secondary)', opacity: 0.95 }}>
+          <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: mode === 'start' && optimisticPriority === 'act' ? 'rgba(255,255,255,0.92)' : 'var(--color-text-secondary)' }}>
             {categoryLabel}
           </p>
           <h3 style={{ margin: '12px 0 0 0', fontSize: '20px', lineHeight: 1.2, fontWeight: 600, color: textColor }}>
@@ -223,13 +223,7 @@ export function ResponsibilityCard({
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
           color: ctaColor,
-          transition: 'opacity 0.2s ease, transform 0.2s ease',
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.opacity = '0.88';
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.opacity = '1';
+          transition: 'color 0.2s ease',
         }}
       >
         {ctaLabel}

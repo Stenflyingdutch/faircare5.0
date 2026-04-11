@@ -114,6 +114,7 @@ export const familySubcollections = {
   teamCheckRecords: 'teamCheckRecords',
   tasks: 'tasks',
   taskDelegations: 'taskDelegations',
+  taskOverrides: 'taskOverrides',
 } as const;
 
 export type FirestoreCollectionName =

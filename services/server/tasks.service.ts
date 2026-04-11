@@ -3,7 +3,7 @@ import 'server-only';
 import { familySubcollections, firestoreCollections } from '@/types/domain';
 import { adminDb, verifyAdminSessionCookie } from '@/lib/firebase-admin';
 import { assertDateKey } from '@/services/task-date';
-import { toTaskOverviewItem } from '@/services/tasks.logic';
+import { isTaskDueOnDate, toTaskOverviewItem } from '@/services/tasks.logic';
 import { isSuperuserProfile, resolveAccountStatus } from '@/services/user-profile.service';
 import type { AppUserProfile, FamilyDocument } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
@@ -12,11 +12,14 @@ import type {
   SaveTaskDelegationInput,
   TaskDelegationDocument,
   TaskDocument,
+  TaskOverviewItem,
   TaskOverviewResponse,
+  TaskOverrideDocument,
   TaskRecurrenceConfig,
   TaskRecurrenceType,
   TaskWeekday,
   UpdateTaskInput,
+  UpdateTaskInstanceInput,
 } from '@/types/tasks';
 
 type TaskContext = {
@@ -27,12 +30,21 @@ type TaskContext = {
   partnerUserId: string | null;
 };
 
+type ClearDelegationOptions = {
+  date?: string | null;
+  mode?: 'recurring' | 'singleDate';
+};
+
 function tasksCollection(familyId: string) {
   return adminDb.collection(firestoreCollections.families).doc(familyId).collection(familySubcollections.tasks);
 }
 
 function taskDelegationsCollection(familyId: string) {
   return adminDb.collection(firestoreCollections.families).doc(familyId).collection(familySubcollections.taskDelegations);
+}
+
+function taskOverridesCollection(familyId: string) {
+  return adminDb.collection(firestoreCollections.families).doc(familyId).collection(familySubcollections.taskOverrides);
 }
 
 function ownershipCardsCollection(familyId: string) {
@@ -43,7 +55,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function sortOverviewTasks(left: TaskDocument, right: TaskDocument) {
+function sortOverviewTasks(
+  left: Pick<TaskDocument, 'recurrenceType' | 'selectedDate' | 'title' | 'updatedAt'>,
+  right: Pick<TaskDocument, 'recurrenceType' | 'selectedDate' | 'title' | 'updatedAt'>,
+) {
   const leftWeight = left.recurrenceType === 'none' ? (left.selectedDate ? 0 : 3) : 1;
   const rightWeight = right.recurrenceType === 'none' ? (right.selectedDate ? 0 : 3) : 1;
   if (leftWeight !== rightWeight) return leftWeight - rightWeight;
@@ -51,11 +66,18 @@ function sortOverviewTasks(left: TaskDocument, right: TaskDocument) {
   return left.title.localeCompare(right.title, 'de');
 }
 
-function sortDayTasks(left: TaskDocument, right: TaskDocument) {
+function sortOverviewItems(left: TaskOverviewItem, right: TaskOverviewItem) {
+  if (left.isCompleted !== right.isCompleted) {
+    return left.isCompleted ? 1 : -1;
+  }
+  return sortOverviewTasks(left, right);
+}
+
+function sortDayTasks(left: TaskOverviewItem, right: TaskOverviewItem) {
   if (left.taskType !== right.taskType) {
     return left.taskType === 'dayTask' ? -1 : 1;
   }
-  return sortOverviewTasks(left, right);
+  return sortOverviewItems(left, right);
 }
 
 function normalizeOptionalText(value?: string | null) {
@@ -164,9 +186,7 @@ async function resolveResponsibilityCategory(familyId: string, responsibilityId?
 
 async function readFamilyTasks(familyId: string) {
   const snapshot = await tasksCollection(familyId).get();
-  return snapshot.docs
-    .map((entry) => ({ ...(entry.data() as TaskDocument), id: entry.id }))
-    .filter((task) => task.status === 'active');
+  return snapshot.docs.map((entry) => ({ ...(entry.data() as TaskDocument), id: entry.id }));
 }
 
 async function readFamilyTaskDelegations(familyId: string) {
@@ -174,11 +194,25 @@ async function readFamilyTaskDelegations(familyId: string) {
   return snapshot.docs.map((entry) => ({ ...(entry.data() as TaskDelegationDocument), id: entry.id }));
 }
 
+async function readFamilyTaskOverrides(familyId: string) {
+  const snapshot = await taskOverridesCollection(familyId).get();
+  return snapshot.docs.map((entry) => ({ ...(entry.data() as TaskOverrideDocument), id: entry.id }));
+}
+
 function groupDelegationsByTask(delegations: TaskDelegationDocument[]) {
   return delegations.reduce<Map<string, TaskDelegationDocument[]>>((map, delegation) => {
     const bucket = map.get(delegation.taskId) ?? [];
     bucket.push(delegation);
     map.set(delegation.taskId, bucket);
+    return map;
+  }, new Map());
+}
+
+function groupOverridesByTask(overrides: TaskOverrideDocument[]) {
+  return overrides.reduce<Map<string, TaskOverrideDocument[]>>((map, override) => {
+    const bucket = map.get(override.taskId) ?? [];
+    bucket.push(override);
+    map.set(override.taskId, bucket);
     return map;
   }, new Map());
 }
@@ -211,32 +245,36 @@ export async function getTasksForSelectedDate(familyId: string, userId: string, 
     throw new TaskAccessError('Kein Zugriff auf diese Familie.', 403);
   }
 
-  const [tasks, delegations] = await Promise.all([
+  const [tasks, delegations, overrides] = await Promise.all([
     readFamilyTasks(familyId),
     readFamilyTaskDelegations(familyId),
+    readFamilyTaskOverrides(familyId),
   ]);
 
   const delegationsByTask = groupDelegationsByTask(delegations);
+  const overridesByTask = groupOverridesByTask(overrides);
 
   return tasks
-    .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], dateKey))
+    .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], overridesByTask.get(task.id) ?? [], dateKey))
     .filter((task) => task.isDueOnSelectedDate)
     .sort(sortDayTasks);
 }
 
 export async function getTaskOverviewForSelectedDate(userId: string, dateKey: string): Promise<TaskOverviewResponse> {
   const context = await resolveTaskContext(userId);
-  const [tasks, delegations, dayTasks] = await Promise.all([
+  const [tasks, delegations, overrides, dayTasks] = await Promise.all([
     readFamilyTasks(context.familyId),
     readFamilyTaskDelegations(context.familyId),
+    readFamilyTaskOverrides(context.familyId),
     getTasksForSelectedDate(context.familyId, userId, dateKey),
   ]);
 
   const delegationsByTask = groupDelegationsByTask(delegations);
+  const overridesByTask = groupOverridesByTask(overrides);
   const responsibilityTasks = tasks
     .filter((task) => Boolean(task.responsibilityId))
-    .sort(sortOverviewTasks)
-    .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], dateKey));
+    .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], overridesByTask.get(task.id) ?? [], dateKey))
+    .sort(sortOverviewItems);
 
   return {
     selectedDate: dateKey,
@@ -329,9 +367,61 @@ export async function updateTaskForUser(userId: string, taskId: string, input: U
   } as TaskDocument;
 }
 
+export async function updateTaskInstanceForUser(userId: string, taskId: string, dateKey: string, input: UpdateTaskInstanceInput) {
+  assertDateKey(dateKey);
+  const context = await resolveTaskContext(userId);
+  const task = await resolveTaskById(context, taskId);
+
+  if (!isTaskDueOnDate(task, dateKey)) {
+    throw new TaskAccessError('Für diesen Termin gibt es keine aktive Aufgabeninstanz.', 400);
+  }
+
+  const overrideId = `${taskId}__${dateKey}`;
+  const overrideRef = taskOverridesCollection(context.familyId).doc(overrideId);
+  const existingSnapshot = await overrideRef.get();
+  const existingOverride = existingSnapshot.exists ? existingSnapshot.data() as TaskOverrideDocument : null;
+
+  const nextTitle = input.title !== undefined
+    ? input.title.trim()
+    : existingOverride?.title ?? task.title;
+
+  if (!nextTitle) {
+    throw new TaskAccessError('Bitte gib einen Titel für die Aufgabe ein.', 400);
+  }
+
+  const normalizedTitle = nextTitle === task.title ? null : nextTitle;
+  const normalizedNotes = (input.notes !== undefined ? normalizeOptionalText(input.notes) : existingOverride?.notes ?? null) ?? null;
+  const persistedNotes = normalizedNotes === (task.notes ?? null) ? null : normalizedNotes;
+  const nextStatus = input.status ?? existingOverride?.status ?? task.status;
+  const persistedStatus = nextStatus === task.status ? null : nextStatus;
+
+  if (!normalizedTitle && !persistedNotes && !persistedStatus) {
+    if (existingSnapshot.exists) {
+      await overrideRef.delete();
+    }
+    return null;
+  }
+
+  const timestamp = nowIso();
+  const payload: TaskOverrideDocument = {
+    id: overrideId,
+    taskId,
+    familyId: context.familyId,
+    date: dateKey,
+    title: normalizedTitle,
+    notes: persistedNotes,
+    status: persistedStatus,
+    createdAt: existingOverride?.createdAt ?? timestamp,
+    updatedAt: timestamp,
+  };
+
+  await overrideRef.set(payload, { merge: true });
+  return payload;
+}
+
 export async function saveTaskDelegationForUser(userId: string, taskId: string, input: SaveTaskDelegationInput) {
   const context = await resolveTaskContext(userId);
-  await resolveTaskById(context, taskId);
+  const task = await resolveTaskById(context, taskId);
 
   if (!context.partnerUserId) {
     throw new TaskAccessError('Es ist noch kein Partnerkonto mit dieser Familie verknüpft.', 400);
@@ -346,11 +436,17 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
   }
 
   const normalizedDate = normalizeOptionalDate(input.date);
+  if (input.mode === 'singleDate' && (!normalizedDate || !isTaskDueOnDate(task, normalizedDate))) {
+    throw new TaskAccessError('Die Delegation muss auf einen echten Termin dieser Aufgabe gesetzt werden.', 400);
+  }
+
   const delegationId = input.mode === 'singleDate'
     ? `${taskId}__${normalizedDate}`
     : `${taskId}__recurring`;
+  const delegationRef = taskDelegationsCollection(context.familyId).doc(delegationId);
+  const existingSnapshot = await delegationRef.get();
+  const existingDelegation = existingSnapshot.exists ? existingSnapshot.data() as TaskDelegationDocument : null;
   const timestamp = nowIso();
-  const existingSnapshot = await taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get();
 
   const payload: TaskDelegationDocument = {
     id: delegationId,
@@ -361,25 +457,45 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
     mode: input.mode,
     date: normalizedDate,
     weekdays: normalizeWeekdays(input.weekdays),
-    createdAt: timestamp,
+    createdAt: existingDelegation?.createdAt ?? timestamp,
     updatedAt: timestamp,
   };
 
-  const batch = adminDb.batch();
-  existingSnapshot.docs.forEach((entry) => batch.delete(entry.ref));
-  batch.set(taskDelegationsCollection(context.familyId).doc(delegationId), payload, { merge: true });
-  await batch.commit();
+  await delegationRef.set(payload, { merge: true });
   return payload;
 }
 
-export async function clearTaskDelegationsForUser(userId: string, taskId: string) {
+export async function clearTaskDelegationsForUser(userId: string, taskId: string, options?: ClearDelegationOptions) {
   const context = await resolveTaskContext(userId);
   await resolveTaskById(context, taskId);
 
-  const snapshot = await taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get();
-  if (snapshot.empty) return;
+  if (!options?.mode) {
+    const snapshot = await taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get();
+    if (snapshot.empty) return;
 
-  const batch = adminDb.batch();
-  snapshot.docs.forEach((entry) => batch.delete(entry.ref));
-  await batch.commit();
+    const batch = adminDb.batch();
+    snapshot.docs.forEach((entry) => batch.delete(entry.ref));
+    await batch.commit();
+    return;
+  }
+
+  if (options.mode === 'singleDate') {
+    const date = normalizeOptionalDate(options.date);
+    if (!date) {
+      throw new TaskAccessError('Für diese Delegation fehlt das Datum.', 400);
+    }
+
+    const delegationRef = taskDelegationsCollection(context.familyId).doc(`${taskId}__${date}`);
+    const snapshot = await delegationRef.get();
+    if (snapshot.exists) {
+      await delegationRef.delete();
+    }
+    return;
+  }
+
+  const recurringRef = taskDelegationsCollection(context.familyId).doc(`${taskId}__recurring`);
+  const recurringSnapshot = await recurringRef.get();
+  if (recurringSnapshot.exists) {
+    await recurringRef.delete();
+  }
 }

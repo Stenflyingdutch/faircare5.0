@@ -13,6 +13,7 @@ interface CategoryOverviewCardProps {
 export function CategoryOverviewCard({ title, previewText, status, details = [], isExpanded = false, onTap }: CategoryOverviewCardProps) {
   const cardBackground = status === 'in_clarification' ? '#FAF8FF' : status === 'assigned' ? '#F7FBFB' : 'var(--color-surface)';
   const accentColor = status === 'in_clarification' ? 'var(--color-partner-primary)' : status === 'assigned' ? 'var(--color-user-primary)' : 'transparent';
+  const chevron = isExpanded ? '⌃' : '⌄';
 
   return (
     <div
@@ -41,10 +42,10 @@ export function CategoryOverviewCard({ title, previewText, status, details = [],
         <h3 className="h2" style={{ margin: 0, flex: 1 }}>{title}</h3>
         <div style={{ display: 'flex', gap: 'var(--space-8)', alignItems: 'center' }}>
           <StatusChip status={status} />
-          <span style={{ fontSize: '14px', color: 'var(--color-text-tertiary)', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>⌄</span>
+          <span style={{ fontSize: '14px', color: 'var(--color-text-tertiary)' }}>{chevron}</span>
         </div>
       </div>
-      <p className="caption" style={{ margin: 0, color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+      <p className="caption" style={{ margin: 0, color: 'var(--color-text-secondary)', overflow: 'visible', whiteSpace: 'normal', wordBreak: 'break-word' }}>
         {previewText}
       </p>
       {isExpanded && details.length > 0 ? (

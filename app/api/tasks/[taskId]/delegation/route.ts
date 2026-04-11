@@ -20,12 +20,19 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ta
   }
 }
 
-export async function DELETE(_request: NextRequest, context: { params: Promise<{ taskId: string }> }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ taskId: string }> }) {
   try {
-    const sessionCookie = _request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const taskContext = await getTaskContextFromSessionCookie(sessionCookie);
     const { taskId } = await context.params;
-    await clearTaskDelegationsForUser(taskContext.userId, taskId);
+    const modeParam = request.nextUrl.searchParams.get('mode');
+    const dateParam = request.nextUrl.searchParams.get('date');
+    await clearTaskDelegationsForUser(taskContext.userId, taskId, modeParam
+      ? {
+        mode: modeParam === 'singleDate' ? 'singleDate' : 'recurring',
+        date: dateParam,
+      }
+      : undefined);
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof TaskAccessError) {

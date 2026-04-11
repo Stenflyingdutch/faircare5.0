@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { Modal } from '@/components/Modal';
 import { formatDateLabel, getWeekday, parseDateKey } from '@/services/task-date';
+import { getTaskTimingLabel, resolveTaskInstanceDate, resolveTaskInstanceState } from '@/services/tasks.logic';
 import type { Responsibility } from '@/services/responsibilities.service';
 import type {
   CreateTaskInput,
@@ -14,6 +15,7 @@ import type {
   TaskRecurrenceType,
   TaskWeekday,
   UpdateTaskInput,
+  UpdateTaskInstanceInput,
 } from '@/types/tasks';
 
 type ComposerMode = 'day' | 'responsibility';
@@ -24,6 +26,12 @@ type DelegationAction =
 
 export type TaskEditSubmit = {
   taskUpdate: UpdateTaskInput;
+  delegationAction: DelegationAction;
+};
+
+export type TaskInstanceEditSubmit = {
+  instanceDate: string;
+  taskUpdate: UpdateTaskInstanceInput;
   delegationAction: DelegationAction;
 };
 
@@ -42,7 +50,7 @@ const recurrenceOptions: Array<{ value: TaskRecurrenceType; label: string }> = [
   { value: 'daily', label: 'Täglich' },
   { value: 'weekly', label: 'Wöchentlich' },
   { value: 'monthly', label: 'Monatlich' },
-  { value: 'quarterly', label: 'Quartärlich' },
+  { value: 'quarterly', label: 'Quartalsweise' },
   { value: 'yearly', label: 'Jährlich' },
 ];
 
@@ -77,6 +85,23 @@ type DelegationDraft = {
   weekdays: TaskWeekday[];
 };
 
+function getSortedDelegationCandidates(task: TaskOverviewItem) {
+  return [...task.delegations].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
+function findSingleDateDelegation(task: TaskOverviewItem, dateKey: string) {
+  return getSortedDelegationCandidates(task).find((delegation) => delegation.mode === 'singleDate' && delegation.date === dateKey) ?? null;
+}
+
+function findSeriesDelegation(task: TaskOverviewItem, selectedDate: string) {
+  const recurring = getSortedDelegationCandidates(task).find((delegation) => delegation.mode === 'recurring');
+  if (recurring) {
+    return recurring;
+  }
+
+  return findSingleDateDelegation(task, selectedDate);
+}
+
 function buildInitialRecurrenceDraft(task: TaskOverviewItem, selectedDate: string): RecurrenceDraft {
   const anchorDate = task.selectedDate ?? selectedDate;
   const parsedAnchor = parseDateKey(anchorDate);
@@ -106,11 +131,19 @@ function buildInitialRecurrenceDraft(task: TaskOverviewItem, selectedDate: strin
 }
 
 function buildInitialDelegationDraft(task: TaskOverviewItem, selectedDate: string): DelegationDraft {
-  const existingDelegation = task.delegations[0] ?? null;
+  const existingDelegation = findSeriesDelegation(task, selectedDate);
   return {
     enabled: Boolean(existingDelegation),
     mode: existingDelegation?.mode ?? 'singleDate',
     weekdays: existingDelegation?.weekdays?.length ? existingDelegation.weekdays : [getWeekday(selectedDate)],
+  };
+}
+
+function buildInitialInstanceDelegationDraft(task: TaskOverviewItem, instanceDate: string): DelegationDraft {
+  return {
+    enabled: Boolean(findSingleDateDelegation(task, instanceDate)),
+    mode: 'singleDate',
+    weekdays: [getWeekday(instanceDate)],
   };
 }
 
@@ -431,7 +464,7 @@ function DelegationFields({
               className={`task-segment ${draft.mode === 'singleDate' ? 'is-selected' : ''}`}
               onClick={() => onChange({ ...draft, mode: 'singleDate' })}
             >
-              Einmalig für diesen Tag
+              Nur diesen Tag
             </button>
             {canUseRecurring ? (
               <button
@@ -439,7 +472,7 @@ function DelegationFields({
                 className={`task-segment ${draft.mode === 'recurring' ? 'is-selected' : ''}`}
                 onClick={() => onChange({ ...draft, mode: 'recurring' })}
               >
-                Regelmäßig
+                Ganze Serie
               </button>
             ) : null}
           </div>
@@ -732,6 +765,149 @@ export function TaskEditModal({
 
         <DialogActions submitLabel="Speichern" onCancel={onClose} disabled={!title.trim()} busy={isSubmitting} />
       </form>
+    </Modal>
+  );
+}
+
+export function TaskInstanceEditModal({
+  isOpen,
+  task,
+  instanceDate,
+  isSubmitting,
+  onClose,
+  onSubmit,
+}: {
+  isOpen: boolean;
+  task: TaskOverviewItem | null;
+  instanceDate: string | null;
+  isSubmitting?: boolean;
+  onClose: () => void;
+  onSubmit: (input: TaskInstanceEditSubmit) => Promise<void>;
+}) {
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [delegationDraft, setDelegationDraft] = useState<DelegationDraft | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !task || !instanceDate) return;
+    const instanceState = resolveTaskInstanceState(task, instanceDate);
+    setTitle(instanceState.displayTitle);
+    setNotes(instanceState.displayNotes ?? '');
+    setDelegationDraft(buildInitialInstanceDelegationDraft(task, instanceDate));
+  }, [instanceDate, isOpen, task]);
+
+  if (!task || !instanceDate || !delegationDraft) {
+    return null;
+  }
+
+  const exactSingleDateDelegation = findSingleDateDelegation(task, instanceDate);
+  const instanceState = resolveTaskInstanceState(task, instanceDate);
+  const delegationComesFromSeries = instanceState.appliedDelegation?.mode === 'recurring' && !exactSingleDateDelegation;
+  const currentInstanceDate = instanceDate;
+  const currentDelegationDraft = delegationDraft;
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!title.trim()) return;
+
+    await onSubmit({
+      instanceDate: currentInstanceDate,
+      taskUpdate: {
+        title,
+        notes,
+      },
+      delegationAction: delegationComesFromSeries
+        ? { type: 'clear' }
+        : currentDelegationDraft.enabled
+          ? { type: 'save', input: { mode: 'singleDate', date: currentInstanceDate } }
+          : { type: 'clear' },
+    });
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <form className="task-dialog-shell" onSubmit={handleSubmit}>
+        <DialogHeader
+          title="Nur diesen Tag"
+          subtitle={`${formatDateLabel(instanceDate)} · ${getTaskTimingLabel(task)}`}
+        />
+
+        <label className="task-field">
+          <span className="task-field-label">Aufgabe</span>
+          <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} />
+        </label>
+
+        <label className="task-field">
+          <span className="task-field-label">Notiz</span>
+          <textarea className="input task-textarea" value={notes} onChange={(event) => setNotes(event.target.value)} />
+        </label>
+
+        <div className="task-stack">
+          <p className="task-section-title">Delegation</p>
+          {delegationComesFromSeries ? (
+            <p className="task-inline-hint">
+              Diese Aufgabe wird über die ganze Serie delegiert. Änderungen dafür machst du in der Serie.
+            </p>
+          ) : (
+            <DelegationFields
+              draft={delegationDraft}
+              canUseRecurring={false}
+              selectedDate={instanceDate}
+              onChange={setDelegationDraft}
+            />
+          )}
+        </div>
+
+        <DialogActions submitLabel="Speichern" onCancel={onClose} disabled={!title.trim()} busy={isSubmitting} />
+      </form>
+    </Modal>
+  );
+}
+
+export function TaskEditScopeModal({
+  isOpen,
+  task,
+  selectedDate,
+  onClose,
+  onEditSeries,
+  onEditInstance,
+}: {
+  isOpen: boolean;
+  task: TaskOverviewItem | null;
+  selectedDate: string;
+  onClose: () => void;
+  onEditSeries: () => void;
+  onEditInstance: () => void;
+}) {
+  if (!task) {
+    return null;
+  }
+
+  const instanceDate = resolveTaskInstanceDate(task, selectedDate);
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="task-dialog-shell">
+        <DialogHeader title="Was möchtest du ändern?" subtitle={task.displayTitle} />
+
+        <div className="task-scope-stack">
+          {instanceDate ? (
+            <button type="button" className="task-scope-option" onClick={onEditInstance}>
+              <strong>Nur diesen Tag</strong>
+              <span>{formatDateLabel(instanceDate)}</span>
+            </button>
+          ) : null}
+
+          <button type="button" className="task-scope-option" onClick={onEditSeries}>
+            <strong>Ganze Serie</strong>
+            <span>{getTaskTimingLabel(task)}</span>
+          </button>
+        </div>
+
+        <button type="button" className="task-secondary-button" onClick={onClose}>
+          Abbrechen
+        </button>
+      </div>
     </Modal>
   );
 }

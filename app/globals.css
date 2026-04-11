@@ -1409,6 +1409,14 @@ textarea.input {
   flex-wrap: wrap;
 }
 
+.ownership-card-topline-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .ownership-card-kicker {
   display: inline-flex;
   align-items: center;
@@ -1428,6 +1436,22 @@ textarea.input {
   font-size: 0.78rem;
   font-weight: 600;
   color: #4b416e;
+}
+
+.ownership-task-indicator {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(165, 191, 209, 0.95);
+  background: rgba(240, 247, 252, 0.96);
+  color: #335c7b;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .ownership-card-title {
@@ -2554,10 +2578,11 @@ textarea.input {
 
 .task-day-row,
 .responsibility-task-row,
+.task-list-item,
 .task-action-button {
   width: 100%;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   border-radius: 18px;
@@ -2574,15 +2599,48 @@ textarea.input {
   cursor: pointer;
 }
 
+.task-list-item {
+  cursor: default;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.task-list-item.is-clickable {
+  cursor: pointer;
+}
+
+.task-list-item.is-clickable:hover {
+  transform: translateY(-1px);
+  border-color: rgba(160, 188, 210, 0.92);
+  box-shadow: 0 10px 24px rgba(31, 41, 51, 0.08);
+}
+
 .task-day-row.is-skeleton {
   min-height: 74px;
   background: linear-gradient(90deg, rgba(245, 247, 250, 0.9) 0%, rgba(235, 239, 244, 0.95) 100%);
+}
+
+.task-list-toggle {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(236, 243, 248, 0.95);
+  color: #5b7c94;
+}
+
+.task-list-toggle.is-completed {
+  background: rgba(223, 234, 228, 0.94);
+  color: #47735c;
 }
 
 .task-row-copy {
   min-width: 0;
   display: grid;
   gap: 6px;
+  flex: 1;
 }
 
 .task-row-title {
@@ -2590,9 +2648,25 @@ textarea.input {
   line-height: 1.35;
 }
 
+.task-row-title.is-completed {
+  color: #70808d;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.task-row-title.is-delegated {
+  font-style: italic;
+}
+
 .task-row-subtitle {
   color: var(--color-text-secondary);
   font-size: 0.9rem;
+}
+
+.task-row-note {
+  color: var(--color-text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
 .task-chip-row {
@@ -2634,6 +2708,71 @@ textarea.input {
   background: #ffffff;
   color: var(--color-text-secondary);
   cursor: pointer;
+}
+
+.responsibility-task-section {
+  display: grid;
+  gap: 10px;
+}
+
+.responsibility-task-toggle {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(201, 214, 222, 0.82);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.56);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 12px 14px;
+}
+
+.responsibility-task-toggle-copy {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.responsibility-task-toggle-title {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.responsibility-task-toggle-count {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.responsibility-task-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.responsibility-task-panel.is-expanded {
+  grid-template-rows: 1fr;
+}
+
+.responsibility-task-panel-inner {
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  gap: 12px;
+}
+
+.responsibility-task-panel.is-expanded .responsibility-task-panel-inner {
+  padding-top: 4px;
+}
+
+.responsibility-task-empty {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
 }
 
 .task-dialog-shell {
@@ -2769,6 +2908,30 @@ textarea.input {
   gap: 10px;
 }
 
+.task-scope-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.task-scope-option {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(213, 220, 228, 0.98);
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-scope-option span {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
 .task-primary-button,
 .task-secondary-button,
 .task-ghost-button {
@@ -2795,6 +2958,50 @@ textarea.input {
   background: transparent;
   border-color: rgba(213, 220, 228, 0.98);
   color: var(--color-text-secondary);
+}
+
+.task-sheet-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.task-sheet-header {
+  display: grid;
+  gap: 10px;
+}
+
+.task-sheet-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.task-sheet-kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.task-sheet-title {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+
+.task-sheet-subtitle {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+}
+
+.task-sheet-body {
+  display: grid;
+  gap: 12px;
+  max-height: min(58vh, 460px);
+  overflow: auto;
+  padding-right: 4px;
 }
 
 @media (min-width: 700px) {

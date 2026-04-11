@@ -18,6 +18,13 @@ import { categoryLabelMap } from '@/services/resultCalculator';
 import { getCurrentLocale } from '@/lib/i18n';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
 import type { OwnershipCardDocument } from '@/types/ownership';
+import { fetchTaskOverview } from '@/services/tasks.service';
+import { isSuperuserProfile } from '@/services/user-profile.service';
+import { toDateKey } from '@/services/task-date';
+import { ResponsibilityTasksSheet } from '@/components/home/ResponsibilityTasksSheet';
+import { TaskEditModal, TaskEditScopeModal, TaskInstanceEditModal } from '@/components/home/TaskDialogs';
+import { useTaskInteractionFlow } from '@/components/home/useTaskInteractionFlow';
+import type { TaskOverviewItem } from '@/types/tasks';
 
 export default function OwnershipDashboardPage() {
   return (
@@ -30,6 +37,7 @@ export default function OwnershipDashboardPage() {
 function OwnershipDashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const today = useMemo(() => toDateKey(new Date()), []);
   const [userId, setUserId] = useState<string | null>(null);
   const [familyId, setFamilyId] = useState<string | null>(null);
   const [cards, setCards] = useState<OwnershipCardDocument[]>([]);
@@ -42,6 +50,10 @@ function OwnershipDashboardPageContent() {
     signals: ReturnType<typeof computeOwnershipSignals>;
   } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSuperuser, setIsSuperuser] = useState(false);
+  const [responsibilityTasks, setResponsibilityTasks] = useState<TaskOverviewItem[]>([]);
+  const [taskRefreshNonce, setTaskRefreshNonce] = useState(0);
+  const [taskSheetCardId, setTaskSheetCardId] = useState<string | null>(null);
   const queryCategoryKeys = ((searchParams.get('categories') ?? '')
     .split(',')
     .map((entry) => entry.trim())
@@ -62,6 +74,7 @@ function OwnershipDashboardPageContent() {
         await ensureInitiatorFamilySetup(user.uid);
         bundle = await fetchDashboardBundle(user.uid);
       }
+      setIsSuperuser(isSuperuserProfile(bundle.profile));
       const resolvedFamilyId = bundle.profile?.familyId ?? null;
       setFamilyId(resolvedFamilyId);
       setAgeGroup(bundle.ageGroupForOwnership ?? null);
@@ -87,18 +100,6 @@ function OwnershipDashboardPageContent() {
         setAutoPreselectedCategoryKeys([]);
         setRecommendationPayload(null);
       }
-
-      console.info('[ownership-dashboard] membership debug', {
-        userId: user.uid,
-        profileFamilyId: bundle.profile?.familyId ?? null,
-        familyExists: Boolean(bundle.family),
-        familyInitiatorUserId: bundle.family?.initiatorUserId ?? null,
-        familyPartnerUserId: bundle.family?.partnerUserId ?? null,
-        isFamilyMember: Boolean(
-          bundle.family
-          && (bundle.family.initiatorUserId === user.uid || bundle.family.partnerUserId === user.uid)
-        ),
-      });
 
       if (bundle.family) {
         const options = [
@@ -146,6 +147,67 @@ function OwnershipDashboardPageContent() {
     }).catch(() => setLoadError('Die empfohlenen Kategorien konnten gerade nicht vorbereitet werden. Bitte versuche es erneut.'));
   }, [familyId, userId, ageGroup, recommendationPayload]);
 
+  useEffect(() => {
+    if (!userId || !isSuperuser) {
+      setResponsibilityTasks([]);
+      return;
+    }
+
+    let cancelled = false;
+    void fetchTaskOverview(today)
+      .then((overview) => {
+        if (cancelled) return;
+        setResponsibilityTasks(overview.responsibilityTasks);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLoadError(error instanceof Error ? error.message : 'Aufgaben konnten nicht geladen werden.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperuser, taskRefreshNonce, today, userId]);
+
+  const {
+    editingTask,
+    instanceEditingDate,
+    instanceEditingTask,
+    isTaskMutationPending,
+    openInstanceEditFromScope,
+    openSeriesEditFromScope,
+    requestTaskEdit,
+    scopeTask,
+    setEditingTaskId,
+    setInstanceEditingState,
+    setScopeTaskId,
+    submitTaskEdit,
+    submitTaskInstanceEdit,
+    toggleTaskCompletion,
+  } = useTaskInteractionFlow({
+    selectedDate: today,
+    tasks: responsibilityTasks,
+    onError: setLoadError,
+    onRefresh: () => setTaskRefreshNonce((current) => current + 1),
+  });
+
+  const taskCountByCard = useMemo(() => responsibilityTasks.reduce<Record<string, number>>((map, task) => {
+    if (!task.responsibilityId) return map;
+    map[task.responsibilityId] = (map[task.responsibilityId] ?? 0) + 1;
+    return map;
+  }, {}), [responsibilityTasks]);
+
+  const tasksByCard = useMemo(() => responsibilityTasks.reduce<Map<string, TaskOverviewItem[]>>((map, task) => {
+    if (!task.responsibilityId) return map;
+    const bucket = map.get(task.responsibilityId) ?? [];
+    bucket.push(task);
+    map.set(task.responsibilityId, bucket);
+    return map;
+  }, new Map()), [responsibilityTasks]);
+
+  const activeTaskSheetCard = taskSheetCardId ? cards.find((card) => card.id === taskSheetCardId) ?? null : null;
+  const activeSheetTasks = activeTaskSheetCard ? tasksByCard.get(activeTaskSheetCard.id) ?? [] : [];
+
   if (!userId || !familyId) {
     return (
       <article className="card stack">
@@ -173,8 +235,47 @@ function OwnershipDashboardPageContent() {
         preselectedCategoryKeys={preselectedCategoryKeys}
         ageGroup={ageGroup}
         isFocusedEntry={isRecommendationEntry}
+        taskCountByCard={taskCountByCard}
+        onOpenTasks={isSuperuser ? (card) => setTaskSheetCardId(card.id) : undefined}
       />
       {loadError && <p className="inline-error">{loadError}</p>}
+
+      <ResponsibilityTasksSheet
+        isOpen={Boolean(activeTaskSheetCard)}
+        responsibilityTitle={activeTaskSheetCard?.title ?? ''}
+        tasks={activeSheetTasks}
+        selectedDate={today}
+        onClose={() => setTaskSheetCardId(null)}
+        onEditTask={requestTaskEdit}
+        onToggleTaskStatus={(task) => void toggleTaskCompletion(task, today)}
+      />
+
+      <TaskEditScopeModal
+        isOpen={Boolean(scopeTask)}
+        task={scopeTask}
+        selectedDate={today}
+        onClose={() => setScopeTaskId(null)}
+        onEditSeries={openSeriesEditFromScope}
+        onEditInstance={openInstanceEditFromScope}
+      />
+
+      <TaskEditModal
+        isOpen={Boolean(editingTask)}
+        task={editingTask}
+        selectedDate={today}
+        isSubmitting={isTaskMutationPending}
+        onClose={() => setEditingTaskId(null)}
+        onSubmit={submitTaskEdit}
+      />
+
+      <TaskInstanceEditModal
+        isOpen={Boolean(instanceEditingTask && instanceEditingDate)}
+        task={instanceEditingTask}
+        instanceDate={instanceEditingDate}
+        isSubmitting={isTaskMutationPending}
+        onClose={() => setInstanceEditingState(null)}
+        onSubmit={submitTaskInstanceEdit}
+      />
     </div>
   );
 }

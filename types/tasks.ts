@@ -63,9 +63,27 @@ export interface TaskDelegationDocument {
   updatedAt: string;
 }
 
+export interface TaskOverrideDocument {
+  id: string;
+  taskId: string;
+  familyId: string;
+  date: string;
+  title?: string | null;
+  notes?: string | null;
+  status?: TaskStatus | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TaskOverviewItem extends TaskDocument {
   delegations: TaskDelegationDocument[];
+  overrides: TaskOverrideDocument[];
+  displayTitle: string;
+  displayNotes: string | null;
   isDueOnSelectedDate: boolean;
+  nextOccurrenceDate: string | null;
+  resolvedStatus: TaskStatus;
+  isCompleted: boolean;
   isDelegated: boolean;
   appliedDelegationMode: TaskDelegationMode | null;
   effectiveAssignedToUserId: string;
@@ -105,4 +123,10 @@ export interface SaveTaskDelegationInput {
   mode: TaskDelegationMode;
   date?: string | null;
   weekdays?: TaskWeekday[] | null;
+}
+
+export interface UpdateTaskInstanceInput {
+  title?: string;
+  notes?: string | null;
+  status?: TaskStatus;
 }

@@ -95,6 +95,31 @@ export function formatWeekdayLabel(value: string, locale = 'de-DE') {
   }).format(toUtcDate(value));
 }
 
+export function formatTaskWeekday(weekday: TaskWeekday, locale = 'de-DE', format: 'long' | 'short' = 'long') {
+  const referenceByWeekday: Record<TaskWeekday, string> = {
+    mon: '2024-01-01',
+    tue: '2024-01-02',
+    wed: '2024-01-03',
+    thu: '2024-01-04',
+    fri: '2024-01-05',
+    sat: '2024-01-06',
+    sun: '2024-01-07',
+  };
+
+  return new Intl.DateTimeFormat(locale, {
+    weekday: format,
+    timeZone: 'UTC',
+  }).format(toUtcDate(referenceByWeekday[weekday]));
+}
+
+export function formatMonthDayLabel(month: number, day: number, locale = 'de-DE') {
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(2024, month - 1, day, 12, 0, 0)));
+}
+
 export function formatWeekRange(startDate: string, endDate: string, locale = 'de-DE') {
   const start = toUtcDate(startDate);
   const end = toUtcDate(endDate);
