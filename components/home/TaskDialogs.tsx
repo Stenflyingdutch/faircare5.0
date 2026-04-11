@@ -9,7 +9,6 @@ import type { Responsibility } from '@/services/responsibilities.service';
 import type {
   CreateTaskInput,
   SaveTaskDelegationInput,
-  TaskDelegationDocument,
   TaskMonthlyPatternMode,
   TaskOrdinal,
   TaskOverviewItem,
@@ -804,21 +803,23 @@ export function TaskInstanceEditModal({
   const exactSingleDateDelegation = findSingleDateDelegation(task, instanceDate);
   const instanceState = resolveTaskInstanceState(task, instanceDate);
   const delegationComesFromSeries = instanceState.appliedDelegation?.mode === 'recurring' && !exactSingleDateDelegation;
+  const currentInstanceDate = instanceDate;
+  const currentDelegationDraft = delegationDraft;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!title.trim()) return;
 
     await onSubmit({
-      instanceDate,
+      instanceDate: currentInstanceDate,
       taskUpdate: {
         title,
         notes,
       },
       delegationAction: delegationComesFromSeries
         ? { type: 'clear' }
-        : delegationDraft.enabled
-          ? { type: 'save', input: { mode: 'singleDate', date: instanceDate } }
+        : currentDelegationDraft.enabled
+          ? { type: 'save', input: { mode: 'singleDate', date: currentInstanceDate } }
           : { type: 'clear' },
     });
   }

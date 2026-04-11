@@ -23,6 +23,8 @@ interface OwnershipBoardProps {
   preselectedCategoryKeys?: QuizCategory[];
   ageGroup?: AgeGroup | null;
   isFocusedEntry?: boolean;
+  onOpenTasks?: (card: OwnershipCardDocument) => void;
+  taskCountByCard?: Record<string, number>;
 }
 
 const focusLevelLabel: Record<OwnershipFocusLevel, string> = {
@@ -93,6 +95,19 @@ function areCategoryListsEqual(left: QuizCategory[], right: QuizCategory[]) {
   return left.every((entry, index) => entry === right[index]);
 }
 
+function TaskBadgeIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 5h8" />
+      <path d="M6 10h8" />
+      <path d="M6 15h5" />
+      <circle cx="4" cy="5" r="0.8" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="10" r="0.8" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="15" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function OwnershipBoard({
   familyId,
   currentUserId,
@@ -102,6 +117,8 @@ export function OwnershipBoard({
   categoryKeys = [],
   preselectedCategoryKeys = [],
   ageGroup,
+  onOpenTasks,
+  taskCountByCard = {},
 }: OwnershipBoardProps) {
   const [openedCardId, setOpenedCardId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftState | null>(null);
@@ -382,6 +399,7 @@ export function OwnershipBoard({
             {group.cards.map((card) => {
               const focusLevel = resolveFocus(card);
               const ownerState = ownerVisual(card.ownerUserId, ownerOptions);
+              const taskCount = taskCountByCard[card.id] ?? 0;
               return (
                 <div
                   key={card.id}
@@ -407,7 +425,23 @@ export function OwnershipBoard({
                 >
                   <div className="ownership-card-topline">
                     <span className="ownership-card-kicker">{resolveCategoryLabel(card.categoryKey, ageGroup ?? undefined)}</span>
-                    {mode !== 'dashboard' && focusLevel ? <span className="ownership-card-focus">{focusLevelLabel[focusLevel]}</span> : null}
+                    <div className="ownership-card-topline-actions">
+                      {mode !== 'dashboard' && focusLevel ? <span className="ownership-card-focus">{focusLevelLabel[focusLevel]}</span> : null}
+                      {taskCount > 0 && onOpenTasks ? (
+                        <button
+                          type="button"
+                          className="ownership-task-indicator"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenTasks(card);
+                          }}
+                          aria-label={`${taskCount} ${taskCount === 1 ? 'Aufgabe' : 'Aufgaben'} für ${card.title} öffnen`}
+                        >
+                          <TaskBadgeIcon />
+                          <span>{taskCount}</span>
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                   <strong className="ownership-card-title">{card.title}</strong>
                   {card.note ? <p className="helper ownership-card-note" style={{ margin: 0 }}>{card.note}</p> : null}

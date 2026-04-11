@@ -1,5 +1,6 @@
 'use client';
 
+import { Modal } from '@/components/Modal';
 import type { Responsibility, ResponsibilityPriority } from '@/services/responsibilities.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 
@@ -49,140 +50,82 @@ export function ResponsibilityCardDetails({
   const popupVisual = priorityVisuals[responsibility.priority];
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(20, 28, 36, 0.32)',
-        backdropFilter: 'blur(8px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 999,
-        padding: '20px',
-        animation: 'fadeInDetails 0.2s ease',
-      }}
-      onClick={onClose}
+    <Modal
+      isOpen={isExpanded}
+      onClose={onClose}
+      ariaLabel="Details zum Verantwortungsgebiet"
+      panelClassName="responsibility-details-modal"
+      hideCloseButton
     >
       <div
+        className="responsibility-details-surface"
         style={{
           background: popupVisual.background,
-          borderRadius: '28px',
-          padding: '32px',
-          maxWidth: '560px',
-          width: '100%',
-          boxShadow: '0 24px 60px rgba(22, 28, 37, 0.18)',
-          animation: 'scaleInDetails 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-          position: 'relative',
+          color: popupVisual.text,
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            border: 'none',
-            backgroundColor: 'var(--color-background)',
-            color: 'var(--color-text-primary)',
-            fontSize: '20px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          className="responsibility-details-close"
         >
           ×
         </button>
 
-        <div style={{ marginBottom: '24px' }}>
-          <p style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: popupVisual.eyebrow }}>
+        <div className="responsibility-details-header">
+          <p className="responsibility-details-eyebrow" style={{ color: popupVisual.eyebrow }}>
             {categoryLabel}
           </p>
-          <p style={{ margin: 0, fontSize: '13px', color: popupVisual.eyebrow, fontWeight: 500 }}>
+          <p className="responsibility-details-meta" style={{ color: popupVisual.eyebrow }}>
             {mode === 'start' ? `Status: ${priorityLabels[responsibility.priority]}` : 'Details'}
           </p>
         </div>
 
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+        <div className="responsibility-details-section">
+          <label className="responsibility-details-label">
             Titel
           </label>
           <div
+            className="responsibility-details-value"
             style={{
-              width: '100%',
-              padding: '14px 16px',
-              borderRadius: '14px',
               border: mode === 'start' && responsibility.priority === 'act' ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(47, 111, 109, 0.12)',
               backgroundColor: mode === 'start' && responsibility.priority === 'act' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.42)',
-              color: popupVisual.text,
-              fontSize: '15px',
-              lineHeight: 1.5,
-              boxSizing: 'border-box',
             }}
           >
             {responsibility.title}
           </div>
         </div>
 
-        <div style={{ marginBottom: '28px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+        <div className="responsibility-details-section">
+          <label className="responsibility-details-label">
             Details
           </label>
           <div
+            className="responsibility-details-value responsibility-details-value--multiline"
             style={{
-              width: '100%',
-              padding: '14px 16px',
-              borderRadius: '14px',
               border: mode === 'start' && responsibility.priority === 'act' ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(47, 111, 109, 0.12)',
               backgroundColor: mode === 'start' && responsibility.priority === 'act' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.42)',
-              color: popupVisual.text,
-              fontSize: '15px',
-              lineHeight: 1.65,
-              minHeight: '120px',
-              whiteSpace: 'pre-wrap',
-              boxSizing: 'border-box',
             }}
           >
             {responsibility.note || 'Keine weiteren Details hinterlegt.'}
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div className="responsibility-details-actions">
           <button
             type="button"
             onClick={onClose}
+            className="responsibility-details-action"
             style={{
-              padding: '12px 20px',
-              borderRadius: '16px',
               border: mode === 'start' && responsibility.priority === 'act' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(47, 111, 109, 0.16)',
               backgroundColor: mode === 'start' && responsibility.priority === 'act' ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.8)',
               color: popupVisual.text,
-              fontSize: '15px',
-              fontWeight: 600,
-              cursor: 'pointer',
             }}
           >
             Schließen
           </button>
         </div>
-
-        <style>{`
-          @keyframes fadeInDetails {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-          @keyframes scaleInDetails {
-            from { transform: scale(0.95); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-          }
-        `}</style>
       </div>
-    </div>
+    </Modal>
   );
 }
