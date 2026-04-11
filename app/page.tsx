@@ -10,13 +10,7 @@ import { fetchContentBlocks, getDefaultContentBlocks, createTextResolver } from 
 import { getCurrentLocale, uiTexts } from '@/lib/i18n';
 import type { LocalizedText } from '@/types/i18n';
 import { siteVisibility } from '@/utils/siteVisibility';
-
-const ageFocusTextKeys = [
-  'quiz.filter.start.focus.age.0_1',
-  'quiz.filter.start.focus.age.1_3',
-  'quiz.filter.start.focus.age.6_12',
-  'quiz.filter.start.focus.age.12_18',
-] as const;
+import { MentalLoadComparisonSection } from '@/components/landing/MentalLoadComparisonSection';
 
 export default function HomePage() {
   const [texts, setTexts] = useState<Record<string, LocalizedText>>(uiTexts);
@@ -66,15 +60,6 @@ export default function HomePage() {
     ? 'Eine offene Diskussion führen, was für Euch eine faire Verteilung bedeutet.'
     : t('landing.problem.point2.text');
   const finalCtaButtonText = locale === 'de' ? 'Jetzt Quiz starten' : t('landing.cta_final.button');
-  const landingFocusTitle = locale === 'de'
-    ? 'FairCare fokussiert auf Mental Load in der Erziehung.'
-    : t('landing.quiz_focus.title');
-  const landingFocusText = locale === 'de'
-    ? 'Jede Altersgruppe bringt neue Verantwortungen mit sich.'
-    : t('landing.quiz_focus.text');
-  const landingFocusHint = locale === 'de'
-    ? 'FairCare hilft euch, die sich je Altersklasse ständig ändernden Verantwortungen klar im Blick zu behalten.'
-    : t('landing.quiz_focus.hint');
   const landingProblemCards = [
     {
       key: 'point1',
@@ -110,19 +95,7 @@ export default function HomePage() {
       />
 
       <SectionWrapper className="landing-focus-section">
-        <article className="landing-mental-load-focus" aria-labelledby="landing-mental-load-focus-title">
-          <p className="landing-mental-load-focus-kicker">{t('quiz.filter.start.focus.kicker')}</p>
-          <h2 id="landing-mental-load-focus-title" className="landing-mental-load-focus-title">{landingFocusTitle}</h2>
-          <p className="landing-mental-load-focus-text">{landingFocusText}</p>
-          <p className="landing-mental-load-focus-text">{landingFocusHint}</p>
-          <div className="landing-mental-load-age-grid" role="list" aria-label="Altersgruppen">
-            {ageFocusTextKeys.map((key) => (
-              <p key={key} className="landing-mental-load-age-pill" role="listitem">
-                {t(key)}
-              </p>
-            ))}
-          </div>
-        </article>
+        <MentalLoadComparisonSection />
       </SectionWrapper>
 
       <SectionWrapper className="landing-problem-section">
