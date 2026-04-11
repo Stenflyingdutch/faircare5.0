@@ -14,7 +14,7 @@ const mentalLoadExamples: MentalLoadExample[] = [
   },
   {
     id: 'baby-health',
-    ageLabel: 'Baby / Gesundheit',
+    ageLabel: 'Baby',
     task: 'Zum Kinderarzt gehen',
     mentalLoad: 'Impftermin vereinbaren und im Blick behalten',
   },
@@ -22,7 +22,7 @@ const mentalLoadExamples: MentalLoadExample[] = [
     id: 'toddler-kita',
     ageLabel: 'Kleinkind',
     task: 'Kind zur Kita bringen',
-    mentalLoad: 'Wechselkleidung, Brotzeit und Infos der Kita mitdenken',
+    mentalLoad: 'Infos aus der Kita und Elterninformationen im Blick behalten',
   },
   {
     id: 'school-sport',
