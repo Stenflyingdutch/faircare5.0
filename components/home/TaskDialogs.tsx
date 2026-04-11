@@ -9,7 +9,6 @@ import type { Responsibility } from '@/services/responsibilities.service';
 import type {
   CreateTaskInput,
   SaveTaskDelegationInput,
-  TaskDelegationDocument,
   TaskMonthlyPatternMode,
   TaskOrdinal,
   TaskOverviewItem,
@@ -807,7 +806,7 @@ export function TaskInstanceEditModal({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !instanceDate || !delegationDraft) return;
 
     await onSubmit({
       instanceDate,
