@@ -108,7 +108,7 @@ const rawBaseSeedContent: Record<AgeGroup, Record<QuizCategory, OwnershipTemplat
       item('Kleidung für Alltag und Wetter auswählen', ['Für Kita, Spielplatz und Wetter passende Kleidung rechtzeitig bereitlegen.']),
       item('Körperpflege und Hygiene nachhalten', ['Zähneputzen, Baden, Haare, Nägel und Toilettenroutine im Alltag absichern.']),
       item('Morgen- und Abendabläufe organisieren', ['Losgehen, Heimkommen, Umziehen und Schlafengehen mit klaren Abläufen steuern.']),
-      item('Wechselkleidung und Mitgebsachen vorbereiten', ['Für Kita, Ausflug oder Sport passende Sachen vollständig mitdenken.']),
+      item('Wechselkleidung und Mitgebsachen vorbereiten', ['Infos der Kita und Elterninformationen im Blick behalten.']),
     ],
     haushalt_einkaeufe_vorraete: [
       item('Kita-Kleidung und Reservewäsche verfügbar halten', ['Saubere Kleidung, Unterwäsche, Schlafsachen und Wechselkleidung im Blick behalten.']),
