@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 
+import { AdminShell } from '@/components/admin/layout/AdminShell';
 import { getAuthenticatedAdminContext } from '@/lib/admin-auth';
+import { resolveAdminRole } from '@/lib/admin/adminPermissions';
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const context = await getAuthenticatedAdminContext();
@@ -14,5 +16,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect('/app/home');
   }
 
-  return children;
+  const role = resolveAdminRole(context.profile);
+
+  return <AdminShell role={role}>{children}</AdminShell>;
 }
