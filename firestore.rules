@@ -140,6 +140,10 @@ service cloud.firestore {
       match /taskDelegations/{delegationId} {
         allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
       }
+
+      match /taskOverrides/{overrideId} {
+        allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+      }
     }
 
     match /taskPackageTemplates/{templateId} {

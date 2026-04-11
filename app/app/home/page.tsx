@@ -525,7 +525,7 @@ export default function PersonalHomePage() {
                       </div>
                     ) : (
                       <p className="caption" style={{ margin: 0, color: 'var(--color-text-secondary)' }}>
-                        Noch keine Aufgaben für dieses Verantwortungsgebiet.
+                        Keine Aufgaben
                       </p>
                     )
                   ) : null}
