@@ -274,6 +274,10 @@ export default function PersonalHomePage() {
     setTaskError(null);
     try {
       await createTask(input);
+      if (input.taskType === 'dayTask' && input.selectedDate && input.selectedDate !== selectedDate) {
+        setSelectedDate(input.selectedDate);
+        setVisibleWeekStart(startOfWeek(input.selectedDate));
+      }
       setComposerState(null);
       setTaskRefreshNonce((current) => current + 1);
     } catch (error) {

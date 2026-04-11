@@ -480,12 +480,16 @@ export function TaskComposerModal({
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [createForSelectedDay, setCreateForSelectedDay] = useState(true);
+  const [draftDate, setDraftDate] = useState(selectedDate);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setTitle('');
     setNotes('');
     setCreateForSelectedDay(true);
+    setDraftDate(selectedDate);
+    setIsDatePickerOpen(false);
   }, [isOpen, mode, responsibility?.id, selectedDate]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -498,7 +502,7 @@ export function TaskComposerModal({
         taskType: 'dayTask',
         title,
         notes,
-        selectedDate,
+        selectedDate: draftDate,
         recurrenceType: 'none',
         endMode: 'never',
       });
@@ -531,7 +535,32 @@ export function TaskComposerModal({
           <p className="task-inline-hint">Verantwortungsgebiet: {responsibility.title}</p>
         ) : null}
 
-        <div className="task-date-pill">Datum: {formatDateLabel(selectedDate)}</div>
+        {mode === 'day' ? (
+          <div className="task-date-stack">
+            <button
+              type="button"
+              className={`task-date-pill task-date-pill-button ${isDatePickerOpen ? 'is-open' : ''}`}
+              onClick={() => setIsDatePickerOpen((current) => !current)}
+              aria-expanded={isDatePickerOpen}
+            >
+              Datum: {formatDateLabel(draftDate)}
+            </button>
+
+            {isDatePickerOpen ? (
+              <label className="task-field">
+                <span className="task-field-label">Anderes Datum wählen</span>
+                <input
+                  className="input"
+                  type="date"
+                  value={draftDate}
+                  onChange={(event) => setDraftDate(event.target.value)}
+                />
+              </label>
+            ) : null}
+          </div>
+        ) : (
+          <div className="task-date-pill">Datum: {formatDateLabel(selectedDate)}</div>
+        )}
 
         <label className="task-field">
           <span className="task-field-label">Aufgabe</span>

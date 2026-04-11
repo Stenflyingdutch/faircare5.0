@@ -2671,6 +2671,23 @@ textarea.input {
   font-weight: 700;
 }
 
+.task-date-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.task-date-pill-button {
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.task-date-pill-button:hover,
+.task-date-pill-button.is-open {
+  background: rgba(217, 234, 247, 0.98);
+  border-color: rgba(122, 165, 197, 0.45);
+}
+
 .task-field {
   display: grid;
   gap: 8px;
