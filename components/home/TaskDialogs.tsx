@@ -9,6 +9,7 @@ import type { Responsibility } from '@/services/responsibilities.service';
 import type {
   CreateTaskInput,
   SaveTaskDelegationInput,
+  TaskDelegationRecurringStrategy,
   TaskMonthlyPatternMode,
   TaskOrdinal,
   TaskOverviewItem,
@@ -83,9 +84,8 @@ type DelegationDraft = {
   enabled: boolean;
   mode: 'singleDate' | 'recurring';
   weekdays: TaskWeekday[];
+  recurringStrategy: TaskDelegationRecurringStrategy;
 };
-
-type DelegationRecurringStrategy = 'alternating' | 'always';
 
 function getSortedDelegationCandidates(task: TaskOverviewItem) {
   return [...task.delegations].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
@@ -140,6 +140,7 @@ function buildInitialDelegationDraft(task: TaskOverviewItem, selectedDate: strin
     enabled: Boolean(existingDelegation),
     mode: existingDelegation?.mode ?? 'singleDate',
     weekdays: existingDelegation?.weekdays?.length ? existingDelegation.weekdays : [getWeekday(selectedDate)],
+    recurringStrategy: existingDelegation?.recurringStrategy ?? 'always',
   };
 }
 
@@ -148,6 +149,7 @@ function buildInitialInstanceDelegationDraft(task: TaskOverviewItem, instanceDat
     enabled: Boolean(findSingleDateDelegation(task, instanceDate)),
     mode: 'singleDate',
     weekdays: [getWeekday(instanceDate)],
+    recurringStrategy: 'always',
   };
 }
 
@@ -462,8 +464,7 @@ function DelegationFields({
   showEnabledToggle?: boolean;
   onChange: (nextValue: DelegationDraft) => void;
 }) {
-  const supportsSimpleRecurringStrategy = recurrenceType === 'weekly' || recurrenceType === 'quarterly' || recurrenceType === 'yearly';
-  const recurringStrategy: DelegationRecurringStrategy = draft.weekdays.length === weekdayOptions.length ? 'always' : 'alternating';
+  const usesRecurringStrategy = recurrenceType === 'weekly' || recurrenceType === 'monthly' || recurrenceType === 'quarterly' || recurrenceType === 'yearly';
 
   return (
     <div className="task-stack">
@@ -507,19 +508,19 @@ function DelegationFields({
           ) : null}
 
           {draft.mode === 'recurring' ? (
-            supportsSimpleRecurringStrategy ? (
+            usesRecurringStrategy ? (
               <div className="task-segmented">
                 <button
                   type="button"
-                  className={`task-segment ${recurringStrategy === 'alternating' ? 'is-selected' : ''}`}
-                  onClick={() => onChange({ ...draft, weekdays: [getWeekday(selectedDate)] })}
+                  className={`task-segment ${draft.recurringStrategy === 'alternating' ? 'is-selected' : ''}`}
+                  onClick={() => onChange({ ...draft, recurringStrategy: 'alternating' })}
                 >
                   In Wechsel
                 </button>
                 <button
                   type="button"
-                  className={`task-segment ${recurringStrategy === 'always' ? 'is-selected' : ''}`}
-                  onClick={() => onChange({ ...draft, weekdays: weekdayOptions.map((option) => option.value) })}
+                  className={`task-segment ${draft.recurringStrategy === 'always' ? 'is-selected' : ''}`}
+                  onClick={() => onChange({ ...draft, recurringStrategy: 'always' })}
                 >
                   Immer
                 </button>
@@ -583,6 +584,7 @@ export function TaskComposerModal({
     enabled: false,
     mode: 'singleDate',
     weekdays: [getWeekday(selectedDate)],
+    recurringStrategy: 'always',
   });
 
   useEffect(() => {
@@ -612,6 +614,7 @@ export function TaskComposerModal({
       enabled: false,
       mode: 'singleDate',
       weekdays: [getWeekday(selectedDate)],
+      recurringStrategy: 'always',
     });
   }, [isOpen, mode, responsibility?.id, selectedDate]);
 
@@ -668,7 +671,19 @@ export function TaskComposerModal({
       createInput,
       delegationAction: delegationDraft.enabled
         ? delegationDraft.mode === 'recurring' && recurrenceDraft.recurrenceType !== 'none'
-          ? { type: 'save', input: { mode: 'recurring', weekdays: delegationDraft.weekdays } }
+          ? {
+            type: 'save',
+            input: recurrenceDraft.recurrenceType === 'weekly'
+              || recurrenceDraft.recurrenceType === 'monthly'
+              || recurrenceDraft.recurrenceType === 'quarterly'
+              || recurrenceDraft.recurrenceType === 'yearly'
+              ? {
+                mode: 'recurring',
+                recurringStrategy: delegationDraft.recurringStrategy,
+                date: delegationDraft.recurringStrategy === 'alternating' ? selectedDate : null,
+              }
+              : { mode: 'recurring', weekdays: delegationDraft.weekdays },
+          }
           : { type: 'save', input: { mode: 'singleDate', date: selectedDate } }
         : { type: 'clear' },
     });
@@ -831,7 +846,16 @@ export function TaskEditModal({
       ? {
         type: 'save',
         input: currentDelegationDraft.mode === 'recurring' && allowRecurringDelegation
-          ? { mode: 'recurring', weekdays: currentDelegationDraft.weekdays }
+          ? currentRecurrenceDraft.recurrenceType === 'weekly'
+            || currentRecurrenceDraft.recurrenceType === 'monthly'
+            || currentRecurrenceDraft.recurrenceType === 'quarterly'
+            || currentRecurrenceDraft.recurrenceType === 'yearly'
+            ? {
+              mode: 'recurring',
+              recurringStrategy: currentDelegationDraft.recurringStrategy,
+              date: currentDelegationDraft.recurringStrategy === 'alternating' ? selectedDate : null,
+            }
+            : { mode: 'recurring', weekdays: currentDelegationDraft.weekdays }
           : { mode: 'singleDate', date: selectedDate },
       }
       : { type: 'clear' };
@@ -1073,7 +1097,16 @@ export function TaskDelegationModal({
     event.preventDefault();
     await onSubmit(
       currentDraft.mode === 'recurring' && canUseRecurring
-        ? { mode: 'recurring', weekdays: currentDraft.weekdays }
+        ? currentTask.recurrenceType === 'weekly'
+          || currentTask.recurrenceType === 'monthly'
+          || currentTask.recurrenceType === 'quarterly'
+          || currentTask.recurrenceType === 'yearly'
+          ? {
+            mode: 'recurring',
+            recurringStrategy: currentDraft.recurringStrategy,
+            date: currentDraft.recurringStrategy === 'alternating' ? selectedDate : null,
+          }
+          : { mode: 'recurring', weekdays: currentDraft.weekdays }
         : { mode: 'singleDate', date: selectedDate },
     );
   }

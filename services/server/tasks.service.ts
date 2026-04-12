@@ -432,10 +432,16 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
   }
 
   if (input.mode === 'recurring' && !input.weekdays?.length) {
-    throw new TaskAccessError('Bitte wähle mindestens einen Wochentag für die regelmäßige Delegation.', 400);
+    const hasStrategy = input.recurringStrategy === 'always' || input.recurringStrategy === 'alternating';
+    if (!hasStrategy) {
+      throw new TaskAccessError('Bitte wähle eine Strategie für die regelmäßige Delegation.', 400);
+    }
   }
 
   const normalizedDate = normalizeOptionalDate(input.date);
+  if (input.mode === 'recurring' && input.recurringStrategy === 'alternating' && !normalizedDate) {
+    throw new TaskAccessError('Für Delegation im Wechsel wird ein Startdatum benötigt.', 400);
+  }
   if (input.mode === 'singleDate' && (!normalizedDate || !isTaskDueOnDate(task, normalizedDate))) {
     throw new TaskAccessError('Die Delegation muss auf einen echten Termin dieser Aufgabe gesetzt werden.', 400);
   }
@@ -457,6 +463,7 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
     mode: input.mode,
     date: normalizedDate,
     weekdays: normalizeWeekdays(input.weekdays),
+    recurringStrategy: input.recurringStrategy ?? null,
     createdAt: existingDelegation?.createdAt ?? timestamp,
     updatedAt: timestamp,
   };
