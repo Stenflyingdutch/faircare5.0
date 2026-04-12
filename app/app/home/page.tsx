@@ -381,9 +381,6 @@ export default function PersonalHomePage() {
               <div className="task-day-card-header">
                 <div className="task-day-card-copy">
                   <h2 className="h2" style={{ margin: 0 }}>{daySectionTitle}</h2>
-                  <p className="caption" style={{ margin: 0, color: 'var(--color-text-secondary)' }}>
-                    Alles darunter bezieht sich auf diesen Tag.
-                  </p>
                 </div>
 
               </div>
