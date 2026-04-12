@@ -20,6 +20,12 @@ function resolveFirestoreErrorCode(error: unknown): string | null {
   return typeof maybeCode === 'string' ? maybeCode : null;
 }
 
+function resolveFirestoreErrorMessage(error: unknown): string {
+  if (!error || typeof error !== 'object') return String(error);
+  const maybeMessage = (error as { message?: unknown }).message;
+  return typeof maybeMessage === 'string' ? maybeMessage : String(error);
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -251,24 +257,49 @@ export async function appendThreadMetaToOverview(params: {
   userId: string;
   overview: TaskOverviewResponse;
 }) {
+  const baseOverview: TaskOverviewResponse = {
+    ...params.overview,
+    dayTasks: params.overview.dayTasks ?? [],
+    responsibilityTasks: params.overview.responsibilityTasks ?? [],
+    tasks: params.overview.dayTasks ?? [],
+    responsibilities: params.overview.responsibilityTasks ?? [],
+    taskThreads: [],
+    inbox: [],
+    warnings: params.overview.warnings ?? [],
+  };
+
   let rows: Awaited<ReturnType<typeof getAllTaskThreads>>;
   try {
     rows = await getAllTaskThreads({ familyId: params.familyId, userId: params.userId });
   } catch (error) {
     const code = resolveFirestoreErrorCode(error);
+    const message = resolveFirestoreErrorMessage(error);
+    const warningContext = {
+      endpoint: '/api/tasks/overview',
+      userId: params.userId,
+      familyId: params.familyId,
+      loader: 'taskThreads',
+      code: code ?? 'unknown',
+      message,
+    };
+
     if (code === 'failed-precondition') {
-      console.warn('[tasks] appendThreadMetaToOverview skipped task thread metadata due to missing Firestore index.', {
-        familyId: params.familyId,
-        userId: params.userId,
-        code,
-      });
+      console.warn('[home] missing composite index for taskThreads query.', warningContext);
       return {
-        ...params.overview,
+        ...baseOverview,
         taskThreadMetaByTaskId: {},
         unreadChatCount: 0,
+        warnings: [...(baseOverview.warnings ?? []), 'missing composite index'],
       };
     }
-    throw error;
+
+    console.warn('[home] optional chat loader failed.', warningContext);
+    return {
+      ...baseOverview,
+      taskThreadMetaByTaskId: {},
+      unreadChatCount: 0,
+      warnings: [...(baseOverview.warnings ?? []), 'chat loader failed'],
+    };
   }
   const byTaskId = rows.reduce<Record<string, { threadId: string; unreadCount: number; hasThread: true }>>((acc, row) => {
     acc[row.taskId] = { threadId: row.id, unreadCount: row.unreadCount, hasThread: true };
@@ -278,8 +309,10 @@ export async function appendThreadMetaToOverview(params: {
   const unreadCount = rows.reduce((sum, row) => sum + row.unreadCount, 0);
 
   return {
-    ...params.overview,
+    ...baseOverview,
     taskThreadMetaByTaskId: byTaskId,
+    taskThreads: rows,
+    inbox: rows.filter((row) => row.unreadCount > 0),
     unreadChatCount: unreadCount,
   };
 }

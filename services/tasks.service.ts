@@ -21,7 +21,15 @@ export async function fetchTaskOverview(selectedDate: string) {
   const response = await fetch(`/api/tasks/overview?date=${encodeURIComponent(selectedDate)}`, {
     credentials: 'same-origin',
   });
-  return parseJson<TaskOverviewResponse>(response);
+  const payload = await parseJson<TaskOverviewResponse>(response);
+  return {
+    ...payload,
+    dayTasks: payload.dayTasks ?? payload.tasks ?? [],
+    responsibilityTasks: payload.responsibilityTasks ?? payload.responsibilities ?? [],
+    taskThreads: payload.taskThreads ?? [],
+    inbox: payload.inbox ?? [],
+    warnings: payload.warnings ?? [],
+  };
 }
 
 export async function createTask(input: CreateTaskInput) {
