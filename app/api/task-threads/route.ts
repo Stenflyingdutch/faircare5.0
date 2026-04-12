@@ -9,9 +9,30 @@ function logTaskThreadsRouteDebug(event: string, context: Record<string, unknown
   console.info(`[api/task-threads] ${event}`, context);
 }
 
+function normalizeScope(scope: string | null) {
+  return scope === 'inbox' ? 'inbox' : 'threads';
+}
+
+function normalizeId(value: string | null | undefined) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function resolveFirestoreErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const maybeCode = (error as { code?: unknown }).code;
+  return typeof maybeCode === 'string' ? maybeCode : null;
+}
+
+function isRecoverableThreadReadError(error: unknown) {
+  const code = resolveFirestoreErrorCode(error);
+  return code === 'failed-precondition' || code === 'not-found' || code === 'permission-denied' || code === 'invalid-argument';
+}
+
 export async function GET(request: NextRequest) {
   const scope = request.nextUrl.searchParams.get('scope');
-  const resolvedScope = scope === 'inbox' ? 'inbox' : 'threads';
+  const resolvedScope = normalizeScope(scope);
   logTaskThreadsRouteDebug('entry', {
     path: request.nextUrl.pathname,
     rawQuery: request.nextUrl.search,
@@ -22,26 +43,58 @@ export async function GET(request: NextRequest) {
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     logTaskThreadsRouteDebug('auth.resolve.start', { hasSessionCookie: Boolean(sessionCookie) });
     const context = await getTaskContextFromSessionCookie(sessionCookie);
+    const currentUserId = normalizeId(context.userId);
+    const familyId = normalizeId(context.familyId);
     logTaskThreadsRouteDebug('auth.resolve.success', {
       authStatus: 'authenticated',
-      currentUserId: context.userId,
-      familyId: context.familyId,
+      currentUserId,
+      familyId,
       partnerUserId: context.partnerUserId ?? null,
       tab: 'chats',
       scope: resolvedScope,
     });
 
-    if (!context.userId || !context.familyId) {
+    if (!currentUserId || !familyId) {
       logTaskThreadsRouteDebug('context.invalid', {
-        currentUserId: context.userId ?? null,
-        familyId: context.familyId ?? null,
+        currentUserId,
+        familyId,
       });
       return NextResponse.json({ threads: [] });
     }
 
-    const threads = scope === 'inbox'
-      ? await getInboxThreads({ familyId: context.familyId, userId: context.userId })
-      : await getAllTaskThreads({ familyId: context.familyId, userId: context.userId });
+    logTaskThreadsRouteDebug('query.start', {
+      scope: resolvedScope,
+      currentUserId,
+      familyId,
+      queryBuilder: resolvedScope === 'inbox' ? 'getInboxThreads' : 'getAllTaskThreads',
+    });
+
+    let threads;
+    try {
+      threads = resolvedScope === 'inbox'
+        ? await getInboxThreads({ familyId, userId: currentUserId })
+        : await getAllTaskThreads({ familyId, userId: currentUserId });
+    } catch (queryError) {
+      if (!isRecoverableThreadReadError(queryError)) {
+        throw queryError;
+      }
+      logTaskThreadsRouteDebug('query.recoverableError', {
+        scope: resolvedScope,
+        currentUserId,
+        familyId,
+        code: resolveFirestoreErrorCode(queryError),
+        message: queryError instanceof Error ? queryError.message : String(queryError),
+        stack: queryError instanceof Error ? queryError.stack : null,
+      });
+      threads = [];
+    }
+
+    logTaskThreadsRouteDebug('query.result', {
+      scope: resolvedScope,
+      currentUserId,
+      familyId,
+      resultCount: threads.length,
+    });
     logTaskThreadsRouteDebug('mapping.start', { scope: resolvedScope, loadedThreadCount: threads.length, loadedThreadIds: threads.map((thread) => thread.id) });
 
     const normalizedThreads = threads.map((thread) => ({
@@ -58,11 +111,11 @@ export async function GET(request: NextRequest) {
     logTaskThreadsRouteDebug('mapping.success', { scope: resolvedScope, normalizedCount: normalizedThreads.length });
 
     logTaskThreadsRouteDebug('response.success', {
-      currentUserId: context.userId,
-      familyId: context.familyId,
+      currentUserId,
+      familyId,
       scope: resolvedScope,
       threadCount: normalizedThreads.length,
-      openInboxCount: scope === 'inbox' ? normalizedThreads.length : undefined,
+      openInboxCount: resolvedScope === 'inbox' ? normalizedThreads.length : undefined,
       firstTaskId: normalizedThreads[0]?.taskId ?? null,
       lastMessageAt: normalizedThreads[0]?.lastMessageAt ?? null,
       unreadCount: normalizedThreads.reduce((sum, thread) => sum + (thread.unreadCount ?? 0), 0),

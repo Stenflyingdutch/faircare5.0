@@ -13,6 +13,10 @@ test('task threads route logs structured scope/auth/mapping diagnostics and norm
   assert.match(route, /mapping\.start/);
   assert.match(route, /mapping\.success/);
   assert.match(route, /firestoreCode/);
+  assert.match(route, /query\.start/);
+  assert.match(route, /query\.result/);
+  assert.match(route, /query\.recoverableError/);
+  assert.match(route, /isRecoverableThreadReadError/);
   assert.match(route, /preview: thread\.lastMessageText \|\| ''/);
   assert.match(route, /participants: Array\.isArray\(thread\.participantUserIds\) \? thread\.participantUserIds : \[\]/);
   assert.match(route, /return NextResponse\.json\(\{ threads: normalizedThreads \}\)/);
@@ -25,5 +29,8 @@ test('server task chat service normalizes legacy thread docs instead of crashing
   assert.match(service, /function toIsoString/);
   assert.match(service, /loadInbox\.snapshot\.raw/);
   assert.match(service, /loadInbox\.thread\.skipped\.invalid/);
+  assert.match(service, /normalizeInboxEntry/);
+  assert.match(service, /toThreadFromInboxEntry/);
+  assert.match(service, /loadInbox\.thread\.fallbackFromInboxEntry/);
   assert.match(service, /normalizeStringArray/);
 });
