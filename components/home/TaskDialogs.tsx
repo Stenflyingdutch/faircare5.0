@@ -85,6 +85,8 @@ type DelegationDraft = {
   weekdays: TaskWeekday[];
 };
 
+type DelegationRecurringStrategy = 'alternating' | 'always';
+
 function getSortedDelegationCandidates(task: TaskOverviewItem) {
   return [...task.delegations].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
@@ -246,6 +248,11 @@ function RecurrenceFields({
           onChange={(event) => onChange({
             ...draft,
             recurrenceType: event.target.value as TaskRecurrenceType,
+            weekdays: event.target.value === 'daily'
+              ? weekdayOptions.map((entry) => entry.value)
+              : event.target.value === 'weekly'
+                ? ['mon']
+                : draft.weekdays,
           })}
         >
           {recurrenceOptions.map((option) => (
@@ -443,60 +450,86 @@ function RecurrenceFields({
 function DelegationFields({
   draft,
   canUseRecurring,
+  recurrenceType,
   selectedDate,
   showEnabledToggle = true,
   onChange,
 }: {
   draft: DelegationDraft;
   canUseRecurring: boolean;
+  recurrenceType: TaskRecurrenceType;
   selectedDate: string;
   showEnabledToggle?: boolean;
   onChange: (nextValue: DelegationDraft) => void;
 }) {
+  const supportsSimpleRecurringStrategy = recurrenceType === 'weekly' || recurrenceType === 'quarterly' || recurrenceType === 'yearly';
+  const recurringStrategy: DelegationRecurringStrategy = draft.weekdays.length === weekdayOptions.length ? 'always' : 'alternating';
+
   return (
     <div className="task-stack">
-      {showEnabledToggle ? (
-        <div className="task-single-action">
+      <div className="task-segmented">
+        <button
+          type="button"
+          className={`task-segment ${draft.enabled && draft.mode === 'singleDate' ? 'is-selected' : ''}`}
+          onClick={() => onChange({
+            ...draft,
+            enabled: !(draft.enabled && draft.mode === 'singleDate'),
+            mode: 'singleDate',
+          })}
+        >
+          Nur heute
+        </button>
+        {canUseRecurring ? (
           <button
             type="button"
-            className={`task-segment ${draft.enabled ? 'is-selected' : ''}`}
-            onClick={() => onChange({ ...draft, enabled: !draft.enabled, mode: 'singleDate' })}
+            className={`task-segment ${draft.enabled && draft.mode === 'recurring' ? 'is-selected' : ''}`}
+            onClick={() => onChange({
+              ...draft,
+              enabled: !(draft.enabled && draft.mode === 'recurring'),
+              mode: 'recurring',
+            })}
           >
-            Delegieren
+            Ganze Serie
           </button>
-        </div>
+        ) : null}
+      </div>
+
+      {showEnabledToggle && !draft.enabled ? (
+        <p className="task-inline-hint">Nicht delegiert.</p>
       ) : null}
 
       {draft.enabled ? (
         <>
-          <div className="task-segmented">
-            <button
-              type="button"
-              className={`task-segment ${draft.mode === 'singleDate' ? 'is-selected' : ''}`}
-              onClick={() => onChange({ ...draft, mode: 'singleDate' })}
-            >
-              Nur diesen Tag
-            </button>
-            {canUseRecurring ? (
-              <button
-                type="button"
-                className={`task-segment ${draft.mode === 'recurring' ? 'is-selected' : ''}`}
-                onClick={() => onChange({ ...draft, mode: 'recurring' })}
-              >
-                Ganze Serie
-              </button>
-            ) : null}
-          </div>
+          <p className="task-inline-hint">Hinweis: Die Aufgabe erscheint beim Partner.</p>
 
           {draft.mode === 'singleDate' ? (
             <p className="task-inline-hint">Datum: {formatDateLabel(selectedDate)}</p>
           ) : null}
 
           {draft.mode === 'recurring' ? (
-            <div className="task-field">
-              <span className="task-field-label">Wochentage</span>
-              <WeekdaySelector value={draft.weekdays} onChange={(weekdays) => onChange({ ...draft, weekdays })} />
-            </div>
+            supportsSimpleRecurringStrategy ? (
+              <div className="task-segmented">
+                <button
+                  type="button"
+                  className={`task-segment ${recurringStrategy === 'alternating' ? 'is-selected' : ''}`}
+                  onClick={() => onChange({ ...draft, weekdays: [getWeekday(selectedDate)] })}
+                >
+                  In Wechsel
+                </button>
+                <button
+                  type="button"
+                  className={`task-segment ${recurringStrategy === 'always' ? 'is-selected' : ''}`}
+                  onClick={() => onChange({ ...draft, weekdays: weekdayOptions.map((option) => option.value) })}
+                >
+                  Immer
+                </button>
+              </div>
+            ) : (
+              <div className="task-field">
+                <span className="task-field-label">Wochentage</span>
+                <WeekdaySelector value={draft.weekdays} onChange={(weekdays) => onChange({ ...draft, weekdays })} />
+              </div>
+            )
           ) : null}
         </>
       ) : null}
@@ -693,6 +726,7 @@ export function TaskComposerModal({
               <DelegationFields
                 draft={delegationDraft}
                 canUseRecurring={recurrenceDraft.recurrenceType !== 'none'}
+                recurrenceType={recurrenceDraft.recurrenceType}
                 selectedDate={selectedDate}
                 onChange={setDelegationDraft}
               />
@@ -834,6 +868,7 @@ export function TaskEditModal({
           <DelegationFields
             draft={currentDelegationDraft}
             canUseRecurring={allowRecurringDelegation}
+            recurrenceType={currentRecurrenceDraft.recurrenceType}
             selectedDate={selectedDate}
             onChange={setDelegationDraft}
           />
@@ -917,7 +952,7 @@ export function TaskInstanceEditModal({
     <Modal isOpen={isOpen} onClose={onClose}>
       <form className="task-dialog-shell" onSubmit={handleSubmit}>
         <DialogHeader
-          title="Nur diesen Tag"
+          title="Nur heute"
           subtitle={`${formatDateLabel(instanceDate)} · ${getTaskTimingLabel(task)}`}
         />
 
@@ -941,6 +976,7 @@ export function TaskInstanceEditModal({
             <DelegationFields
               draft={delegationDraft}
               canUseRecurring={false}
+              recurrenceType="none"
               selectedDate={instanceDate}
               onChange={setDelegationDraft}
             />
@@ -982,7 +1018,7 @@ export function TaskEditScopeModal({
         <div className="task-scope-stack">
           {instanceDate ? (
             <button type="button" className="task-scope-option" onClick={onEditInstance}>
-              <strong>Nur diesen Tag</strong>
+              <strong>Nur heute</strong>
               <span>{formatDateLabel(instanceDate)}</span>
             </button>
           ) : null}
@@ -1050,6 +1086,7 @@ export function TaskDelegationModal({
         <DelegationFields
           draft={{ ...currentDraft, enabled: true }}
           canUseRecurring={canUseRecurring}
+          recurrenceType={currentTask.recurrenceType}
           selectedDate={selectedDate}
           showEnabledToggle={false}
           onChange={setDraft}
