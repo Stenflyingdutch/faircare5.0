@@ -572,6 +572,10 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
   return payload;
 }
 
+export async function delegateTask(userId: string, taskId: string, input: SaveTaskDelegationInput) {
+  return saveTaskDelegationForUser(userId, taskId, input);
+}
+
 export async function clearTaskDelegationsForUser(userId: string, taskId: string, options?: ClearDelegationOptions) {
   const context = await resolveTaskContext(userId);
   await resolveTaskById(context, taskId);
