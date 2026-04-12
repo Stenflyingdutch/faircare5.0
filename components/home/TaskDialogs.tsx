@@ -764,7 +764,6 @@ export function TaskEditModal({
   onClose,
   onDelete,
   onSubmit,
-  hasThread,
 }: {
   isOpen: boolean;
   task: TaskOverviewItem | null;
@@ -773,14 +772,11 @@ export function TaskEditModal({
   onClose: () => void;
   onDelete: (taskId: string) => Promise<void>;
   onSubmit: (input: TaskEditSubmit) => Promise<void>;
-  hasThread?: boolean;
 }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [recurrenceDraft, setRecurrenceDraft] = useState<RecurrenceDraft | null>(null);
   const [delegationDraft, setDelegationDraft] = useState<DelegationDraft | null>(null);
-  const [chatMessage, setChatMessage] = useState('');
-  const [isSendingChatMessage, setIsSendingChatMessage] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !task) return;
@@ -788,7 +784,6 @@ export function TaskEditModal({
     setNotes(task.notes ?? '');
     setRecurrenceDraft(buildInitialRecurrenceDraft(task, selectedDate));
     setDelegationDraft(buildInitialDelegationDraft(task, selectedDate));
-    setChatMessage('');
   }, [isOpen, selectedDate, task]);
 
   if (!task || !recurrenceDraft || !delegationDraft) {
@@ -904,34 +899,6 @@ export function TaskEditModal({
           />
         </div>
 
-
-        <div className="task-stack">
-          <p className="task-section-title">{hasThread ? 'Chat öffnen' : 'Nachricht senden'}</p>
-          <p className="task-inline-hint">Diese Nachricht gehört zu dieser Aufgabe.</p>
-          <textarea
-            className="input task-textarea"
-            value={chatMessage}
-            onChange={(event) => setChatMessage(event.target.value)}
-            placeholder="Was möchtest du dazu sagen?"
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              className="button primary"
-              disabled={!chatMessage.trim() || isSendingChatMessage}
-              onClick={() => {
-                if (!chatMessage.trim()) return;
-                setIsSendingChatMessage(true);
-                void sendTaskMessageByTask(currentTask.id, chatMessage)
-                  .then(() => setChatMessage(''))
-                  .finally(() => setIsSendingChatMessage(false));
-              }}
-            >
-              {isSendingChatMessage ? 'Sendet …' : 'Senden'}
-            </button>
-          </div>
-        </div>
-
         <button
           type="button"
           className="task-delete-action"
@@ -947,6 +914,67 @@ export function TaskEditModal({
 
         <DialogActions submitLabel="Speichern" onCancel={onClose} disabled={!title.trim()} busy={isSubmitting} />
       </form>
+    </Modal>
+  );
+}
+
+export function TaskChatModal({
+  isOpen,
+  task,
+  onClose,
+  hasThread,
+}: {
+  isOpen: boolean;
+  task: TaskOverviewItem | null;
+  onClose: () => void;
+  hasThread?: boolean;
+}) {
+  const [chatMessage, setChatMessage] = useState('');
+  const [isSendingChatMessage, setIsSendingChatMessage] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !task) return;
+    setChatMessage('');
+  }, [isOpen, task]);
+
+  if (!task) {
+    return null;
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="task-dialog-shell">
+        <DialogHeader title={hasThread ? 'Chat öffnen' : 'Nachricht senden'} subtitle={task.displayTitle} />
+        <p className="task-inline-hint">Diese Nachricht gehört zu dieser Aufgabe.</p>
+        <textarea
+          className="input task-textarea"
+          value={chatMessage}
+          onChange={(event) => setChatMessage(event.target.value)}
+          placeholder="Was möchtest du dazu sagen?"
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+          <button type="button" className="task-secondary-button" onClick={onClose}>
+            Schließen
+          </button>
+          <button
+            type="button"
+            className="task-primary-button"
+            disabled={!chatMessage.trim() || isSendingChatMessage}
+            onClick={() => {
+              if (!chatMessage.trim()) return;
+              setIsSendingChatMessage(true);
+              void sendTaskMessageByTask(task.id, chatMessage)
+                .then(() => {
+                  setChatMessage('');
+                  onClose();
+                })
+                .finally(() => setIsSendingChatMessage(false));
+            }}
+          >
+            {isSendingChatMessage ? 'Sendet …' : 'Senden'}
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }

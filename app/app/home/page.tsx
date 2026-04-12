@@ -11,6 +11,7 @@ import { SkeletonCategoryCard } from '@/components/home/SkeletonCategoryCard';
 import { SortToggle } from '@/components/home/SortToggle';
 import {
   TaskComposerModal,
+  TaskChatModal,
   type TaskComposerSubmit,
   TaskEditModal,
   TaskEditScopeModal,
@@ -110,6 +111,7 @@ export default function PersonalHomePage() {
   const [composerState, setComposerState] = useState<ComposerState | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<PendingDeleteState | null>(null);
+  const [chatTaskId, setChatTaskId] = useState<string | null>(null);
   const pendingDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSortMode = useRef<SortMode>('relevance');
 
@@ -354,6 +356,7 @@ export default function PersonalHomePage() {
 
   const hasUnreadMessage = (taskId: string) => (taskThreadMetaByTaskId[taskId]?.unreadCount ?? 0) > 0;
   const hasTaskThread = (taskId: string) => Boolean(taskThreadMetaByTaskId[taskId]?.hasThread);
+  const chatTask = chatTaskId ? allKnownTasks.find((task) => task.id === chatTaskId) ?? null : null;
   const expandedResponsibility = expandedCardId ? responsibilityMap.get(expandedCardId) : undefined;
   const daySectionTitle = isToday(selectedDate) ? 'Heute' : `Aufgaben am ${formatDateLabel(selectedDate)}`;
 
@@ -402,6 +405,7 @@ export default function PersonalHomePage() {
                       task={task}
                       selectedDate={selectedDate}
                       onEdit={() => requestTaskEdit(task)}
+                      onChat={() => setChatTaskId(task.id)}
                       onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
                       onSwipeRight={() => queueSwipeDelete(task)}
                       onSwipeLeft={() => void applySingleDateDelegation(task)}
@@ -470,6 +474,7 @@ export default function PersonalHomePage() {
                         [responsibility.id]: !isExpanded,
                       }))}
                       onEditTask={requestTaskEdit}
+                      onChatTask={(task) => setChatTaskId(task.id)}
                       onSwipeTaskDelete={queueSwipeDelete}
                       onSwipeTaskDelegate={(task) => void applySingleDateDelegation(task)}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
@@ -519,7 +524,13 @@ export default function PersonalHomePage() {
         onClose={() => setEditingTaskId(null)}
         onDelete={deleteTaskById}
         onSubmit={submitTaskEdit}
-        hasThread={editingTask ? hasTaskThread(editingTask.id) : false}
+      />
+
+      <TaskChatModal
+        isOpen={Boolean(chatTask)}
+        task={chatTask}
+        onClose={() => setChatTaskId(null)}
+        hasThread={chatTask ? hasTaskThread(chatTask.id) : false}
       />
 
       <TaskInstanceEditModal
