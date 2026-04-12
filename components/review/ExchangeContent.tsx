@@ -66,7 +66,7 @@ export function ExchangeContent() {
               <p className="exchange-chat-tabs-label">Chat-Ansicht</p>
               <div className="exchange-segmented exchange-sub-segmented">
                 <button type="button" className={`exchange-segment ${chatTab === 'inbox' ? 'is-active' : ''}`} onClick={() => setChatTab('inbox')}>
-                  Inbox {inboxCount > 0 ? <span className="exchange-badge">{inboxCount}</span> : null}
+                  Inbox {inboxCount > 0 ? <span className="exchange-unread-dot" aria-label={`${inboxCount} ungelesene Chats`} title={`${inboxCount} ungelesene Chats`} /> : null}
                 </button>
                 <button type="button" className={`exchange-segment ${chatTab === 'threads' ? 'is-active' : ''}`} onClick={() => setChatTab('threads')}>Threads</button>
               </div>
@@ -91,7 +91,7 @@ export function ExchangeContent() {
                         <span className="helper exchange-preview">{thread.lastMessageText || 'Noch keine Nachricht.'}</span>
                         <span className="helper">{thread.lastMessageUserId === thread.createdByUserId ? 'Du' : 'Partner'} · {formatTime(thread.lastMessageAt)}</span>
                       </div>
-                      {thread.unreadCount > 0 ? <span className="exchange-badge">{thread.unreadCount}</span> : null}
+                      {thread.unreadCount > 0 ? <span className="exchange-unread-dot" aria-label={`${thread.unreadCount} ungelesene Nachrichten`} title={`${thread.unreadCount} ungelesene Nachrichten`} /> : null}
                     </button>
                   ))}
                 </div>

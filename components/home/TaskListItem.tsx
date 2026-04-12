@@ -35,13 +35,21 @@ export function TaskListItem({
   const canToggleStatus = !task.isDelegated && (task.recurrenceType === 'none'
     ? task.selectedDate === selectedDate
     : task.isDueOnSelectedDate);
-  const chips = [getTaskTimingLabel(task)];
+  const chips: Array<{ key: string; label: string; variant?: 'delegated' | 'new' | 'series' }> = [];
+
+  if (task.recurrenceType !== 'none') {
+    chips.push({
+      key: 'series',
+      label: getTaskTimingLabel(task),
+      variant: 'series',
+    });
+  }
 
   if (task.isDelegated) {
-    chips.push('Delegiert');
+    chips.push({ key: 'delegated', label: 'Delegiert', variant: 'delegated' });
   }
   if (hasUnreadMessage) {
-    chips.push('Neu');
+    chips.push({ key: 'new', label: 'Neu', variant: 'new' });
   }
 
   const handleRowClick = () => {
@@ -139,7 +147,12 @@ export function TaskListItem({
 
         <div className="task-chip-row">
           {chips.map((chip) => (
-            <span key={`${task.id}-${chip}`} className={`task-chip ${chip === 'Delegiert' ? 'is-delegated' : ''} ${chip === 'Neu' ? 'is-chat-new' : ''}`}>{chip}</span>
+            <span
+              key={`${task.id}-${chip.key}`}
+              className={`task-chip ${chip.variant === 'delegated' ? 'is-delegated' : ''} ${chip.variant === 'new' ? 'is-chat-new' : ''} ${chip.variant === 'series' ? 'is-series' : ''}`}
+            >
+              {chip.label}
+            </span>
           ))}
         </div>
 

@@ -380,14 +380,6 @@ export default function PersonalHomePage() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  className="task-inline-add-button"
-                  onClick={() => setComposerState({ mode: 'day' })}
-                >
-                  <PlusIcon />
-                  <span>Einmalige Aufgabe</span>
-                </button>
               </div>
 
               {taskError ? <p className="inline-error" style={{ margin: 0 }}>{taskError}</p> : null}
