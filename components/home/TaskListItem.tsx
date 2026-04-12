@@ -12,10 +12,19 @@ function PencilIcon() {
   );
 }
 
+function ChatBubbleIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4.5 4.5h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.2 2.4a.5.5 0 0 1-.8-.4v-2H4.5A1.5 1.5 0 0 1 3 12V6a1.5 1.5 0 0 1 1.5-1.5Z" />
+    </svg>
+  );
+}
+
 export function TaskListItem({
   task,
   selectedDate,
   onEdit,
+  onChat,
   onToggleStatus,
   onSwipeRight,
   onSwipeLeft,
@@ -24,6 +33,7 @@ export function TaskListItem({
   task: TaskOverviewItem;
   selectedDate: string;
   onEdit: () => void;
+  onChat?: () => void;
   onToggleStatus?: () => void;
   onSwipeRight?: () => void;
   onSwipeLeft?: () => void;
@@ -156,17 +166,32 @@ export function TaskListItem({
           ))}
         </div>
 
-        <button
-          type="button"
-          className="task-row-icon-button"
-          aria-label={`Aufgabe ${task.displayTitle} bearbeiten`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onEdit();
-          }}
-        >
-          <PencilIcon />
-        </button>
+        <div className="task-row-action-stack">
+          <button
+            type="button"
+            className="task-row-icon-button"
+            aria-label={`Aufgabe ${task.displayTitle} bearbeiten`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit();
+            }}
+          >
+            <PencilIcon />
+          </button>
+          {onChat ? (
+            <button
+              type="button"
+              className="task-row-icon-button task-row-chat-button"
+              aria-label={`Nachricht zu ${task.displayTitle} senden`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onChat();
+              }}
+            >
+              <ChatBubbleIcon />
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

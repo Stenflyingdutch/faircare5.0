@@ -2810,10 +2810,16 @@ textarea.input {
   font: inherit;
 }
 
+.task-row-action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .task-row-icon-button {
   width: 36px;
   height: 36px;
-  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2822,6 +2828,12 @@ textarea.input {
   background: #ffffff;
   color: var(--color-text-secondary);
   cursor: pointer;
+}
+
+.task-row-chat-button {
+  color: #3f6fbe;
+  border-color: rgba(160, 188, 225, 0.95);
+  background: rgba(241, 247, 255, 0.92);
 }
 
 .responsibility-task-section {
