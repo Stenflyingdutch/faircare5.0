@@ -17,10 +17,11 @@ export interface TaskThreadDocument {
 export interface TaskThreadMessageDocument {
   id: string;
   threadId: string;
-  authorUserId: string;
+  authorUserId: string | null;
   text: string;
   messageType: TaskThreadMessageType;
   createdAt: string;
+  visibleToUserIds?: string[];
   meta?: Record<string, unknown> | null;
 }
 

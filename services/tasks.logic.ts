@@ -322,6 +322,26 @@ export function toTaskOverviewItem(
   };
 }
 
+export function resolveTaskVisibleToUserIds(
+  task: Pick<TaskDocument, 'createdByUserId' | 'creatorUserId' | 'delegatedToUserId' | 'visibleToUserIds'>,
+) {
+  if (task.visibleToUserIds?.length) {
+    return [...new Set(task.visibleToUserIds)];
+  }
+
+  const creatorId = task.creatorUserId ?? task.createdByUserId;
+  if (!creatorId) return [];
+  if (!task.delegatedToUserId) return [creatorId];
+  return [...new Set([creatorId, task.delegatedToUserId])];
+}
+
+export function canUserSeeTask(
+  task: Pick<TaskDocument, 'createdByUserId' | 'creatorUserId' | 'delegatedToUserId' | 'visibleToUserIds'>,
+  userId: string,
+) {
+  return resolveTaskVisibleToUserIds(task).includes(userId);
+}
+
 export function getRecurrenceLabel(recurrenceType: TaskRecurrenceType) {
   switch (recurrenceType) {
     case 'daily':

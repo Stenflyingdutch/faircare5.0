@@ -3,7 +3,7 @@ import 'server-only';
 import { familySubcollections, firestoreCollections } from '@/types/domain';
 import { adminDb, verifyAdminSessionCookie } from '@/lib/firebase-admin';
 import { assertDateKey } from '@/services/task-date';
-import { isTaskDueOnDate, toTaskOverviewItem } from '@/services/tasks.logic';
+import { canUserSeeTask, isTaskDueOnDate, resolveTaskVisibleToUserIds, toTaskOverviewItem } from '@/services/tasks.logic';
 import { appendThreadMetaToOverview, createDelegationSystemMessage } from '@/services/server/task-chat.service';
 import { isSuperuserProfile, resolveAccountStatus } from '@/services/user-profile.service';
 import type { AppUserProfile, FamilyDocument } from '@/types/partner-flow';
@@ -190,6 +190,21 @@ async function readFamilyTasks(familyId: string) {
   return snapshot.docs.map((entry) => ({ ...(entry.data() as TaskDocument), id: entry.id }));
 }
 
+async function readVisibleFamilyTasks(familyId: string, userId: string) {
+  const [visibleSnapshot, createdBySnapshot, delegatedSnapshot] = await Promise.all([
+    tasksCollection(familyId).where('visibleToUserIds', 'array-contains', userId).get(),
+    tasksCollection(familyId).where('createdByUserId', '==', userId).get(),
+    tasksCollection(familyId).where('delegatedToUserId', '==', userId).get(),
+  ]);
+
+  const byId = new Map<string, TaskDocument>();
+  for (const entry of [...visibleSnapshot.docs, ...createdBySnapshot.docs, ...delegatedSnapshot.docs]) {
+    byId.set(entry.id, { ...(entry.data() as TaskDocument), id: entry.id });
+  }
+
+  return [...byId.values()].filter((task) => !task.deletedAt && canUserSeeTask(task, userId));
+}
+
 async function readFamilyTaskDelegations(familyId: string) {
   const snapshot = await taskDelegationsCollection(familyId).get();
   return snapshot.docs.map((entry) => ({ ...(entry.data() as TaskDelegationDocument), id: entry.id }));
@@ -223,7 +238,11 @@ async function resolveTaskById(context: TaskContext, taskId: string) {
   if (!snapshot.exists) {
     throw new TaskAccessError('Aufgabe nicht gefunden.', 404);
   }
-  return { ...(snapshot.data() as TaskDocument), id: snapshot.id };
+  const task = { ...(snapshot.data() as TaskDocument), id: snapshot.id };
+  if (!canUserSeeTask(task, context.userId)) {
+    throw new TaskAccessError('Kein Zugriff auf diese Aufgabe.', 403);
+  }
+  return task;
 }
 
 export class TaskAccessError extends Error {
@@ -247,7 +266,7 @@ export async function getTasksForSelectedDate(familyId: string, userId: string, 
   }
 
   const [tasks, delegations, overrides] = await Promise.all([
-    readFamilyTasks(familyId),
+    readVisibleFamilyTasks(familyId, userId),
     readFamilyTaskDelegations(familyId),
     readFamilyTaskOverrides(familyId),
   ]);
@@ -264,7 +283,7 @@ export async function getTasksForSelectedDate(familyId: string, userId: string, 
 export async function getTaskOverviewForSelectedDate(userId: string, dateKey: string): Promise<TaskOverviewResponse> {
   const context = await resolveTaskContext(userId);
   const settled = await Promise.allSettled([
-    readFamilyTasks(context.familyId),
+    readVisibleFamilyTasks(context.familyId, userId),
     readFamilyTaskDelegations(context.familyId),
     readFamilyTaskOverrides(context.familyId),
   ]);
@@ -337,8 +356,15 @@ export async function createTaskForUser(userId: string, input: CreateTaskInput) 
     categoryKey,
     title,
     notes: normalizeOptionalText(input.notes),
+    creatorUserId: context.userId,
     createdByUserId: context.userId,
     assignedToUserId: context.userId,
+    ownerUserId: context.userId,
+    delegatedToUserId: null,
+    delegatedByUserId: null,
+    delegatedAt: null,
+    visibilityMode: 'private',
+    visibleToUserIds: [context.userId],
     taskType: input.taskType,
     selectedDate,
     recurrenceType,
@@ -346,6 +372,12 @@ export async function createTaskForUser(userId: string, input: CreateTaskInput) 
     endMode: input.endMode ?? 'never',
     endDate: normalizeOptionalDate(input.endDate),
     status: 'active',
+    threadId: null,
+    unreadForUserIds: [],
+    lastMessageAt: null,
+    lastMessagePreview: null,
+    source: 'manual',
+    deletedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -494,25 +526,40 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
 
   await delegationRef.set(payload, { merge: true });
 
-  const systemText = input.mode === 'singleDate'
-    ? `Diese Aufgabe wurde dir für ${normalizedDate ?? 'diesen Tag'} delegiert.`
-    : input.weekdays?.length
-      ? 'Diese Aufgabe wurde dir regelmäßig delegiert.'
-      : 'Diese Aufgabe wurde dir delegiert.';
+  const systemText = 'Diese Aufgabe wurde delegiert';
 
-  await createDelegationSystemMessage({
+  const visibleToUserIds = resolveTaskVisibleToUserIds(task);
+  const updatedVisibleToUserIds = [...new Set([...visibleToUserIds, context.partnerUserId])];
+  await tasksCollection(context.familyId).doc(task.id).set({
+    delegatedToUserId: context.partnerUserId,
+    delegatedByUserId: context.userId,
+    delegatedAt: timestamp,
+    visibilityMode: 'delegated',
+    visibleToUserIds: updatedVisibleToUserIds,
+    unreadForUserIds: [context.partnerUserId],
+    lastMessageAt: timestamp,
+    lastMessagePreview: systemText,
+    updatedAt: timestamp,
+  } satisfies Partial<TaskDocument>, { merge: true });
+
+  const systemResult = await createDelegationSystemMessage({
     familyId: context.familyId,
     taskId: task.id,
     authorUserId: context.userId,
-    participantUserIds: [context.userId, context.partnerUserId],
+    participantUserIds: updatedVisibleToUserIds,
     responsibilityId: task.responsibilityId ?? null,
     text: systemText,
+    idempotencyKey: `${task.id}:${timestamp}:${input.mode}:${normalizedDate ?? 'none'}`,
     meta: {
       delegationMode: input.mode,
       date: normalizedDate,
       weekdays: input.weekdays ?? null,
     },
   });
+
+  await tasksCollection(context.familyId).doc(task.id).set({
+    threadId: systemResult.threadId,
+  } satisfies Partial<TaskDocument>, { merge: true });
 
   return payload;
 }

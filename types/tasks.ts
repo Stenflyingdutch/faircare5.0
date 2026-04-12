@@ -39,8 +39,15 @@ export interface TaskDocument {
   categoryKey?: QuizCategory | null;
   title: string;
   notes?: string | null;
+  creatorUserId?: string;
   createdByUserId: string;
   assignedToUserId: string;
+  ownerUserId?: string | null;
+  delegatedToUserId?: string | null;
+  delegatedByUserId?: string | null;
+  delegatedAt?: string | null;
+  visibilityMode?: 'private' | 'delegated';
+  visibleToUserIds?: string[];
   taskType: TaskType;
   selectedDate?: string | null;
   recurrenceType: TaskRecurrenceType;
@@ -48,6 +55,12 @@ export interface TaskDocument {
   endMode: TaskEndMode;
   endDate?: string | null;
   status: TaskStatus;
+  threadId?: string | null;
+  unreadForUserIds?: string[];
+  lastMessageAt?: string | null;
+  lastMessagePreview?: string | null;
+  source?: 'manual' | 'system';
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
