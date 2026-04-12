@@ -44,7 +44,7 @@ export default function ResponsibilityCardsPage() {
     <FamilyCategoryView
       familyId={familyId}
       userId={userId}
-      language={language}
+      language="de"
     />
   );
 }

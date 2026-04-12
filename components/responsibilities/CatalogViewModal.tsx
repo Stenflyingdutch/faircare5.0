@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { resolveCategoryLabel } from '@/services/resultCalculator';
 import { importFromCatalog } from '@/services/familyResponsibility.service';
+import { resolveCategoryLabel } from '@/services/resultCalculator';
 import type { CatalogResponsibilityCard, FamilyResponsibilityCard } from '@/types/responsibility-cards';
 
 interface CatalogViewModalProps {
@@ -67,6 +68,7 @@ export function CatalogViewModal({
             <article key={catalogCard.id} className="card-surface stack-xs">
               <strong>{catalogCard.title}</strong>
               <p>{catalogCard.description}</p>
+              {catalogCard.tags?.length ? <p className="helper" style={{ margin: 0 }}>Tags: {catalogCard.tags.join(' · ')}</p> : null}
               <button
                 type="button"
                 className="btn-secondary"

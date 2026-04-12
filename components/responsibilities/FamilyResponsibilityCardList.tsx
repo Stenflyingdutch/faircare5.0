@@ -43,7 +43,6 @@ export function FamilyResponsibilityCardList({ cards, categoryKey }: FamilyRespo
     <div className="stack">
       {cards.map((card) => {
         const statusStyle = resolveStatusStyle(card);
-
         return (
           <article
             key={card.id}

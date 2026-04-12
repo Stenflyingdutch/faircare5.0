@@ -6,7 +6,7 @@ import { CatalogViewModal } from '@/components/responsibilities/CatalogViewModal
 import { FamilyCardFormModal } from '@/components/responsibilities/FamilyCardFormModal';
 import { FamilyCategorySection } from '@/components/responsibilities/FamilyCategorySection';
 import { getCatalogCards } from '@/services/catalog.service';
-import { createCustomCard, observeFamilyCards } from '@/services/familyResponsibility.service';
+import { createCustomCard, listenToFamilyCards } from '@/services/familyResponsibility.service';
 import { categoryLabelMap, isKnownQuizCategory, resolveCategoryLabel } from '@/services/resultCalculator';
 import type { CatalogResponsibilityCard, FamilyResponsibilityCard, ResponsibilityCatalogLanguage } from '@/types/responsibility-cards';
 import type { QuizCategory } from '@/types/quiz';
@@ -53,7 +53,7 @@ export function FamilyCategoryView({ familyId, userId, language }: FamilyCategor
     return familyCards.filter((card) => card.categoryKey === catalogCategory);
   }, [catalogCategory, familyCards]);
 
-  useEffect(() => observeFamilyCards(
+  useEffect(() => listenToFamilyCards(
     familyId,
     (cards) => {
       setFamilyCards(cards);

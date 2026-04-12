@@ -42,6 +42,12 @@ function mapFamilyCard(id: string, payload: Record<string, unknown>): FamilyResp
   };
 }
 
+function byCreatedAtDesc(left: FamilyResponsibilityCard, right: FamilyResponsibilityCard) {
+  const leftMillis = left.createdAt?.toMillis?.() ?? 0;
+  const rightMillis = right.createdAt?.toMillis?.() ?? 0;
+  return rightMillis - leftMillis;
+}
+
 export async function getFamilyCards(familyId: string, categoryKey: string) {
   const cardsQuery = query(
     familyCardsCollection(familyId),
@@ -49,7 +55,36 @@ export async function getFamilyCards(familyId: string, categoryKey: string) {
     where('isArchived', '==', false),
   );
   const snapshot = await getDocs(cardsQuery);
-  return snapshot.docs.map((item) => mapFamilyCard(item.id, item.data() as Record<string, unknown>));
+  return snapshot.docs.map((item) => mapFamilyCard(item.id, item.data() as Record<string, unknown>)).sort(byCreatedAtDesc);
+}
+
+export async function getAllFamilyCards(familyId: string) {
+  const cardsQuery = query(
+    familyCardsCollection(familyId),
+    where('isArchived', '==', false),
+  );
+  const snapshot = await getDocs(cardsQuery);
+  return snapshot.docs.map((item) => mapFamilyCard(item.id, item.data() as Record<string, unknown>)).sort(byCreatedAtDesc);
+}
+
+export function listenToFamilyCards(
+  familyId: string,
+  onChange: (cards: FamilyResponsibilityCard[]) => void,
+  onError?: (error: Error) => void,
+) {
+  const cardsQuery = query(
+    familyCardsCollection(familyId),
+    where('isArchived', '==', false),
+  );
+
+  return onSnapshot(cardsQuery, (snapshot) => {
+    const cards = snapshot.docs
+      .map((item) => mapFamilyCard(item.id, item.data() as Record<string, unknown>))
+      .sort(byCreatedAtDesc);
+    onChange(cards);
+  }, (error) => {
+    onError?.(error);
+  });
 }
 
 
