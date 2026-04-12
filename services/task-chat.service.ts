@@ -2,16 +2,32 @@
 
 import type { TaskThreadDetailResponse, TaskThreadListItem } from '@/types/task-chat';
 
+function logTaskChatClientDebug(event: string, context: Record<string, unknown>) {
+  if (process.env.NODE_ENV === 'production') return;
+  console.info(`[task-chat-client] ${event}`, context);
+}
+
 async function parseJson<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => null) as T | { error?: string } | null;
   if (!response.ok) {
+    logTaskChatClientDebug('fetch.error', {
+      endpoint: response.url,
+      status: response.status,
+      payload,
+    });
     throw new Error((payload as { error?: string } | null)?.error || 'Aktion konnte nicht ausgeführt werden.');
   }
+  logTaskChatClientDebug('fetch.success', {
+    endpoint: response.url,
+    status: response.status,
+  });
   return payload as T;
 }
 
 export async function fetchTaskThreads(scope: 'inbox' | 'threads') {
-  const response = await fetch(`/api/task-threads?scope=${scope === 'inbox' ? 'inbox' : 'all'}`, { credentials: 'same-origin' });
+  const endpoint = `/api/task-threads?scope=${scope === 'inbox' ? 'inbox' : 'all'}`;
+  logTaskChatClientDebug('fetch.start', { endpoint, scope, tab: 'chats' });
+  const response = await fetch(endpoint, { credentials: 'same-origin' });
   return parseJson<{ threads: TaskThreadListItem[] }>(response);
 }
 

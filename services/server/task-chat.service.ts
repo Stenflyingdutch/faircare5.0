@@ -36,6 +36,12 @@ function resolveFirestoreErrorMessage(error: unknown): string {
   return typeof maybeMessage === 'string' ? maybeMessage : String(error);
 }
 
+function resolveErrorStack(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const maybeStack = (error as { stack?: unknown }).stack;
+  return typeof maybeStack === 'string' ? maybeStack : null;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -107,6 +113,64 @@ function toLegacyMessage(message: TaskThreadMessageDocument): TaskThreadMessageD
       : (message.systemEventType === 'task_info' ? 'systemInfo' : 'systemDelegation'),
     meta: message.metadata ?? null,
   };
+}
+
+function toComparableTime(value: string | null | undefined) {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function sortByLastMessageAtDesc<T extends { lastMessageAt?: string | null }>(rows: T[]) {
+  return [...rows].sort((a, b) => toComparableTime(b.lastMessageAt) - toComparableTime(a.lastMessageAt));
+}
+
+async function loadInboxSnapshot(familyId: string, userId: string) {
+  try {
+    return await inboxEntriesCollection(familyId, userId)
+      .where('isOpen', '==', true)
+      .orderBy('lastMessageAt', 'desc')
+      .get();
+  } catch (error) {
+    const code = resolveFirestoreErrorCode(error);
+    if (code !== 'failed-precondition') {
+      throw error;
+    }
+    logTaskChatDebug('loadInbox.retryWithoutOrderBy', {
+      familyId,
+      userId,
+      code,
+      message: resolveFirestoreErrorMessage(error),
+      stack: resolveErrorStack(error),
+    });
+    return inboxEntriesCollection(familyId, userId)
+      .where('isOpen', '==', true)
+      .get();
+  }
+}
+
+async function loadThreadsSnapshot(familyId: string, userId: string) {
+  try {
+    return await taskThreadsCollection(familyId)
+      .where('participantUserIds', 'array-contains', userId)
+      .orderBy('lastMessageAt', 'desc')
+      .get();
+  } catch (error) {
+    const code = resolveFirestoreErrorCode(error);
+    if (code !== 'failed-precondition') {
+      throw error;
+    }
+    logTaskChatDebug('loadThreads.retryWithoutOrderBy', {
+      familyId,
+      userId,
+      code,
+      message: resolveFirestoreErrorMessage(error),
+      stack: resolveErrorStack(error),
+    });
+    return taskThreadsCollection(familyId)
+      .where('participantUserIds', 'array-contains', userId)
+      .get();
+  }
 }
 
 async function recomputeUiSummary(familyId: string, userId: string) {
@@ -446,28 +510,22 @@ export async function createDelegationSystemMessage(params: {
 async function readThreadList(params: { familyId: string; userId: string; inboxOnly: boolean }) {
   logTaskChatDebug(params.inboxOnly ? 'loadInbox.start' : 'loadThreads.start', params);
   if (params.inboxOnly) {
-    const inboxSnapshot = await inboxEntriesCollection(params.familyId, params.userId)
-      .where('isOpen', '==', true)
-      .orderBy('lastMessageAt', 'desc')
-      .get();
+    const inboxSnapshot = await loadInboxSnapshot(params.familyId, params.userId);
 
     const conversations = await Promise.all(inboxSnapshot.docs.map((entry) => taskThreadsCollection(params.familyId).doc(entry.id).get()));
-    const rows = conversations
+    const rows = sortByLastMessageAtDesc(conversations
       .filter((snap) => snap.exists)
       .map((snap) => {
         const conversation = snap.data() as TaskConversationDocument;
         const inbox = inboxSnapshot.docs.find((entry) => entry.id === snap.id)?.data() as TaskInboxEntryDocument | undefined;
         return toLegacyThreadListItem(conversation, conversation.taskTitleSnapshot, inbox?.isUnread ? 1 : 0);
-      });
+      }));
 
     logTaskChatDebug('loadInbox.snapshot', { ...params, size: rows.length });
     return rows;
   }
 
-  const snapshot = await taskThreadsCollection(params.familyId)
-    .where('participantUserIds', 'array-contains', params.userId)
-    .orderBy('lastMessageAt', 'desc')
-    .get();
+  const snapshot = await loadThreadsSnapshot(params.familyId, params.userId);
 
   const stateSnapshot = await conversationStatesCollection(params.familyId, params.userId).get();
   const unreadByTaskId = new Map<string, number>();
@@ -476,14 +534,14 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
     unreadByTaskId.set(entry.id, state.unreadCount ?? 0);
   });
 
-  const rows = snapshot.docs.map((entry) => {
+  const rows = sortByLastMessageAtDesc(snapshot.docs.map((entry) => {
     const conversation = entry.data() as TaskConversationDocument;
     return toLegacyThreadListItem(
       conversation,
       conversation.taskTitleSnapshot,
       unreadByTaskId.get(conversation.taskId) ?? 0,
     );
-  });
+  }));
   logTaskChatDebug('loadThreads.snapshot', { ...params, size: rows.length });
   return rows;
 }
