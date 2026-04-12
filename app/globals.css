@@ -569,6 +569,34 @@ textarea.input {
   flex-wrap: wrap;
 }
 
+.home-section-divider {
+  margin: 10px 0 14px;
+  border: 0;
+  border-top: 1px solid var(--color-border-soft);
+}
+
+.home-responsibility-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.home-responsibility-title {
+  margin: 0;
+  font-size: clamp(1.8rem, 6vw, 2.15rem);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.home-sort-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 .home-sort-toggle {
   display: inline-flex;
   gap: 8px;
@@ -927,6 +955,10 @@ textarea.input {
   .home-sort-toggle {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .home-sort-row {
+    justify-content: stretch;
   }
 
   .home-sort-toggle-button {

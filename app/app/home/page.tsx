@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { HomeHeader } from '@/components/home/HomeHeader';
-import { CategoryFilterButtons } from '@/components/home/CategoryFilterButtons';
 import { ResponsibilityCard } from '@/components/home/ResponsibilityCard';
 import { ResponsibilityCardDetails } from '@/components/home/ResponsibilityCardDetails';
 import { ResponsibilityTaskSection } from '@/components/home/ResponsibilityTaskSection';
@@ -24,9 +23,7 @@ import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
-  extractRelevantCategories,
   listenToResponsibilitiesForUser,
-  sortCategoriesByRelevance,
   sortResponsibilities,
   updateResponsibilityPriority,
   type Responsibility,
@@ -35,7 +32,6 @@ import {
 import { addDays, buildWeek, formatDateLabel, isToday, startOfWeek, toDateKey } from '@/services/task-date';
 import { createTask, fetchTaskOverview, saveTaskDelegation } from '@/services/tasks.service';
 import { isSuperuserProfile } from '@/services/user-profile.service';
-import type { QuizCategory } from '@/types/quiz';
 import type { TaskOverviewItem } from '@/types/tasks';
 
 type SortMode = 'relevance' | 'area';
@@ -95,7 +91,6 @@ export default function PersonalHomePage() {
   const today = useMemo(() => toDateKey(new Date()), []);
   const [userFirstName, setUserFirstName] = useState('');
   const [responsibilities, setResponsibilities] = useState<Responsibility[]>([]);
-  const [activeFilter, setActiveFilter] = useState<QuizCategory | 'all' | null>('all');
   const [sortMode, setSortMode] = useState<SortMode>('relevance');
   const [orderedResponsibilityIds, setOrderedResponsibilityIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -196,11 +191,6 @@ export default function PersonalHomePage() {
     };
   }, [isSuperuser, selectedDate, taskRefreshNonce, userId]);
 
-  const relevantCategories = useMemo(
-    () => sortCategoriesByRelevance(extractRelevantCategories(responsibilities), responsibilities),
-    [responsibilities],
-  );
-
   useEffect(() => {
     if (isLoading) return;
 
@@ -235,11 +225,6 @@ export default function PersonalHomePage() {
       .filter((item): item is Responsibility => Boolean(item)),
     [orderedResponsibilityIds, responsibilityMap],
   );
-
-  const filteredResponsibilities = useMemo(() => {
-    if (activeFilter === 'all' || !activeFilter) return sortedResponsibilities;
-    return sortedResponsibilities.filter((item) => item.categoryKey === activeFilter);
-  }, [sortedResponsibilities, activeFilter]);
 
   const responsibilityTasksByCard = useMemo(() => responsibilityTasks.reduce<Map<string, TaskOverviewItem[]>>((map, task) => {
     if (!task.responsibilityId) return map;
@@ -437,23 +422,23 @@ export default function PersonalHomePage() {
           </>
         ) : null}
 
-        <CategoryFilterButtons
-          categories={relevantCategories}
-          activeCategory={activeFilter}
-          onSelect={(category) => setActiveFilter(category)}
-        />
+        <hr className="home-section-divider" />
 
-        <div className="home-toolbar-row">
+        <div className="home-responsibility-heading">
+          <h2 className="home-responsibility-title">Verantwortlichkeiten</h2>
           <p className="caption" style={{ margin: 0, color: 'var(--color-text-secondary)' }}>
-            {filteredResponsibilities.length} {filteredResponsibilities.length === 1 ? 'Verantwortung' : 'Verantwortungen'}
+            {sortedResponsibilities.length} {sortedResponsibilities.length === 1 ? 'Verantwortung' : 'Verantwortungen'}
           </p>
+        </div>
+
+        <div className="home-sort-row">
           <SortToggle sortMode={sortMode} onChange={setSortMode} />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {isLoading ? (
             Array.from({ length: 3 }).map((_, index) => <SkeletonCategoryCard key={index} />)
-          ) : filteredResponsibilities.length === 0 ? (
+          ) : sortedResponsibilities.length === 0 ? (
             <div style={{ padding: '24px', borderRadius: 'var(--radius-card)', backgroundColor: 'var(--color-surface)', boxShadow: 'var(--shadow-card)' }}>
               <h2 className="h2" style={{ margin: 0 }}>Du hast aktuell keine Verantwortungen</h2>
               <p className="body" style={{ margin: '12px 0 0 0', color: 'var(--color-text-secondary)' }}>
@@ -461,7 +446,7 @@ export default function PersonalHomePage() {
               </p>
             </div>
           ) : (
-            filteredResponsibilities.map((responsibility) => {
+            sortedResponsibilities.map((responsibility) => {
               const cardTasks = responsibilityTasksByCard.get(responsibility.id) ?? [];
               const isExpanded = expandedTaskSections[responsibility.id] ?? false;
 
