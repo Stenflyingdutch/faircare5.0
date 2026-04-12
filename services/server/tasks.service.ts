@@ -221,6 +221,24 @@ async function readFamilyTaskOverrides(familyId: string) {
   return snapshot.docs.map((entry) => ({ ...(entry.data() as TaskOverrideDocument), id: entry.id }));
 }
 
+async function syncTaskVisibilityAfterDelegationChange(context: TaskContext, task: TaskDocument) {
+  const remainingDelegationsSnapshot = await taskDelegationsCollection(context.familyId).where('taskId', '==', task.id).limit(1).get();
+  if (!remainingDelegationsSnapshot.empty) {
+    return;
+  }
+
+  const creatorId = task.creatorUserId ?? task.createdByUserId ?? context.userId;
+  await tasksCollection(context.familyId).doc(task.id).set({
+    delegatedToUserId: null,
+    delegatedByUserId: null,
+    delegatedAt: null,
+    visibilityMode: 'private',
+    visibleToUserIds: [creatorId],
+    unreadForUserIds: [],
+    updatedAt: nowIso(),
+  } satisfies Partial<TaskDocument>, { merge: true });
+}
+
 function groupDelegationsByTask(delegations: TaskDelegationDocument[]) {
   return delegations.reduce<Map<string, TaskDelegationDocument[]>>((map, delegation) => {
     const bucket = map.get(delegation.taskId) ?? [];
@@ -603,6 +621,7 @@ export async function clearTaskDelegationsForUser(userId: string, taskId: string
     const batch = adminDb.batch();
     snapshot.docs.forEach((entry) => batch.delete(entry.ref));
     await batch.commit();
+    await syncTaskVisibilityAfterDelegationChange(context, task);
     return;
   }
 
@@ -617,6 +636,7 @@ export async function clearTaskDelegationsForUser(userId: string, taskId: string
     if (snapshot.exists) {
       await delegationRef.delete();
     }
+    await syncTaskVisibilityAfterDelegationChange(context, task);
     return;
   }
 
@@ -625,6 +645,7 @@ export async function clearTaskDelegationsForUser(userId: string, taskId: string
   if (recurringSnapshot.exists) {
     await recurringRef.delete();
   }
+  await syncTaskVisibilityAfterDelegationChange(context, task);
 }
 
 

@@ -18,6 +18,8 @@ test('home page mounts weekly strip and selected-day task section for superusers
   assert.match(homePage, /isSuperuserProfile/);
   assert.match(homePage, /Für diesen Tag gibt es noch keine Aufgaben\./);
   assert.match(homePage, /responsibility-task-add-button/);
+  assert.match(homePage, /Möchtest Du die Aufgabe zurücknehmen\?/);
+  assert.match(homePage, /onReclaimDelegation/);
 });
 
 test('weekly strip is a custom seven-day component with arrows and range title', () => {

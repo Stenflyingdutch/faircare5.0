@@ -26,6 +26,8 @@ test('task server access is tied to superuser + selected-date resolver', () => {
   assert.match(service, /if \(!isSuperuserProfile\(profile\)\)/);
   assert.match(service, /export async function getTasksForSelectedDate/);
   assert.match(service, /export async function getTaskOverviewForSelectedDate/);
+  assert.match(service, /syncTaskVisibilityAfterDelegationChange/);
+  assert.match(service, /visibilityMode: 'private'/);
   assert.match(route, /getTaskOverviewForSelectedDate/);
   assert.match(route, /SESSION_COOKIE_NAME/);
   assert.match(taskChatService, /collection\('conversationStates'\)/);

@@ -26,6 +26,7 @@ export function TaskListItem({
   selectedDate,
   onEdit,
   onChat,
+  onReclaimDelegation,
   onToggleStatus,
   onSwipeRight,
   onSwipeLeft,
@@ -36,6 +37,7 @@ export function TaskListItem({
   selectedDate: string;
   onEdit: () => void;
   onChat?: () => void;
+  onReclaimDelegation?: () => void;
   onToggleStatus?: () => void;
   onSwipeRight?: () => void;
   onSwipeLeft?: () => void;
@@ -54,6 +56,7 @@ export function TaskListItem({
   const canToggleStatus = (task.recurrenceType === 'none'
     ? task.selectedDate === selectedDate
     : task.isDueOnSelectedDate) && canEditTask;
+  const canRequestDelegationReclaim = isDelegatedAwayFromCurrentUser && Boolean(onReclaimDelegation);
   const chips: Array<{ key: string; label: string; variant?: 'delegated' | 'new' | 'series' }> = [];
 
   if (task.recurrenceType !== 'none') {
@@ -79,10 +82,15 @@ export function TaskListItem({
 
     if (canToggleStatus) {
       onToggleStatus?.();
+      return;
+    }
+
+    if (canRequestDelegationReclaim) {
+      onReclaimDelegation?.();
     }
   };
 
-  const isInteractive = canToggleStatus;
+  const isInteractive = canToggleStatus || canRequestDelegationReclaim;
 
   const swipeIntensity = Math.min(Math.abs(swipeOffset) / 120, 1);
 

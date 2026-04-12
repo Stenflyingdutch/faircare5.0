@@ -26,6 +26,7 @@ export function ResponsibilityTaskSection({
   isExpanded,
   onEditTask,
   onChatTask,
+  onReclaimDelegation,
   onSwipeTaskDelete,
   onSwipeTaskDelegate,
   onToggle,
@@ -39,6 +40,7 @@ export function ResponsibilityTaskSection({
   isExpanded: boolean;
   onEditTask: (task: TaskOverviewItem) => void;
   onChatTask?: (task: TaskOverviewItem) => void;
+  onReclaimDelegation?: (task: TaskOverviewItem) => void;
   onSwipeTaskDelete?: (task: TaskOverviewItem) => void;
   onSwipeTaskDelegate?: (task: TaskOverviewItem) => void;
   onToggle: () => void;
@@ -74,6 +76,7 @@ export function ResponsibilityTaskSection({
                   selectedDate={selectedDate}
                   onEdit={() => onEditTask(task)}
                   onChat={onChatTask ? () => onChatTask(task) : undefined}
+                  onReclaimDelegation={onReclaimDelegation ? () => onReclaimDelegation(task) : undefined}
                   onToggleStatus={() => onToggleTaskStatus(task)}
                   onSwipeLeft={() => onSwipeTaskDelegate?.(task)}
                   onSwipeRight={() => onSwipeTaskDelete?.(task)}
