@@ -2880,6 +2880,12 @@ textarea.input {
   gap: 8px;
 }
 
+.task-single-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
 .task-segment {
   min-height: 46px;
   border-radius: 16px;
@@ -2942,6 +2948,37 @@ textarea.input {
 .task-scope-option span {
   color: var(--color-text-secondary);
   font-size: 0.9rem;
+}
+
+.task-undo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 1200;
+  min-width: min(92vw, 360px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(207, 215, 224, 0.95);
+  background: rgba(33, 41, 52, 0.94);
+  color: #f7fafc;
+  box-shadow: 0 12px 30px rgba(17, 24, 39, 0.3);
+}
+
+.task-undo-toast-button {
+  border: 1px solid rgba(146, 202, 255, 0.95);
+  background: rgba(169, 220, 255, 0.2);
+  color: #d1ebff;
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .task-primary-button,

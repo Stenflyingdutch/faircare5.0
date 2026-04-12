@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+
 import { getTaskTimingLabel } from '@/services/tasks.logic';
 import type { TaskOverviewItem } from '@/types/tasks';
 
@@ -15,12 +17,18 @@ export function TaskListItem({
   selectedDate,
   onEdit,
   onToggleStatus,
+  onSwipeRight,
+  onSwipeLeft,
 }: {
   task: TaskOverviewItem;
   selectedDate: string;
   onEdit: () => void;
   onToggleStatus?: () => void;
+  onSwipeRight?: () => void;
+  onSwipeLeft?: () => void;
 }) {
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const skipClickRef = useRef(false);
   const canToggleStatus = !task.isDelegated && (task.recurrenceType === 'none'
     ? task.selectedDate === selectedDate
     : task.isDueOnSelectedDate);
@@ -31,6 +39,11 @@ export function TaskListItem({
   }
 
   const handleRowClick = () => {
+    if (skipClickRef.current) {
+      skipClickRef.current = false;
+      return;
+    }
+
     if (task.isDelegated) {
       onEdit();
       return;
@@ -55,6 +68,26 @@ export function TaskListItem({
           handleRowClick();
         }
       } : undefined}
+      onTouchStart={(event) => {
+        const touch = event.touches[0];
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+      }}
+      onTouchEnd={(event) => {
+        if (!touchStartRef.current) return;
+        const touch = event.changedTouches[0];
+        const deltaX = touch.clientX - touchStartRef.current.x;
+        const deltaY = touch.clientY - touchStartRef.current.y;
+        touchStartRef.current = null;
+
+        if (Math.abs(deltaY) > 50 || Math.abs(deltaX) < 70) return;
+
+        skipClickRef.current = true;
+        if (deltaX > 0) {
+          onSwipeRight?.();
+          return;
+        }
+        onSwipeLeft?.();
+      }}
     >
       <div className="task-row-copy">
         <strong className={`task-row-title ${task.isCompleted ? 'is-completed' : ''}`}>
