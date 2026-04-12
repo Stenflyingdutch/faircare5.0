@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import type { Responsibility, ResponsibilityPriority } from '@/services/responsibilities.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
@@ -43,7 +44,19 @@ export function ResponsibilityCardDetails({
   mode,
   isExpanded,
   onClose,
+  onSave,
+  onDelete,
 }: ResponsibilityCardDetailsProps) {
+  const [titleDraft, setTitleDraft] = useState(responsibility.title);
+  const [noteDraft, setNoteDraft] = useState(responsibility.note ?? '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isExpanded) return;
+    setTitleDraft(responsibility.title);
+    setNoteDraft(responsibility.note ?? '');
+  }, [isExpanded, responsibility.title, responsibility.note]);
+
   if (!isExpanded) return null;
 
   const categoryLabel = categoryLabelMap[responsibility.categoryKey] || responsibility.categoryKey;
@@ -85,36 +98,79 @@ export function ResponsibilityCardDetails({
           <label className="responsibility-details-label">
             Titel
           </label>
-          <div
+          <input
             className="responsibility-details-value"
             style={{
               border: mode === 'start' && responsibility.priority === 'act' ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(47, 111, 109, 0.12)',
               backgroundColor: mode === 'start' && responsibility.priority === 'act' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.42)',
             }}
-          >
-            {responsibility.title}
-          </div>
+            value={titleDraft}
+            onChange={(event) => setTitleDraft(event.target.value)}
+            readOnly={mode === 'start'}
+          />
         </div>
 
         <div className="responsibility-details-section">
           <label className="responsibility-details-label">
             Details
           </label>
-          <div
+          <textarea
             className="responsibility-details-value responsibility-details-value--multiline"
             style={{
               border: mode === 'start' && responsibility.priority === 'act' ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(47, 111, 109, 0.12)',
               backgroundColor: mode === 'start' && responsibility.priority === 'act' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.42)',
             }}
-          >
-            {responsibility.note || 'Keine weiteren Details hinterlegt.'}
-          </div>
+            value={noteDraft}
+            placeholder="Keine weiteren Details hinterlegt."
+            onChange={(event) => setNoteDraft(event.target.value)}
+            readOnly={mode === 'start'}
+            rows={5}
+          />
         </div>
 
         <div className="responsibility-details-actions">
+          {mode === 'assign' && onSave ? (
+            <button
+              type="button"
+              onClick={async () => {
+                setIsSaving(true);
+                try {
+                  await onSave(titleDraft, noteDraft);
+                  onClose();
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+              disabled={isSaving}
+              className="responsibility-details-action"
+              style={{
+                border: '1px solid rgba(47, 111, 109, 0.16)',
+                backgroundColor: 'rgba(255,255,255,0.8)',
+                color: popupVisual.text,
+              }}
+            >
+              Speichern
+            </button>
+          ) : null}
+          {mode === 'assign' && onDelete ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={isSaving}
+              className="responsibility-details-action"
+              style={{
+                border: '1px solid rgba(178, 48, 48, 0.35)',
+                backgroundColor: 'rgba(255,255,255,0.9)',
+                color: '#8b1f1f',
+              }}
+            >
+              Löschen
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onClose}
+            disabled={isSaving}
             className="responsibility-details-action"
             style={{
               border: mode === 'start' && responsibility.priority === 'act' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(47, 111, 109, 0.16)',
