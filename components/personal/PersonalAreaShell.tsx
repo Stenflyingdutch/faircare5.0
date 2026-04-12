@@ -127,7 +127,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
         }));
         setPartnerCompleted(Boolean(bundle.family?.partnerCompleted));
         const unreadSummary = await fetchExchangeUnreadSummary().catch(() => null);
-        setExchangeBadgeCount(unreadSummary?.total ?? 0);
+        setExchangeBadgeCount(unreadSummary?.unreadChatCount ?? 0);
         setIsReady(true);
         setLoadError(null);
         logSignupInfo('personal_shell_ready', {
