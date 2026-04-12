@@ -10,7 +10,9 @@ import {
   extractRelevantCategories,
   sortCategoriesByRelevance,
   sortResponsibilities,
+  softDeleteResponsibility,
   updateResponsibilityAssignment,
+  updateResponsibilityMeta,
   type Responsibility,
   type ResponsibilityOwner,
 } from '@/services/responsibilities.service';
@@ -111,14 +113,23 @@ export default function Aufteilen() {
   };
 
   const handleDeleteCard = async (responsibility: Responsibility) => {
-    // TODO: Implement actual deletion
-    console.log('Delete responsibility:', responsibility.id);
-    setDeleteConfirmationCardId(null);
+    if (!familyId || !userId) return;
+    try {
+      await softDeleteResponsibility(familyId, responsibility.id, userId);
+      setExpandedCardId(null);
+      setDeleteConfirmationCardId(null);
+    } catch (error) {
+      console.error('Failed to delete responsibility:', error);
+    }
   };
 
   const handleSaveCard = async (responsibilityId: string, title: string, note: string) => {
-    // TODO: Implement save logic
-    console.log('Save responsibility:', { responsibilityId, title, note });
+    if (!familyId || !userId) return;
+    try {
+      await updateResponsibilityMeta(familyId, responsibilityId, { title, note }, userId);
+    } catch (error) {
+      console.error('Failed to save responsibility:', error);
+    }
   };
 
   const expandedResponsibility = expandedCardId ? responsibilities.find((r) => r.id === expandedCardId) : undefined;
