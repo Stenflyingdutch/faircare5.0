@@ -1,103 +1,137 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CatalogViewModal } from '@/components/responsibilities/CatalogViewModal';
-import { ResponsibilityHeaderActions } from '@/components/responsibilities/ResponsibilityHeaderActions';
+import { FamilyCardFormModal } from '@/components/responsibilities/FamilyCardFormModal';
+import { FamilyCategorySection } from '@/components/responsibilities/FamilyCategorySection';
 import { getCatalogCards } from '@/services/catalog.service';
-import { createCustomCard, getFamilyCards } from '@/services/familyResponsibility.service';
+import { createCustomCard, observeFamilyCards } from '@/services/familyResponsibility.service';
+import { categoryLabelMap, isKnownQuizCategory, resolveCategoryLabel } from '@/services/resultCalculator';
 import type { CatalogResponsibilityCard, FamilyResponsibilityCard, ResponsibilityCatalogLanguage } from '@/types/responsibility-cards';
+import type { QuizCategory } from '@/types/quiz';
 
 interface FamilyCategoryViewProps {
   familyId: string;
   userId: string;
-  categoryKey: string;
   language: ResponsibilityCatalogLanguage;
 }
 
-export function FamilyCategoryView({ familyId, userId, categoryKey, language }: FamilyCategoryViewProps) {
+export function FamilyCategoryView({ familyId, userId, language }: FamilyCategoryViewProps) {
   const [familyCards, setFamilyCards] = useState<FamilyResponsibilityCard[]>([]);
-  const [catalogCards, setCatalogCards] = useState<CatalogResponsibilityCard[]>([]);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
-  const [newCardTitle, setNewCardTitle] = useState('');
-  const [newCardDescription, setNewCardDescription] = useState('');
+  const [catalogCards, setCatalogCards] = useState<CatalogResponsibilityCard[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogCategory, setCatalogCategory] = useState<QuizCategory | null>(null);
+  const [createCategory, setCreateCategory] = useState<QuizCategory | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const reloadFamilyCards = useCallback(async () => {
-    const cards = await getFamilyCards(familyId, categoryKey);
-    setFamilyCards(cards);
-  }, [familyId, categoryKey]);
+  const categoryKeys = useMemo(() => Object.keys(categoryLabelMap) as QuizCategory[], []);
 
-  const reloadCatalogCards = useCallback(async () => {
-    const cards = await getCatalogCards(categoryKey, language);
-    setCatalogCards(cards);
-  }, [categoryKey, language]);
+  const groupedCards = useMemo(() => {
+    const grouped = new Map<QuizCategory, FamilyResponsibilityCard[]>();
+    categoryKeys.forEach((categoryKey) => grouped.set(categoryKey, []));
 
-  useEffect(() => {
-    void reloadFamilyCards();
-    void reloadCatalogCards();
-  }, [reloadCatalogCards, reloadFamilyCards]);
+    familyCards
+      .filter((card) => isKnownQuizCategory(card.categoryKey))
+      .forEach((card) => {
+        const category = card.categoryKey as QuizCategory;
+        const cards = grouped.get(category) ?? [];
+        cards.push(card);
+        grouped.set(category, cards);
+      });
 
-  async function handleCreateCard() {
-    if (!newCardTitle.trim()) return;
-    await createCustomCard(familyId, categoryKey, newCardTitle, newCardDescription, userId);
-    setNewCardTitle('');
-    setNewCardDescription('');
-    await reloadFamilyCards();
+    return [...grouped.entries()]
+      .map(([categoryKey, cards]) => ({ categoryKey, cards }))
+      .sort((left, right) => resolveCategoryLabel(left.categoryKey).localeCompare(resolveCategoryLabel(right.categoryKey)));
+  }, [familyCards, categoryKeys]);
+
+  const activeFamilyCardsForCatalog = useMemo(() => {
+    if (!catalogCategory) return [];
+    return familyCards.filter((card) => card.categoryKey === catalogCategory);
+  }, [catalogCategory, familyCards]);
+
+  useEffect(() => observeFamilyCards(
+    familyId,
+    (cards) => {
+      setFamilyCards(cards);
+      setLoadError(null);
+    },
+    () => {
+      setLoadError('Die Familien-Karten konnten gerade nicht geladen werden. Bitte versuche es erneut.');
+    },
+  ), [familyId]);
+
+  const openCatalog = useCallback(async (categoryKey: QuizCategory) => {
+    setCatalogCategory(categoryKey);
+    setCatalogCards([]);
+    setCatalogError(null);
+    setCatalogLoading(true);
+    setIsCatalogOpen(true);
+
+    try {
+      const cards = await getCatalogCards(categoryKey, language);
+      setCatalogCards(cards);
+    } catch {
+      setCatalogError('Der Katalog konnte gerade nicht geladen werden. Bitte versuche es erneut.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, [language]);
+
+  async function handleCreate(payload: { title: string; description: string }) {
+    if (!createCategory) return;
+
+    setIsCreating(true);
+    try {
+      await createCustomCard(familyId, createCategory, payload.title, payload.description, userId);
+      setCreateCategory(null);
+    } finally {
+      setIsCreating(false);
+    }
   }
 
   return (
-    <section className="stack-md">
-      <header className="row between center">
-        <div>
-          <h2>{categoryKey}</h2>
-          <p className="helper">{familyCards.length} Karten</p>
-        </div>
-        <ResponsibilityHeaderActions onOpenCatalog={() => setIsCatalogOpen(true)} onCreateCard={handleCreateCard} />
-      </header>
-
-      {familyCards.length === 0 ? (
-        <div className="card-surface stack-sm">
-          <p>Hier sind noch keine Verantwortungsgebiete in eurer Liste.</p>
-          <ResponsibilityHeaderActions
-            onOpenCatalog={() => setIsCatalogOpen(true)}
-            onCreateCard={handleCreateCard}
-            catalogLabel="Katalog öffnen"
-          />
-        </div>
-      ) : (
-        <div className="stack-sm">
-          {familyCards.map((card) => (
-            <article key={card.id} className="card-surface stack-xs">
-              <strong>{card.title}</strong>
-              <p>{card.description}</p>
-              <p className="helper">Status: {card.status} · Fokus: {card.focusState ?? '–'}</p>
-            </article>
-          ))}
-        </div>
-      )}
-
-      <div className="stack-xs">
-        <input
-          value={newCardTitle}
-          onChange={(event) => setNewCardTitle(event.target.value)}
-          placeholder="Titel"
+    <section className="stack">
+      {groupedCards.map((group) => (
+        <FamilyCategorySection
+          key={group.categoryKey}
+          categoryKey={group.categoryKey}
+          cards={group.cards}
+          onOpenCatalog={() => void openCatalog(group.categoryKey)}
+          onCreateCard={() => setCreateCategory(group.categoryKey)}
         />
-        <textarea
-          value={newCardDescription}
-          onChange={(event) => setNewCardDescription(event.target.value)}
-          placeholder="Beschreibung"
-        />
-      </div>
+      ))}
 
       <CatalogViewModal
         isOpen={isCatalogOpen}
-        onClose={() => setIsCatalogOpen(false)}
+        onClose={() => {
+          setIsCatalogOpen(false);
+          setCatalogCategory(null);
+          setCatalogCards([]);
+          setCatalogError(null);
+        }}
         familyId={familyId}
         userId={userId}
+        categoryKey={catalogCategory}
+        isLoading={catalogLoading}
+        error={catalogError}
         catalogCards={catalogCards}
-        familyCards={familyCards}
-        onImported={reloadFamilyCards}
+        familyCards={activeFamilyCardsForCatalog}
+        onImported={async () => undefined}
       />
+
+      <FamilyCardFormModal
+        isOpen={Boolean(createCategory)}
+        categoryKey={createCategory}
+        isSaving={isCreating}
+        onClose={() => setCreateCategory(null)}
+        onSubmit={handleCreate}
+      />
+
+      {loadError ? <p className="inline-error">{loadError}</p> : null}
     </section>
   );
 }

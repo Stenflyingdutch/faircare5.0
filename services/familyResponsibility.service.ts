@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   getDocs,
+  onSnapshot,
   query,
   serverTimestamp,
   where,
@@ -51,6 +52,25 @@ export async function getFamilyCards(familyId: string, categoryKey: string) {
   return snapshot.docs.map((item) => mapFamilyCard(item.id, item.data() as Record<string, unknown>));
 }
 
+
+export function observeFamilyCards(
+  familyId: string,
+  onData: (cards: FamilyResponsibilityCard[]) => void,
+  onError?: () => void,
+) {
+  const cardsQuery = query(
+    familyCardsCollection(familyId),
+    where('isArchived', '==', false),
+  );
+
+  return onSnapshot(
+    cardsQuery,
+    (snapshot) => {
+      onData(snapshot.docs.map((item) => mapFamilyCard(item.id, item.data() as Record<string, unknown>)));
+    },
+    () => onError?.(),
+  );
+}
 export async function createCustomCard(
   familyId: string,
   categoryKey: string,
