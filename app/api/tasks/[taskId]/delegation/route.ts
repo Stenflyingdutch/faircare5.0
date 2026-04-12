@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { SESSION_COOKIE_NAME } from '@/lib/admin-auth';
-import { clearTaskDelegationsForUser, getTaskContextFromSessionCookie, saveTaskDelegationForUser, TaskAccessError } from '@/services/server/tasks.service';
+import { clearTaskDelegationsForUser, delegateTask, getTaskContextFromSessionCookie, TaskAccessError } from '@/services/server/tasks.service';
 import type { SaveTaskDelegationInput } from '@/types/tasks';
 
 export async function POST(request: NextRequest, context: { params: Promise<{ taskId: string }> }) {
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ta
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const taskContext = await getTaskContextFromSessionCookie(sessionCookie);
     const { taskId } = await context.params;
-    const delegation = await saveTaskDelegationForUser(taskContext.userId, taskId, body);
+    const delegation = await delegateTask(taskContext.userId, taskId, body);
     return NextResponse.json({ delegation });
   } catch (error) {
     if (error instanceof TaskAccessError) {
