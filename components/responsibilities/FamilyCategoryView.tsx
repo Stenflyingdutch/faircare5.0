@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { CatalogViewModal } from '@/components/responsibilities/CatalogViewModal';
+import { ResponsibilityHeaderActions } from '@/components/responsibilities/ResponsibilityHeaderActions';
 import { getCatalogCards } from '@/services/catalog.service';
 import { createCustomCard, getFamilyCards } from '@/services/familyResponsibility.service';
 import type { CatalogResponsibilityCard, FamilyResponsibilityCard, ResponsibilityCatalogLanguage } from '@/types/responsibility-cards';
@@ -51,19 +52,17 @@ export function FamilyCategoryView({ familyId, userId, categoryKey, language }: 
           <h2>{categoryKey}</h2>
           <p className="helper">{familyCards.length} Karten</p>
         </div>
-        <div className="row gap-sm">
-          <button type="button" className="btn-secondary" onClick={() => setIsCatalogOpen(true)}>Katalog</button>
-          <button type="button" className="btn-primary" onClick={handleCreateCard}>Neue Karte</button>
-        </div>
+        <ResponsibilityHeaderActions onOpenCatalog={() => setIsCatalogOpen(true)} onCreateCard={handleCreateCard} />
       </header>
 
       {familyCards.length === 0 ? (
         <div className="card-surface stack-sm">
           <p>Hier sind noch keine Verantwortungsgebiete in eurer Liste.</p>
-          <div className="row gap-sm">
-            <button type="button" className="btn-secondary" onClick={() => setIsCatalogOpen(true)}>Katalog öffnen</button>
-            <button type="button" className="btn-primary" onClick={handleCreateCard}>Neue Karte</button>
-          </div>
+          <ResponsibilityHeaderActions
+            onOpenCatalog={() => setIsCatalogOpen(true)}
+            onCreateCard={handleCreateCard}
+            catalogLabel="Katalog öffnen"
+          />
         </div>
       ) : (
         <div className="stack-sm">
