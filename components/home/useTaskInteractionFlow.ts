@@ -13,12 +13,14 @@ type InstanceEditingState = {
 };
 
 export function useTaskInteractionFlow({
+  currentUserId,
   selectedDate,
   tasks,
   onError,
   onOptimisticToggle,
   onRefresh,
 }: {
+  currentUserId: string | null;
   selectedDate: string;
   tasks: TaskOverviewItem[];
   onError: (message: string | null) => void;
@@ -41,6 +43,12 @@ export function useTaskInteractionFlow({
   const scopeInstanceDate = scopeTask ? resolveTaskInstanceDate(scopeTask, selectedDate) : null;
   const instanceEditingTask = instanceEditingState ? taskMap.get(instanceEditingState.taskId) ?? null : null;
 
+  function canEditTask(task: TaskOverviewItem) {
+    if (!currentUserId) return false;
+    if (task.delegatedToUserId) return task.delegatedToUserId === currentUserId;
+    return (task.creatorUserId ?? task.createdByUserId) === currentUserId;
+  }
+
   function closeAllTaskFlows() {
     setEditingTaskId(null);
     setScopeTaskId(null);
@@ -48,6 +56,7 @@ export function useTaskInteractionFlow({
   }
 
   function requestTaskEdit(task: TaskOverviewItem) {
+    if (!canEditTask(task)) return;
     if (task.taskType !== 'dayTask' && task.recurrenceType !== 'none') {
       setScopeTaskId(task.id);
       return;
@@ -121,6 +130,7 @@ export function useTaskInteractionFlow({
   }
 
   async function toggleTaskCompletion(task: TaskOverviewItem, date: string) {
+    if (!canEditTask(task)) return;
     onError(null);
     onOptimisticToggle?.(task, date);
 
@@ -143,6 +153,8 @@ export function useTaskInteractionFlow({
   }
 
   async function deleteTaskById(taskId: string) {
+    const task = taskMap.get(taskId);
+    if (!task || !canEditTask(task)) return;
     setIsTaskMutationPending(true);
     onError(null);
 

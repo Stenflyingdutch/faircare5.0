@@ -50,3 +50,21 @@ test('chat messages keep both partner ids as participants for inbox routing', ()
   assert.match(chatService, /\.\.\.resolveTaskVisibleToUserIds\(task\)/);
   assert.match(chatService, /\.\.\.params\.participantUserIds/);
 });
+
+test('write access is restricted to currently assigned user once delegated', () => {
+  const service = read('services/server/tasks.service.ts');
+  const logic = read('services/tasks.logic.ts');
+
+  assert.match(logic, /export function canUserEditTask/);
+  assert.match(logic, /if \(task\.delegatedToUserId\)\s*{\s*return task\.delegatedToUserId === userId;/);
+  assert.match(service, /assertTaskWriteAccess\(existingTask, context\.userId\)/);
+  assert.match(service, /assertTaskWriteAccess\(task, context\.userId\)/);
+});
+
+test('task list renders assigned label for assignee and delegated read-only state for creator', () => {
+  const taskListItem = read('components/home/TaskListItem.tsx');
+
+  assert.match(taskListItem, /label: isAssignedToCurrentUser \? 'Zugewiesen' : 'Delegiert'/);
+  assert.match(taskListItem, /isDelegatedAwayFromCurrentUser \? 'is-delegated' : ''/);
+  assert.match(taskListItem, /task\.delegatedToUserId\s*\?\s*task\.delegatedToUserId === currentUserId/);
+});

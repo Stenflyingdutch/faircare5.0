@@ -261,6 +261,7 @@ export default function PersonalHomePage() {
     toggleTaskCompletion,
     deleteTaskById,
   } = useTaskInteractionFlow({
+    currentUserId: userId,
     selectedDate,
     tasks: allKnownTasks,
     onError: setTaskError,
@@ -409,6 +410,7 @@ export default function PersonalHomePage() {
                   {dayTasks.map((task) => (
                     <TaskListItem
                       key={task.id}
+                      currentUserId={userId}
                       task={task}
                       selectedDate={selectedDate}
                       onEdit={() => requestTaskEdit(task)}
@@ -473,6 +475,7 @@ export default function PersonalHomePage() {
                 >
                   {isSuperuser ? (
                     <ResponsibilityTaskSection
+                      currentUserId={userId}
                       tasks={cardTasks}
                       selectedDate={selectedDate}
                       isExpanded={isExpanded}

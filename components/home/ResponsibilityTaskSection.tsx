@@ -21,6 +21,7 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 }
 
 export function ResponsibilityTaskSection({
+  currentUserId,
   emptyLabel = 'Noch keine Aufgaben',
   isExpanded,
   onEditTask,
@@ -33,6 +34,7 @@ export function ResponsibilityTaskSection({
   tasks,
   hasUnreadMessage,
 }: {
+  currentUserId: string | null;
   emptyLabel?: string;
   isExpanded: boolean;
   onEditTask: (task: TaskOverviewItem) => void;
@@ -67,6 +69,7 @@ export function ResponsibilityTaskSection({
               {tasks.map((task) => (
                 <TaskListItem
                   key={task.id}
+                  currentUserId={currentUserId}
                   task={task}
                   selectedDate={selectedDate}
                   onEdit={() => onEditTask(task)}
