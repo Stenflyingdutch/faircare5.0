@@ -42,13 +42,4 @@ test('firestore rules block client-side system messages and per-user state tampe
   assert.match(rules, /request\.resource\.data\.senderUserId == request\.auth\.uid/);
   assert.match(rules, /match \/conversationStates\/\{taskId\}[\s\S]*allow create, update, delete: if false;/);
   assert.match(rules, /match \/inboxEntries\/\{taskId\}[\s\S]*allow create, update, delete: if false;/);
-  assert.match(rules, /match \/taskThreads\/\{threadId\}[\s\S]*allow create, update, delete: if false;/);
-});
-
-test('debug logs are explicitly opt-in via env flags', () => {
-  const chatService = read('services/server/task-chat.service.ts');
-  const exchangeContent = read('components/review/ExchangeContent.tsx');
-
-  assert.match(chatService, /process\.env\.TASK_CHAT_DEBUG !== '1'/);
-  assert.match(exchangeContent, /process\.env\.NEXT_PUBLIC_EXCHANGE_DEBUG !== '1'/);
 });

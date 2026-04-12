@@ -42,7 +42,7 @@ function nowIso() {
 
 
 function logTaskChatDebug(event: string, context: Record<string, unknown>) {
-  if (process.env.TASK_CHAT_DEBUG !== '1') return;
+  if (process.env.NODE_ENV === 'production') return;
   console.info(`[task-chat] ${event}`, context);
 }
 

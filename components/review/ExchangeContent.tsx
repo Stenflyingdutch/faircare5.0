@@ -13,8 +13,7 @@ function formatTime(value: string) {
 }
 
 function logExchangeDebug(event: string, context: Record<string, unknown> = {}) {
-  if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_EXCHANGE_DEBUG !== '1') return;
-  if (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_EXCHANGE_DEBUG !== '1') return;
+  if (process.env.NODE_ENV === 'production') return;
   console.info(`[exchange] ${event}`, context);
 }
 
@@ -58,7 +57,7 @@ export function ExchangeContent() {
       window.clearInterval(intervalId);
       logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab, chatTab });
     };
-  }, [chatTab, loadThreads, mainTab]);
+  }, [chatTab, mainTab]);
 
   useEffect(() => {
     if (!activeThreadId) {
@@ -70,7 +69,7 @@ export function ExchangeContent() {
       setActiveThread(detail);
       return markTaskThreadRead(activeThreadId);
     }).then(() => loadThreads(chatTab));
-  }, [activeThreadId, chatTab, loadThreads]);
+  }, [activeThreadId]);
 
   const inboxCount = useMemo(() => inboxOpenCount, [inboxOpenCount]);
 
