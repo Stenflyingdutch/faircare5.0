@@ -125,8 +125,77 @@ function sortByLastMessageAtDesc<T extends { lastMessageAt?: string | null }>(ro
   return [...rows].sort((a, b) => toComparableTime(b.lastMessageAt) - toComparableTime(a.lastMessageAt));
 }
 
+function normalizeString(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function normalizeStringArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+}
+
+function toIsoString(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+  }
+  if (value instanceof Date) {
+    const parsed = value.getTime();
+    return Number.isNaN(parsed) ? null : value.toISOString();
+  }
+  if (typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  if (value && typeof value === 'object' && 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function') {
+    const dateValue = (value as { toDate: () => Date }).toDate();
+    return Number.isNaN(dateValue.getTime()) ? null : dateValue.toISOString();
+  }
+  return null;
+}
+
+function normalizeThreadListItem(
+  docId: string,
+  payload: Partial<TaskConversationDocument> | null | undefined,
+  unreadCount: number,
+): TaskThreadListItem | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const taskId = normalizeString(payload.taskId, docId);
+  const lastMessageAt = toIsoString(payload.lastMessageAt) ?? toIsoString(payload.updatedAt) ?? toIsoString(payload.createdAt) ?? new Date(0).toISOString();
+  const taskTitleSnapshot = normalizeString(payload.taskTitleSnapshot, 'Ohne Titel');
+  const participantUserIds = normalizeStringArray(payload.participantUserIds);
+
+  return toLegacyThreadListItem({
+    id: normalizeString(payload.id, taskId),
+    taskId,
+    familyId: normalizeString(payload.familyId),
+    participantUserIds,
+    taskTitleSnapshot,
+    createdAt: toIsoString(payload.createdAt) ?? new Date(0).toISOString(),
+    updatedAt: toIsoString(payload.updatedAt) ?? lastMessageAt,
+    lastMessageAt,
+    lastMessageText: normalizeString(payload.lastMessageText),
+    lastMessageType: payload.lastMessageType === 'system_message' ? 'system_message' : 'user_message',
+    lastMessageSenderId: normalizeString(payload.lastMessageSenderId, ''),
+    messageCount: typeof payload.messageCount === 'number' ? payload.messageCount : 0,
+    hasDelegationEvent: Boolean(payload.hasDelegationEvent),
+    isArchived: Boolean(payload.isArchived),
+    createdByUserId: normalizeString(payload.createdByUserId, normalizeString(payload.lastMessageSenderId, '')),
+  }, taskTitleSnapshot, Number.isFinite(unreadCount) ? unreadCount : 0);
+}
+
 async function loadInboxSnapshot(familyId: string, userId: string) {
   try {
+    logTaskChatDebug('loadInbox.query.start', {
+      familyId,
+      userId,
+      collectionPath: `${firestoreCollections.families}/${familyId}/${familySubcollections.users}/${userId}/inboxEntries`,
+      filters: [{ field: 'isOpen', op: '==', value: true }],
+      orderBy: [{ field: 'lastMessageAt', direction: 'desc' }],
+    });
     return await inboxEntriesCollection(familyId, userId)
       .where('isOpen', '==', true)
       .orderBy('lastMessageAt', 'desc')
@@ -151,6 +220,13 @@ async function loadInboxSnapshot(familyId: string, userId: string) {
 
 async function loadThreadsSnapshot(familyId: string, userId: string) {
   try {
+    logTaskChatDebug('loadThreads.query.start', {
+      familyId,
+      userId,
+      collectionPath: `${firestoreCollections.families}/${familyId}/${familySubcollections.taskThreads}`,
+      filters: [{ field: 'participantUserIds', op: 'array-contains', value: userId }],
+      orderBy: [{ field: 'lastMessageAt', direction: 'desc' }],
+    });
     return await taskThreadsCollection(familyId)
       .where('participantUserIds', 'array-contains', userId)
       .orderBy('lastMessageAt', 'desc')
@@ -511,15 +587,27 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
   logTaskChatDebug(params.inboxOnly ? 'loadInbox.start' : 'loadThreads.start', params);
   if (params.inboxOnly) {
     const inboxSnapshot = await loadInboxSnapshot(params.familyId, params.userId);
+    logTaskChatDebug('loadInbox.snapshot.raw', { ...params, inboxEntryCount: inboxSnapshot.size, inboxTaskIds: inboxSnapshot.docs.map((entry) => entry.id) });
 
     const conversations = await Promise.all(inboxSnapshot.docs.map((entry) => taskThreadsCollection(params.familyId).doc(entry.id).get()));
+    logTaskChatDebug('loadInbox.threads.fetched', {
+      ...params,
+      requestedThreadCount: conversations.length,
+      fetchedThreadIds: conversations.map((snap) => snap.id),
+      existingThreadIds: conversations.filter((snap) => snap.exists).map((snap) => snap.id),
+    });
+    const inboxById = new Map(inboxSnapshot.docs.map((entry) => [entry.id, entry.data() as TaskInboxEntryDocument]));
     const rows = sortByLastMessageAtDesc(conversations
       .filter((snap) => snap.exists)
       .map((snap) => {
-        const conversation = snap.data() as TaskConversationDocument;
-        const inbox = inboxSnapshot.docs.find((entry) => entry.id === snap.id)?.data() as TaskInboxEntryDocument | undefined;
-        return toLegacyThreadListItem(conversation, conversation.taskTitleSnapshot, inbox?.isUnread ? 1 : 0);
-      }));
+        const inbox = inboxById.get(snap.id);
+        const normalized = normalizeThreadListItem(snap.id, snap.data() as Partial<TaskConversationDocument>, inbox?.isUnread ? 1 : 0);
+        if (!normalized) {
+          logTaskChatDebug('loadInbox.thread.skipped.invalid', { ...params, threadId: snap.id });
+        }
+        return normalized;
+      })
+      .filter((row): row is TaskThreadListItem => Boolean(row)));
 
     logTaskChatDebug('loadInbox.snapshot', { ...params, size: rows.length });
     return rows;
@@ -535,13 +623,10 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
   });
 
   const rows = sortByLastMessageAtDesc(snapshot.docs.map((entry) => {
-    const conversation = entry.data() as TaskConversationDocument;
-    return toLegacyThreadListItem(
-      conversation,
-      conversation.taskTitleSnapshot,
-      unreadByTaskId.get(conversation.taskId) ?? 0,
-    );
-  }));
+    const rawConversation = entry.data() as Partial<TaskConversationDocument>;
+    const taskId = normalizeString(rawConversation.taskId, entry.id);
+    return normalizeThreadListItem(entry.id, rawConversation, unreadByTaskId.get(taskId) ?? 0);
+  }).filter((row): row is TaskThreadListItem => Boolean(row)));
   logTaskChatDebug('loadThreads.snapshot', { ...params, size: rows.length });
   return rows;
 }
