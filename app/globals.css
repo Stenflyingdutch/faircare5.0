@@ -3208,6 +3208,29 @@ textarea.input {
   max-width: 360px;
 }
 
+.exchange-chat-tabs {
+  max-width: 560px;
+  padding: 12px;
+  border: 1px solid rgba(108, 76, 241, 0.18);
+  border-radius: 16px;
+  background: rgba(108, 76, 241, 0.04);
+  display: grid;
+  gap: 8px;
+}
+
+.exchange-chat-tabs-label {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #4f38b4;
+}
+
+.exchange-chat-tabs-hint {
+  margin: 0;
+}
+
 .exchange-segment {
   min-height: 42px;
   border-radius: 12px;

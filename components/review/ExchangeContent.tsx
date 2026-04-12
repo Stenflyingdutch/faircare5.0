@@ -62,11 +62,17 @@ export function ExchangeContent() {
           <TeamCheckContent />
         ) : (
           <div className="stack">
-            <div className="exchange-segmented exchange-sub-segmented">
-              <button type="button" className={`exchange-segment ${chatTab === 'inbox' ? 'is-active' : ''}`} onClick={() => setChatTab('inbox')}>
-                Inbox {inboxCount > 0 ? <span className="exchange-badge">{inboxCount}</span> : null}
-              </button>
-              <button type="button" className={`exchange-segment ${chatTab === 'threads' ? 'is-active' : ''}`} onClick={() => setChatTab('threads')}>Threads</button>
+            <div className="exchange-chat-tabs">
+              <p className="exchange-chat-tabs-label">Chat-Ansicht</p>
+              <div className="exchange-segmented exchange-sub-segmented">
+                <button type="button" className={`exchange-segment ${chatTab === 'inbox' ? 'is-active' : ''}`} onClick={() => setChatTab('inbox')}>
+                  Inbox {inboxCount > 0 ? <span className="exchange-badge">{inboxCount}</span> : null}
+                </button>
+                <button type="button" className={`exchange-segment ${chatTab === 'threads' ? 'is-active' : ''}`} onClick={() => setChatTab('threads')}>Threads</button>
+              </div>
+              <p className="helper exchange-chat-tabs-hint">
+                <strong>Inbox</strong> zeigt nur ungelesene Chats, <strong>Threads</strong> zeigt alle Chatverläufe.
+              </p>
             </div>
 
             {!activeThread ? (
