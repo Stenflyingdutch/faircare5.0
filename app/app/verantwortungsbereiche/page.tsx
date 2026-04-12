@@ -39,7 +39,6 @@ export default function ResponsibilityCardsPage() {
     <FamilyCategoryView
       familyId={familyId}
       userId={userId}
-      categoryKey="betreuung_entwicklung"
       language="de"
     />
   );
