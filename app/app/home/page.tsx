@@ -325,12 +325,18 @@ export default function PersonalHomePage() {
     }
   }
 
-  function requestDelegationReclaim(task: TaskOverviewItem) {
+  async function requestDelegationReclaim(task: TaskOverviewItem) {
     if (typeof window !== 'undefined') {
       const shouldReclaim = window.confirm('Möchtest Du die Aufgabe zurücknehmen?');
       if (!shouldReclaim) return;
     }
-    void reclaimDelegatedTask(task);
+    const wasReclaimed = await reclaimDelegatedTask(task);
+    if (typeof window === 'undefined') return;
+    if (wasReclaimed) {
+      window.alert('Delegation wurde erfolgreich zurückgenommen.');
+      return;
+    }
+    window.alert('Delegation konnte nicht zurückgenommen werden. Bitte versuche es erneut.');
   }
 
   function queueSwipeDelete(task: TaskOverviewItem) {
@@ -424,7 +430,7 @@ export default function PersonalHomePage() {
                       selectedDate={selectedDate}
                       onEdit={() => requestTaskEdit(task)}
                       onChat={() => setChatTaskId(task.id)}
-                      onReclaimDelegation={() => requestDelegationReclaim(task)}
+                      onReclaimDelegation={() => void requestDelegationReclaim(task)}
                       onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
                       onSwipeRight={() => queueSwipeDelete(task)}
                       onSwipeLeft={() => void applySingleDateDelegation(task)}
@@ -495,7 +501,7 @@ export default function PersonalHomePage() {
                       }))}
                       onEditTask={requestTaskEdit}
                       onChatTask={(task) => setChatTaskId(task.id)}
-                      onReclaimDelegation={requestDelegationReclaim}
+                      onReclaimDelegation={(task) => void requestDelegationReclaim(task)}
                       onSwipeTaskDelete={queueSwipeDelete}
                       onSwipeTaskDelegate={(task) => void applySingleDateDelegation(task)}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
