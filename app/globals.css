@@ -3150,3 +3150,117 @@ textarea.input {
     grid-template-columns: 1fr;
   }
 }
+
+.exchange-nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+  background: #6c4cf1;
+}
+
+.exchange-segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.exchange-sub-segmented {
+  max-width: 360px;
+}
+
+.exchange-segment {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 216, 223, 0.98);
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+
+.exchange-segment.is-active {
+  border-color: rgba(108, 76, 241, 0.36);
+  background: rgba(108, 76, 241, 0.08);
+  color: #4f38b4;
+}
+
+.exchange-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #6c4cf1;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+.exchange-thread-row {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(220, 227, 235, 0.96);
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+  padding: 12px;
+}
+
+.exchange-preview {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.exchange-thread-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.exchange-thread-messages {
+  display: grid;
+  gap: 10px;
+  max-height: 48vh;
+  overflow-y: auto;
+}
+
+.exchange-message {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(220, 227, 235, 0.96);
+  background: #fff;
+}
+
+.exchange-message.is-system {
+  background: #f4f5f6;
+  color: #5d6670;
+}
+
+.exchange-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.task-chip.is-chat-new {
+  background: rgba(108, 76, 241, 0.14);
+  color: #4f38b4;
+}

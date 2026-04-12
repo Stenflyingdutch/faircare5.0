@@ -19,6 +19,7 @@ export function TaskListItem({
   onToggleStatus,
   onSwipeRight,
   onSwipeLeft,
+  hasUnreadMessage = false,
 }: {
   task: TaskOverviewItem;
   selectedDate: string;
@@ -26,6 +27,7 @@ export function TaskListItem({
   onToggleStatus?: () => void;
   onSwipeRight?: () => void;
   onSwipeLeft?: () => void;
+  hasUnreadMessage?: boolean;
 }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const skipClickRef = useRef(false);
@@ -37,6 +39,9 @@ export function TaskListItem({
 
   if (task.isDelegated) {
     chips.push('Delegiert');
+  }
+  if (hasUnreadMessage) {
+    chips.push('Neu');
   }
 
   const handleRowClick = () => {
@@ -134,7 +139,7 @@ export function TaskListItem({
 
         <div className="task-chip-row">
           {chips.map((chip) => (
-            <span key={`${task.id}-${chip}`} className={`task-chip ${chip === 'Delegiert' ? 'is-delegated' : ''}`}>{chip}</span>
+            <span key={`${task.id}-${chip}`} className={`task-chip ${chip === 'Delegiert' ? 'is-delegated' : ''} ${chip === 'Neu' ? 'is-chat-new' : ''}`}>{chip}</span>
           ))}
         </div>
 

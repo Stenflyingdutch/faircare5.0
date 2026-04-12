@@ -30,6 +30,7 @@ export function ResponsibilityTaskSection({
   onToggleTaskStatus,
   selectedDate,
   tasks,
+  hasUnreadMessage,
 }: {
   emptyLabel?: string;
   isExpanded: boolean;
@@ -40,6 +41,7 @@ export function ResponsibilityTaskSection({
   onToggleTaskStatus: (task: TaskOverviewItem) => void;
   selectedDate: string;
   tasks: TaskOverviewItem[];
+  hasUnreadMessage?: (taskId: string) => boolean;
 }) {
 
   return (
@@ -69,6 +71,7 @@ export function ResponsibilityTaskSection({
                   onToggleStatus={() => onToggleTaskStatus(task)}
                   onSwipeLeft={() => onSwipeTaskDelegate?.(task)}
                   onSwipeRight={() => onSwipeTaskDelete?.(task)}
+                  hasUnreadMessage={hasUnreadMessage?.(task.id) ?? false}
                 />
               ))}
             </div>

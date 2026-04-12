@@ -108,6 +108,7 @@ export default function PersonalHomePage() {
   const [visibleWeekStart, setVisibleWeekStart] = useState(startOfWeek(today));
   const [dayTasks, setDayTasks] = useState<TaskOverviewItem[]>([]);
   const [responsibilityTasks, setResponsibilityTasks] = useState<TaskOverviewItem[]>([]);
+  const [taskThreadMetaByTaskId, setTaskThreadMetaByTaskId] = useState<Record<string, { unreadCount: number; hasThread: boolean; threadId: string }>>({});
   const [isTaskLoading, setIsTaskLoading] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskRefreshNonce, setTaskRefreshNonce] = useState(0);
@@ -164,6 +165,7 @@ export default function PersonalHomePage() {
       setDayTasks([]);
       setResponsibilityTasks([]);
       setTaskError(null);
+      setTaskThreadMetaByTaskId({});
       setIsTaskLoading(false);
       return;
     }
@@ -177,6 +179,7 @@ export default function PersonalHomePage() {
         if (cancelled) return;
         setDayTasks(overview.dayTasks);
         setResponsibilityTasks(overview.responsibilityTasks);
+        setTaskThreadMetaByTaskId(overview.taskThreadMetaByTaskId ?? {});
       })
       .catch((error) => {
         if (cancelled) return;
@@ -364,6 +367,8 @@ export default function PersonalHomePage() {
     setSelectedDate(addDays(nextWeekStart, currentWeekIndex));
   }
 
+  const hasUnreadMessage = (taskId: string) => (taskThreadMetaByTaskId[taskId]?.unreadCount ?? 0) > 0;
+  const hasTaskThread = (taskId: string) => Boolean(taskThreadMetaByTaskId[taskId]?.hasThread);
   const expandedResponsibility = expandedCardId ? responsibilityMap.get(expandedCardId) : undefined;
   const daySectionTitle = isToday(selectedDate) ? 'Heute' : `Aufgaben am ${formatDateLabel(selectedDate)}`;
 
@@ -423,6 +428,7 @@ export default function PersonalHomePage() {
                       onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
                       onSwipeRight={() => queueSwipeDelete(task)}
                       onSwipeLeft={() => void applySingleDateDelegation(task)}
+                      hasUnreadMessage={hasUnreadMessage(task.id)}
                     />
                   ))}
                 </div>
@@ -490,6 +496,7 @@ export default function PersonalHomePage() {
                       onSwipeTaskDelete={queueSwipeDelete}
                       onSwipeTaskDelegate={(task) => void applySingleDateDelegation(task)}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
+                      hasUnreadMessage={hasUnreadMessage}
                     />
                   ) : null}
                 </ResponsibilityCard>
@@ -535,6 +542,7 @@ export default function PersonalHomePage() {
         onClose={() => setEditingTaskId(null)}
         onDelete={deleteTaskById}
         onSubmit={submitTaskEdit}
+        hasThread={editingTask ? hasTaskThread(editingTask.id) : false}
       />
 
       <TaskInstanceEditModal

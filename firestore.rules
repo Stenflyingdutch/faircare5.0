@@ -144,6 +144,18 @@ service cloud.firestore {
       match /taskOverrides/{overrideId} {
         allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
       }
+
+      match /taskThreads/{threadId} {
+        allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+
+        match /messages/{messageId} {
+          allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        }
+
+        match /readState/{userId} {
+          allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        }
+      }
     }
 
     match /taskPackageTemplates/{templateId} {
