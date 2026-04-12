@@ -2,6 +2,7 @@ import 'server-only';
 
 import { adminDb } from '@/lib/firebase-admin';
 import { familySubcollections, firestoreCollections } from '@/types/domain';
+import { canUserSeeTask, resolveTaskVisibleToUserIds } from '@/services/tasks.logic';
 import type { TaskDocument, TaskOverviewResponse } from '@/types/tasks';
 import type { TaskThreadDetailResponse, TaskThreadDocument, TaskThreadListItem, TaskThreadMessageDocument, TaskThreadMessageType, TaskThreadReadStateDocument } from '@/types/task-chat';
 
@@ -51,7 +52,7 @@ async function resolveTaskOrThrow(familyId: string, taskId: string) {
   if (!snapshot.exists) {
     throw new TaskChatAccessError('Aufgabe nicht gefunden.', 404);
   }
-  return snapshot.data() as TaskDocument;
+  return { ...(snapshot.data() as TaskDocument), id: snapshot.id } as TaskDocument;
 }
 
 export async function getOrCreateTaskThread(params: {
@@ -96,45 +97,69 @@ export async function sendTaskMessage(params: {
   responsibilityId?: string | null;
   messageType?: TaskThreadMessageType;
   meta?: Record<string, unknown> | null;
+  idempotencyKey?: string | null;
 }) {
   const messageText = params.text.trim();
   if (!messageText) {
     throw new TaskChatAccessError('Bitte gib eine Nachricht ein.', 400);
   }
 
-  await resolveTaskOrThrow(params.familyId, params.taskId);
+  const task = await resolveTaskOrThrow(params.familyId, params.taskId);
+  if (!canUserSeeTask(task, params.authorUserId)) {
+    throw new TaskChatAccessError('Kein Zugriff auf diese Aufgabe.', 403);
+  }
+  const visibleParticipants = [...new Set(resolveTaskVisibleToUserIds(task))];
 
   const thread = await getOrCreateTaskThread({
     familyId: params.familyId,
     taskId: params.taskId,
     actorUserId: params.authorUserId,
-    participantUserIds: params.participantUserIds,
+    participantUserIds: visibleParticipants,
     responsibilityId: params.responsibilityId,
   });
 
-  const messageRef = taskMessagesCollection(params.familyId, thread.id).doc();
+  const messageRef = params.idempotencyKey
+    ? taskMessagesCollection(params.familyId, thread.id).doc(`system_task_delegated_${params.idempotencyKey}`)
+    : taskMessagesCollection(params.familyId, thread.id).doc();
   const timestamp = nowIso();
+
+  if (params.idempotencyKey) {
+    const existing = await messageRef.get();
+    if (existing.exists) {
+      return { threadId: thread.id, message: existing.data() as TaskThreadMessageDocument };
+    }
+  }
 
   const messagePayload: TaskThreadMessageDocument = {
     id: messageRef.id,
     threadId: thread.id,
-    authorUserId: params.authorUserId,
+    authorUserId: params.messageType === 'systemDelegation' ? null : params.authorUserId,
     text: messageText,
     messageType: params.messageType ?? 'text',
     createdAt: timestamp,
+    visibleToUserIds: visibleParticipants,
     meta: params.meta ?? null,
   };
 
   const batch = adminDb.batch();
   batch.set(messageRef, messagePayload);
   batch.set(taskThreadsCollection(params.familyId).doc(thread.id), {
+    participantUserIds: visibleParticipants,
     lastMessageAt: timestamp,
     lastMessageText: messageText,
     lastMessageUserId: params.authorUserId,
     updatedAt: timestamp,
   }, { merge: true });
 
-  for (const participantId of params.participantUserIds) {
+  batch.set(tasksCollection(params.familyId).doc(params.taskId), {
+    threadId: thread.id,
+    lastMessageAt: timestamp,
+    lastMessagePreview: messageText,
+    unreadForUserIds: visibleParticipants.filter((id) => id !== params.authorUserId),
+    visibleToUserIds: visibleParticipants,
+  } satisfies Partial<TaskDocument>, { merge: true });
+
+  for (const participantId of visibleParticipants) {
     const readRef = taskReadStateCollection(params.familyId, thread.id).doc(participantId);
     const readState: TaskThreadReadStateDocument = {
       userId: participantId,
@@ -155,12 +180,14 @@ export async function createDelegationSystemMessage(params: {
   participantUserIds: string[];
   responsibilityId?: string | null;
   text: string;
+  idempotencyKey?: string | null;
   meta?: Record<string, unknown> | null;
 }) {
   return sendTaskMessage({
     ...params,
     messageType: 'systemDelegation',
     text: params.text,
+    idempotencyKey: params.idempotencyKey ?? null,
     meta: params.meta ?? null,
   });
 }
@@ -171,7 +198,9 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
     .orderBy('lastMessageAt', 'desc')
     .get();
 
-  const tasksSnapshot = await tasksCollection(params.familyId).get();
+  const tasksSnapshot = await tasksCollection(params.familyId)
+    .where('visibleToUserIds', 'array-contains', params.userId)
+    .get();
   const taskTitleMap = new Map<string, string>();
   tasksSnapshot.docs.forEach((entry) => {
     const task = entry.data() as TaskDocument;
@@ -220,6 +249,14 @@ export async function markTaskThreadAsRead(params: { familyId: string; threadId:
     updatedAt: timestamp,
   };
   await taskReadStateCollection(params.familyId, params.threadId).doc(params.userId).set(readState, { merge: true });
+
+  const threadSnapshot = await taskThreadsCollection(params.familyId).doc(params.threadId).get();
+  if (threadSnapshot.exists) {
+    const thread = threadSnapshot.data() as TaskThreadDocument;
+    const task = await resolveTaskOrThrow(params.familyId, thread.taskId);
+    const unreadForUserIds = (task.unreadForUserIds ?? []).filter((id) => id !== params.userId);
+    await tasksCollection(params.familyId).doc(thread.taskId).set({ unreadForUserIds } satisfies Partial<TaskDocument>, { merge: true });
+  }
 }
 
 export async function getUnreadChatCount(params: { userId: string; familyId: string }) {

@@ -51,6 +51,18 @@ service cloud.firestore {
       );
     }
 
+    function taskVisibleToCurrentUser() {
+      return !('visibleToUserIds' in resource.data)
+        || resource.data.visibleToUserIds.size() == 0
+        || resource.data.visibleToUserIds.hasAny([request.auth.uid]);
+    }
+
+    function taskVisibleToCurrentUserInRequest() {
+      return !('visibleToUserIds' in request.resource.data)
+        || request.resource.data.visibleToUserIds.size() == 0
+        || request.resource.data.visibleToUserIds.hasAny([request.auth.uid]);
+    }
+
     function familyResultsUnlocked(familyId) {
       return exists(/databases/$(database)/documents/families/$(familyId)) &&
         familyDoc(familyId).data.resultsUnlocked == true;
@@ -134,7 +146,11 @@ service cloud.firestore {
       }
 
       match /tasks/{taskId} {
-        allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && taskVisibleToCurrentUser();
+        allow create, update, delete: if isActiveAccount()
+          && isFamilyMember(familyId)
+          && isSuperuser()
+          && taskVisibleToCurrentUserInRequest();
       }
 
       match /taskDelegations/{delegationId} {
@@ -146,10 +162,22 @@ service cloud.firestore {
       }
 
       match /taskThreads/{threadId} {
-        allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        allow read, create, update, delete: if isActiveAccount()
+          && isFamilyMember(familyId)
+          && isSuperuser()
+          && (
+            !('participantUserIds' in resource.data) ||
+            resource.data.participantUserIds.hasAny([request.auth.uid])
+          );
 
         match /messages/{messageId} {
-          allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+          allow read, create, update, delete: if isActiveAccount()
+            && isFamilyMember(familyId)
+            && isSuperuser()
+            && (
+              !('visibleToUserIds' in resource.data) ||
+              resource.data.visibleToUserIds.hasAny([request.auth.uid])
+            );
         }
 
         match /readState/{userId} {
