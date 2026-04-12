@@ -40,6 +40,12 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+
+function logTaskChatDebug(event: string, context: Record<string, unknown>) {
+  if (process.env.TASK_CHAT_DEBUG !== '1') return;
+  console.info(`[task-chat] ${event}`, context);
+}
+
 function taskConversationsCollection(familyId: string) {
   return adminDb.collection(firestoreCollections.families).doc(familyId).collection(familySubcollections.taskConversations);
 }
@@ -118,6 +124,7 @@ async function recomputeUiSummary(familyId: string, userId: string) {
   };
 
   await uiSummaryRef(familyId, userId).set(summary, { merge: true });
+  logTaskChatDebug('badge.recompute', { familyId, userId, summary });
 }
 
 function resolveReceiverUserId(participants: string[], senderUserId: string) {
@@ -175,6 +182,7 @@ export async function sendTaskMessage(params: {
   idempotencyKey?: string | null;
 }) {
   const messageText = params.text.trim();
+  logTaskChatDebug('sendTaskMessage.start', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId, messageType: params.messageType ?? 'user_message' });
   if (!messageText) {
     throw new TaskChatAccessError('Bitte gib eine Nachricht ein.', 400);
   }
@@ -193,6 +201,9 @@ export async function sendTaskMessage(params: {
   }
 
   const receiverUserId = resolveReceiverUserId(visibleParticipants, params.authorUserId);
+  if (visibleParticipants.length > 2) {
+    logTaskChatDebug('sendTaskMessage.participants.expanded', { taskId: params.taskId, participantCount: visibleParticipants.length, visibleParticipants });
+  }
   const conversationRef = taskConversationsCollection(params.familyId).doc(params.taskId);
   const messageRef = params.idempotencyKey
     ? taskMessagesCollection(params.familyId, params.taskId).doc(`system_task_delegated_${params.idempotencyKey}`)
@@ -213,6 +224,7 @@ export async function sendTaskMessage(params: {
 
     if (params.idempotencyKey && messageSnap.exists) {
       messagePayload = messageSnap.data() as TaskThreadMessageDocument;
+      logTaskChatDebug('sendTaskMessage.duplicateMessageSkipped', { taskId: params.taskId, messageId: messageRef.id, idempotencyKey: params.idempotencyKey });
       return;
     }
 
@@ -303,6 +315,7 @@ export async function sendTaskMessage(params: {
     transaction.set(conversationStatesCollection(params.familyId, params.authorUserId).doc(params.taskId), senderState, { merge: true });
 
     if (senderInboxSnap.exists) {
+      logTaskChatDebug('inboxEntry.closeOnReply', { familyId: params.familyId, taskId: params.taskId, userId: params.authorUserId });
       transaction.set(inboxEntriesCollection(params.familyId, params.authorUserId).doc(params.taskId), {
         isOpen: false,
         isUnread: false,
@@ -358,6 +371,7 @@ export async function sendTaskMessage(params: {
         lastMessageAt: timestamp,
         updatedAt: timestamp,
       };
+      logTaskChatDebug('inboxEntry.upsert', { familyId: params.familyId, taskId: params.taskId, userId: receiverUserId, source: params.source ?? (params.systemEventType === 'task_delegated' ? 'delegation' : 'message') });
       transaction.set(inboxEntriesCollection(params.familyId, receiverUserId).doc(params.taskId), {
         ...(receiverInboxSnap?.exists ? receiverInboxSnap.data() as TaskInboxEntryDocument : {}),
         ...receiverInbox,
@@ -370,7 +384,28 @@ export async function sendTaskMessage(params: {
     receiverUserId ? recomputeUiSummary(params.familyId, receiverUserId) : Promise.resolve(),
   ]);
 
+  logTaskChatDebug('sendTaskMessage.finish', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId, receiverUserId, messageId: messagePayload.id });
   return { threadId: params.taskId, message: toLegacyMessage(messagePayload) };
+}
+
+
+
+export async function replyToTaskConversation(params: {
+  familyId: string;
+  taskId: string;
+  authorUserId: string;
+  text: string;
+  participantUserIds: string[];
+  responsibilityId?: string | null;
+}) {
+  logTaskChatDebug('replyToTaskConversation.start', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId });
+  const result = await sendTaskMessage(params);
+  logTaskChatDebug('replyToTaskConversation.finish', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId, threadId: result.threadId });
+  return result;
+}
+
+export async function markConversationRead(params: { familyId: string; threadId: string; userId: string }) {
+  return markTaskThreadAsRead(params);
 }
 
 export async function createDelegationSystemMessage(params: {
@@ -383,12 +418,15 @@ export async function createDelegationSystemMessage(params: {
   idempotencyKey?: string | null;
   meta?: Record<string, unknown> | null;
 }) {
-  return sendTaskMessage({
+  logTaskChatDebug('delegateTask.start', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId });
+  const result = await sendTaskMessage({
     ...params,
     messageType: 'system_message',
     systemEventType: 'task_delegated',
     source: 'delegation',
   });
+  logTaskChatDebug('delegateTask.finish', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId, threadId: result.threadId });
+  return result;
 }
 
 async function readThreadList(params: { familyId: string; userId: string; inboxOnly: boolean }) {
@@ -441,6 +479,7 @@ export async function getAllTaskThreads(params: { userId: string; familyId: stri
 }
 
 export async function markTaskThreadAsRead(params: { familyId: string; threadId: string; userId: string }) {
+  logTaskChatDebug('markConversationRead.start', params);
   const timestamp = nowIso();
   const stateRef = conversationStatesCollection(params.familyId, params.userId).doc(params.threadId);
   const inboxRef = inboxEntriesCollection(params.familyId, params.userId).doc(params.threadId);
@@ -488,6 +527,7 @@ export async function markTaskThreadAsRead(params: { familyId: string; threadId:
   });
 
   await recomputeUiSummary(params.familyId, params.userId);
+  logTaskChatDebug('markConversationRead.finish', params);
 }
 
 export async function getUnreadChatCount(params: { userId: string; familyId: string }) {
@@ -578,18 +618,40 @@ export async function appendThreadMetaToOverview(params: {
     };
   }
 
+  const [stateSnapshot, inboxSnapshot] = await Promise.all([
+    conversationStatesCollection(params.familyId, params.userId).get(),
+    inboxEntriesCollection(params.familyId, params.userId).where('isOpen', '==', true).get(),
+  ]);
+
+  const stateByTaskId = new Map<string, TaskConversationStateDocument>();
+  stateSnapshot.docs.forEach((entry) => {
+    stateByTaskId.set(entry.id, entry.data() as TaskConversationStateDocument);
+  });
+
+  const openInboxByTaskId = new Map<string, TaskInboxEntryDocument>();
+  inboxSnapshot.docs.forEach((entry) => {
+    openInboxByTaskId.set(entry.id, entry.data() as TaskInboxEntryDocument);
+  });
+
   const byTaskId = rows.reduce<Record<string, { threadId: string; unreadCount: number; hasThread: true }>>((acc, row) => {
-    acc[row.taskId] = { threadId: row.id, unreadCount: row.unreadCount, hasThread: true };
+    const state = stateByTaskId.get(row.taskId);
+    const hasTaskBadge = state?.hasTaskBadge ?? false;
+    acc[row.taskId] = {
+      threadId: row.id,
+      unreadCount: hasTaskBadge ? 1 : 0,
+      hasThread: true,
+    };
     return acc;
   }, {});
 
-  const unreadCount = rows.reduce((sum, row) => sum + row.unreadCount, 0);
+  const openInboxThreadIds = new Set(openInboxByTaskId.keys());
+  const inboxRows = rows.filter((row) => openInboxThreadIds.has(row.taskId));
 
   return {
     ...baseOverview,
     taskThreadMetaByTaskId: byTaskId,
     taskThreads: rows,
-    inbox: rows.filter((row) => row.unreadCount > 0),
-    unreadChatCount: unreadCount,
+    inbox: inboxRows,
+    unreadChatCount: inboxRows.length,
   };
 }

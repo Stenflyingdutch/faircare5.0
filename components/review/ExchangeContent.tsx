@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { TeamCheckContent } from '@/components/review/TeamCheckContent';
 import { fetchTaskThreadDetail, fetchTaskThreads, markTaskThreadRead, sendTaskMessageInThread } from '@/services/task-chat.service';
@@ -12,6 +12,11 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(parsed);
 }
 
+function logExchangeDebug(event: string, context: Record<string, unknown> = {}) {
+  if (process.env.NEXT_PUBLIC_EXCHANGE_DEBUG !== '1') return;
+  console.info(`[exchange] ${event}`, context);
+}
+
 export function ExchangeContent() {
   const [mainTab, setMainTab] = useState<'checkins' | 'chats'>('checkins');
   const [chatTab, setChatTab] = useState<'inbox' | 'threads'>('inbox');
@@ -20,21 +25,39 @@ export function ExchangeContent() {
   const [activeThread, setActiveThread] = useState<TaskThreadDetailResponse | null>(null);
   const [messageDraft, setMessageDraft] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inboxOpenCount, setInboxOpenCount] = useState(0);
 
-  async function loadThreads(scope: 'inbox' | 'threads') {
+  const loadThreads = useCallback(async (scope: 'inbox' | 'threads') => {
     setLoading(true);
     try {
-      const result = await fetchTaskThreads(scope);
-      setThreads(result.threads);
+      const [scoped, inbox] = await Promise.all([
+        fetchTaskThreads(scope),
+        fetchTaskThreads('inbox'),
+      ]);
+      setThreads(scoped.threads);
+      setInboxOpenCount(inbox.threads.length);
+      logExchangeDebug('badge recompute', { scope, inboxOpenCount: inbox.threads.length });
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    if (mainTab !== 'chats') return;
+    logExchangeDebug('listener mount', { listener: 'chatScopeLoader', mainTab, chatTab });
+    if (mainTab !== 'chats') {
+      return () => logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab, chatTab });
+    }
+
     void loadThreads(chatTab);
-  }, [chatTab, mainTab]);
+    const intervalId = window.setInterval(() => {
+      void loadThreads(chatTab);
+    }, 15000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab, chatTab });
+    };
+  }, [chatTab, loadThreads, mainTab]);
 
   useEffect(() => {
     if (!activeThreadId) {
@@ -46,9 +69,9 @@ export function ExchangeContent() {
       setActiveThread(detail);
       return markTaskThreadRead(activeThreadId);
     }).then(() => loadThreads(chatTab));
-  }, [activeThreadId, chatTab]);
+  }, [activeThreadId, chatTab, loadThreads]);
 
-  const inboxCount = useMemo(() => threads.filter((item) => item.unreadCount > 0).length, [threads]);
+  const inboxCount = useMemo(() => inboxOpenCount, [inboxOpenCount]);
 
   return (
     <section className="section">
@@ -66,12 +89,12 @@ export function ExchangeContent() {
               <p className="exchange-chat-tabs-label">Chat-Ansicht</p>
               <div className="exchange-segmented exchange-sub-segmented">
                 <button type="button" className={`exchange-segment ${chatTab === 'inbox' ? 'is-active' : ''}`} onClick={() => setChatTab('inbox')}>
-                  Inbox {inboxCount > 0 ? <span className="exchange-unread-dot" aria-label={`${inboxCount} ungelesene Chats`} title={`${inboxCount} ungelesene Chats`} /> : null}
+                  Inbox {inboxCount > 0 ? <span className="exchange-unread-dot" aria-label={`${inboxCount} offene Fälle`} title={`${inboxCount} offene Fälle`} /> : null}
                 </button>
                 <button type="button" className={`exchange-segment ${chatTab === 'threads' ? 'is-active' : ''}`} onClick={() => setChatTab('threads')}>Threads</button>
               </div>
               <p className="helper exchange-chat-tabs-hint">
-                <strong>Inbox</strong> zeigt nur ungelesene Chats, <strong>Threads</strong> zeigt alle Chatverläufe.
+                <strong>Inbox</strong> zeigt offene Fälle, <strong>Threads</strong> zeigt alle Chatverläufe.
               </p>
             </div>
 
@@ -80,7 +103,7 @@ export function ExchangeContent() {
                 {loading ? <p className="helper" style={{ margin: 0 }}>Lade Chats …</p> : null}
                 {!loading && !threads.length && (
                   <p className="helper" style={{ margin: 0 }}>
-                    {chatTab === 'inbox' ? 'Keine neuen Nachrichten.' : 'Noch keine Nachrichten zu Aufgaben.'}
+                    {chatTab === 'inbox' ? 'Keine offenen Fälle.' : 'Noch keine Nachrichten zu Aufgaben.'}
                   </p>
                 )}
                 <div className="stack" style={{ gap: 8 }}>
