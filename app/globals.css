@@ -3488,3 +3488,33 @@ textarea.input {
   .admin-sidebar { position: static; height: auto; }
   .admin-kpi-grid { grid-template-columns: 1fr; }
 }
+
+.responsibility-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.responsibility-filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.responsibility-filter-row select,
+.responsibility-create-card input,
+.responsibility-create-card textarea {
+  width: 100%;
+}
+
+@media (min-width: 720px) {
+  .responsibility-filter-row select {
+    width: auto;
+    min-width: 140px;
+  }
+
+  .responsibility-actions {
+    flex-wrap: nowrap;
+  }
+}
