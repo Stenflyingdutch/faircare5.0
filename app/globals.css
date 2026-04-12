@@ -3039,6 +3039,10 @@ textarea.input {
   gap: 10px;
 }
 
+.task-dialog-actions-leading {
+  margin-right: auto;
+}
+
 .task-scope-stack {
   display: grid;
   gap: 12px;
