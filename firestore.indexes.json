@@ -1,6 +1,40 @@
 {
   "indexes": [
     {
+      "collectionGroup": "catalog_responsibility_cards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "categoryKey", "order": "ASCENDING" },
+        { "fieldPath": "language", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "sortOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "responsibility_cards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "familyId", "order": "ASCENDING" },
+        { "fieldPath": "categoryKey", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "responsibility_cards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "familyId", "order": "ASCENDING" },
+        { "fieldPath": "assigneeUserId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "responsibility_cards",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "familyId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "taskThreads",
       "queryScope": "COLLECTION",
       "fields": [

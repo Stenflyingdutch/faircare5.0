@@ -129,6 +129,10 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      match /responsibility_cards/{cardId} {
+        allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId);
+      }
+
       match /auditEvents/{eventId} {
         allow read: if (isActiveAccount() && isFamilyMember(familyId)) || isAdmin();
         allow create: if isActiveAccount() && isFamilyMember(familyId);
@@ -216,6 +220,11 @@ service cloud.firestore {
 
     match /taskPackageTemplates/{templateId} {
       allow read: if isActiveAccount();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /catalog_responsibility_cards/{cardId} {
+      allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
 
