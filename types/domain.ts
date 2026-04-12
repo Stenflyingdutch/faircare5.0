@@ -116,7 +116,6 @@ export const familySubcollections = {
   taskDelegations: 'taskDelegations',
   taskOverrides: 'taskOverrides',
   taskThreads: 'taskThreads',
-  taskConversations: 'taskConversations',
   users: 'users',
 } as const;
 

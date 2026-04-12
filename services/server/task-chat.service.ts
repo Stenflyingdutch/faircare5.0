@@ -46,12 +46,12 @@ function logTaskChatDebug(event: string, context: Record<string, unknown>) {
   console.info(`[task-chat] ${event}`, context);
 }
 
-function taskConversationsCollection(familyId: string) {
-  return adminDb.collection(firestoreCollections.families).doc(familyId).collection(familySubcollections.taskConversations);
+function taskThreadsCollection(familyId: string) {
+  return adminDb.collection(firestoreCollections.families).doc(familyId).collection(familySubcollections.taskThreads);
 }
 
-function taskMessagesCollection(familyId: string, conversationId: string) {
-  return taskConversationsCollection(familyId).doc(conversationId).collection('messages');
+function taskMessagesCollection(familyId: string, threadId: string) {
+  return taskThreadsCollection(familyId).doc(threadId).collection('messages');
 }
 
 function tasksCollection(familyId: string) {
@@ -100,7 +100,7 @@ function toLegacyThreadListItem(
 function toLegacyMessage(message: TaskThreadMessageDocument): TaskThreadMessageDocument {
   return {
     ...message,
-    threadId: message.conversationId,
+    threadId: message.threadId,
     authorUserId: message.senderUserId === 'system' ? null : message.senderUserId,
     messageType: message.type === 'user_message'
       ? 'text'
@@ -138,9 +138,11 @@ export async function getOrCreateTaskThread(params: {
   actorUserId: string;
   participantUserIds: string[];
 }) {
-  const threadRef = taskConversationsCollection(params.familyId).doc(params.taskId);
+  logTaskChatDebug('createOrGetThread.start', params);
+  const threadRef = taskThreadsCollection(params.familyId).doc(params.taskId);
   const snapshot = await threadRef.get();
   if (snapshot.exists) {
+    logTaskChatDebug('createOrGetThread.success', { ...params, existed: true, threadId: params.taskId });
     return snapshot.data() as TaskConversationDocument;
   }
 
@@ -165,6 +167,7 @@ export async function getOrCreateTaskThread(params: {
   };
 
   await threadRef.set(payload, { merge: true });
+  logTaskChatDebug('createOrGetThread.success', { ...params, existed: false, threadId: params.taskId });
   return payload;
 }
 
@@ -204,7 +207,8 @@ export async function sendTaskMessage(params: {
   if (visibleParticipants.length > 2) {
     logTaskChatDebug('sendTaskMessage.participants.expanded', { taskId: params.taskId, participantCount: visibleParticipants.length, visibleParticipants });
   }
-  const conversationRef = taskConversationsCollection(params.familyId).doc(params.taskId);
+  const conversationRef = taskThreadsCollection(params.familyId).doc(params.taskId);
+  logTaskChatDebug('createOrGetThread.start', { familyId: params.familyId, taskId: params.taskId, actorUserId: params.authorUserId });
   const messageRef = params.idempotencyKey
     ? taskMessagesCollection(params.familyId, params.taskId).doc(`system_task_delegated_${params.idempotencyKey}`)
     : taskMessagesCollection(params.familyId, params.taskId).doc();
@@ -212,6 +216,7 @@ export async function sendTaskMessage(params: {
   const timestamp = nowIso();
   let messagePayload!: TaskThreadMessageDocument;
 
+  let threadExisted = false;
   await adminDb.runTransaction(async (transaction) => {
     const [conversationSnap, messageSnap, receiverStateSnap, senderStateSnap, receiverInboxSnap, senderInboxSnap] = await Promise.all([
       transaction.get(conversationRef),
@@ -228,12 +233,14 @@ export async function sendTaskMessage(params: {
       return;
     }
 
+    threadExisted = conversationSnap.exists;
     const existingConversation = conversationSnap.exists ? conversationSnap.data() as TaskConversationDocument : null;
     const messageType = params.messageType ?? 'user_message';
 
     messagePayload = {
       id: messageRef.id,
       taskId: params.taskId,
+      threadId: params.taskId,
       conversationId: params.taskId,
       familyId: params.familyId,
       type: messageType,
@@ -384,6 +391,13 @@ export async function sendTaskMessage(params: {
     receiverUserId ? recomputeUiSummary(params.familyId, receiverUserId) : Promise.resolve(),
   ]);
 
+  logTaskChatDebug('createOrGetThread.success', {
+    familyId: params.familyId,
+    taskId: params.taskId,
+    actorUserId: params.authorUserId,
+    threadId: params.taskId,
+    existed: threadExisted,
+  });
   logTaskChatDebug('sendTaskMessage.finish', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId, receiverUserId, messageId: messagePayload.id });
   return { threadId: params.taskId, message: toLegacyMessage(messagePayload) };
 }
@@ -430,13 +444,14 @@ export async function createDelegationSystemMessage(params: {
 }
 
 async function readThreadList(params: { familyId: string; userId: string; inboxOnly: boolean }) {
+  logTaskChatDebug(params.inboxOnly ? 'loadInbox.start' : 'loadThreads.start', params);
   if (params.inboxOnly) {
     const inboxSnapshot = await inboxEntriesCollection(params.familyId, params.userId)
       .where('isOpen', '==', true)
       .orderBy('lastMessageAt', 'desc')
       .get();
 
-    const conversations = await Promise.all(inboxSnapshot.docs.map((entry) => taskConversationsCollection(params.familyId).doc(entry.id).get()));
+    const conversations = await Promise.all(inboxSnapshot.docs.map((entry) => taskThreadsCollection(params.familyId).doc(entry.id).get()));
     const rows = conversations
       .filter((snap) => snap.exists)
       .map((snap) => {
@@ -445,10 +460,11 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
         return toLegacyThreadListItem(conversation, conversation.taskTitleSnapshot, inbox?.isUnread ? 1 : 0);
       });
 
+    logTaskChatDebug('loadInbox.snapshot', { ...params, size: rows.length });
     return rows;
   }
 
-  const snapshot = await taskConversationsCollection(params.familyId)
+  const snapshot = await taskThreadsCollection(params.familyId)
     .where('participantUserIds', 'array-contains', params.userId)
     .orderBy('lastMessageAt', 'desc')
     .get();
@@ -460,7 +476,7 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
     unreadByTaskId.set(entry.id, state.unreadCount ?? 0);
   });
 
-  return snapshot.docs.map((entry) => {
+  const rows = snapshot.docs.map((entry) => {
     const conversation = entry.data() as TaskConversationDocument;
     return toLegacyThreadListItem(
       conversation,
@@ -468,6 +484,8 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
       unreadByTaskId.get(conversation.taskId) ?? 0,
     );
   });
+  logTaskChatDebug('loadThreads.snapshot', { ...params, size: rows.length });
+  return rows;
 }
 
 export async function getInboxThreads(params: { userId: string; familyId: string }) {
@@ -544,7 +562,7 @@ export async function getUnreadChatCount(params: { userId: string; familyId: str
 }
 
 export async function getThreadDetail(params: { familyId: string; threadId: string; userId: string }): Promise<TaskThreadDetailResponse> {
-  const threadSnapshot = await taskConversationsCollection(params.familyId).doc(params.threadId).get();
+  const threadSnapshot = await taskThreadsCollection(params.familyId).doc(params.threadId).get();
   if (!threadSnapshot.exists) {
     throw new TaskChatAccessError('Chat wurde nicht gefunden.', 404);
   }
@@ -561,6 +579,7 @@ export async function getThreadDetail(params: { familyId: string; threadId: stri
 
   const unreadCount = stateSnapshot.exists ? ((stateSnapshot.data() as TaskConversationStateDocument).unreadCount ?? 0) : 0;
   const messages = messagesSnapshot.docs.map((entry) => toLegacyMessage(entry.data() as TaskThreadMessageDocument));
+  logTaskChatDebug('loadMessages.snapshot', { ...params, size: messages.length });
 
   return {
     thread: toLegacyThreadListItem(thread, thread.taskTitleSnapshot, unreadCount),
