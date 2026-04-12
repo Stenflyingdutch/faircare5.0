@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 
 import { FamilyCategoryView } from '@/components/responsibilities/FamilyCategoryView';
+import { getCurrentLocale } from '@/lib/i18n';
 import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
+import type { ResponsibilityCatalogLanguage } from '@/types/responsibility-cards';
 
 export default function ResponsibilityCardsPage() {
   const [familyId, setFamilyId] = useState<string>('');
@@ -35,12 +37,14 @@ export default function ResponsibilityCardsPage() {
     return <p className="helper">Kein Familienkontext gefunden.</p>;
   }
 
+  const locale = getCurrentLocale();
+  const language: ResponsibilityCatalogLanguage = locale === 'en' || locale === 'nl' ? locale : 'de';
+
   return (
     <FamilyCategoryView
       familyId={familyId}
       userId={userId}
-      categoryKey="betreuung_entwicklung"
-      language="de"
+      language={language}
     />
   );
 }
