@@ -184,7 +184,10 @@ export async function sendTaskMessage(params: {
     throw new TaskChatAccessError('Kein Zugriff auf diese Aufgabe.', 403);
   }
 
-  const visibleParticipants = [...new Set(resolveTaskVisibleToUserIds(task))];
+  const visibleParticipants = [...new Set([
+    ...resolveTaskVisibleToUserIds(task),
+    ...params.participantUserIds,
+  ])];
   if (!visibleParticipants.includes(params.authorUserId)) {
     visibleParticipants.push(params.authorUserId);
   }
