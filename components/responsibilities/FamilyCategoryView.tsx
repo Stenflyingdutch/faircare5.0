@@ -1,102 +1,107 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { CatalogViewModal } from '@/components/responsibilities/CatalogViewModal';
-import { ResponsibilityHeaderActions } from '@/components/responsibilities/ResponsibilityHeaderActions';
+import { ResponsibilityCatalogModal } from '@/components/responsibilities/CatalogViewModal';
+import { FamilyCardCreateModal } from '@/components/responsibilities/FamilyCardCreateModal';
+import { FamilyCategoryActions } from '@/components/responsibilities/FamilyCategoryActions';
+import { FamilyResponsibilityCardList } from '@/components/responsibilities/FamilyResponsibilityCardList';
 import { getCatalogCards } from '@/services/catalog.service';
-import { createCustomCard, getFamilyCards } from '@/services/familyResponsibility.service';
+import { createCustomCard, observeFamilyCards } from '@/services/familyResponsibility.service';
+import { resolveCategoryLabel } from '@/services/resultCalculator';
 import type { CatalogResponsibilityCard, FamilyResponsibilityCard, ResponsibilityCatalogLanguage } from '@/types/responsibility-cards';
+import type { QuizCategory } from '@/types/quiz';
 
 interface FamilyCategoryViewProps {
   familyId: string;
   userId: string;
-  categoryKey: string;
+  categoryKeys: QuizCategory[];
   language: ResponsibilityCatalogLanguage;
 }
 
-export function FamilyCategoryView({ familyId, userId, categoryKey, language }: FamilyCategoryViewProps) {
+export function FamilyCategoryView({ familyId, userId, categoryKeys, language }: FamilyCategoryViewProps) {
   const [familyCards, setFamilyCards] = useState<FamilyResponsibilityCard[]>([]);
   const [catalogCards, setCatalogCards] = useState<CatalogResponsibilityCard[]>([]);
+  const [activeCategory, setActiveCategory] = useState<QuizCategory | null>(null);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
-  const [newCardTitle, setNewCardTitle] = useState('');
-  const [newCardDescription, setNewCardDescription] = useState('');
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-  const reloadFamilyCards = useCallback(async () => {
-    const cards = await getFamilyCards(familyId, categoryKey);
-    setFamilyCards(cards);
-  }, [familyId, categoryKey]);
+  useEffect(() => observeFamilyCards(familyId, setFamilyCards), [familyId]);
 
-  const reloadCatalogCards = useCallback(async () => {
+  const cardsByCategory = useMemo(() => {
+    const map = new Map<QuizCategory, FamilyResponsibilityCard[]>();
+    categoryKeys.forEach((key) => map.set(key, []));
+    familyCards.forEach((card) => {
+      if (!categoryKeys.includes(card.categoryKey as QuizCategory)) return;
+      const list = map.get(card.categoryKey as QuizCategory) ?? [];
+      list.push(card);
+      map.set(card.categoryKey as QuizCategory, list);
+    });
+    return map;
+  }, [categoryKeys, familyCards]);
+
+  const loadCatalogCards = useCallback(async (categoryKey: QuizCategory) => {
     const cards = await getCatalogCards(categoryKey, language);
     setCatalogCards(cards);
-  }, [categoryKey, language]);
+  }, [language]);
 
-  useEffect(() => {
-    void reloadFamilyCards();
-    void reloadCatalogCards();
-  }, [reloadCatalogCards, reloadFamilyCards]);
+  async function openCatalog(categoryKey: QuizCategory) {
+    setActiveCategory(categoryKey);
+    setIsCatalogOpen(true);
+    await loadCatalogCards(categoryKey);
+  }
 
-  async function handleCreateCard() {
-    if (!newCardTitle.trim()) return;
-    await createCustomCard(familyId, categoryKey, newCardTitle, newCardDescription, userId);
-    setNewCardTitle('');
-    setNewCardDescription('');
-    await reloadFamilyCards();
+  async function createCardForActiveCategory(title: string, description: string) {
+    if (!activeCategory) return;
+    await createCustomCard(familyId, activeCategory, title, description, userId);
   }
 
   return (
-    <section className="stack-md">
-      <header className="row between center">
-        <div>
-          <h2>{categoryKey}</h2>
-          <p className="helper">{familyCards.length} Karten</p>
-        </div>
-        <ResponsibilityHeaderActions onOpenCatalog={() => setIsCatalogOpen(true)} onCreateCard={handleCreateCard} />
-      </header>
+    <section className="stack">
+      {categoryKeys.map((categoryKey) => {
+        const cards = cardsByCategory.get(categoryKey) ?? [];
+        const categoryLabel = resolveCategoryLabel(categoryKey);
 
-      {familyCards.length === 0 ? (
-        <div className="card-surface stack-sm">
-          <p>Hier sind noch keine Verantwortungsgebiete in eurer Liste.</p>
-          <ResponsibilityHeaderActions
-            onOpenCatalog={() => setIsCatalogOpen(true)}
-            onCreateCard={handleCreateCard}
-            catalogLabel="Katalog öffnen"
-          />
-        </div>
-      ) : (
-        <div className="stack-sm">
-          {familyCards.map((card) => (
-            <article key={card.id} className="card-surface stack-xs">
-              <strong>{card.title}</strong>
-              <p>{card.description}</p>
-              <p className="helper">Status: {card.status} · Fokus: {card.focusState ?? '–'}</p>
-            </article>
-          ))}
-        </div>
+        return (
+          <article key={categoryKey} className="card stack ownership-category-shell">
+            <header className="ownership-group-header">
+              <div className="ownership-group-heading">
+                <h2 className="card-title" style={{ margin: 0 }}>{categoryLabel}</h2>
+                <p className="helper ownership-group-meta" style={{ margin: 0 }}>{cards.length} Karten</p>
+              </div>
+              <FamilyCategoryActions
+                onOpenCatalog={() => void openCatalog(categoryKey)}
+                onCreateCard={() => {
+                  setActiveCategory(categoryKey);
+                  setIsCreateOpen(true);
+                }}
+              />
+            </header>
+
+            {cards.length === 0
+              ? <p className="helper">In dieser Kategorie gibt es noch keine Familien-Karten.</p>
+              : <FamilyResponsibilityCardList cards={cards} />}
+          </article>
+        );
+      })}
+
+      {activeCategory && (
+        <ResponsibilityCatalogModal
+          isOpen={isCatalogOpen}
+          onClose={() => setIsCatalogOpen(false)}
+          familyId={familyId}
+          userId={userId}
+          categoryLabel={resolveCategoryLabel(activeCategory)}
+          catalogCards={catalogCards}
+          familyCards={familyCards.filter((card) => card.categoryKey === activeCategory)}
+          onImported={async () => undefined}
+        />
       )}
 
-      <div className="stack-xs">
-        <input
-          value={newCardTitle}
-          onChange={(event) => setNewCardTitle(event.target.value)}
-          placeholder="Titel"
-        />
-        <textarea
-          value={newCardDescription}
-          onChange={(event) => setNewCardDescription(event.target.value)}
-          placeholder="Beschreibung"
-        />
-      </div>
-
-      <CatalogViewModal
-        isOpen={isCatalogOpen}
-        onClose={() => setIsCatalogOpen(false)}
-        familyId={familyId}
-        userId={userId}
-        catalogCards={catalogCards}
-        familyCards={familyCards}
-        onImported={reloadFamilyCards}
+      <FamilyCardCreateModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onCreate={createCardForActiveCategory}
       />
     </section>
   );

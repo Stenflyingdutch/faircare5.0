@@ -6,25 +6,27 @@ import { Modal } from '@/components/Modal';
 import { importFromCatalog } from '@/services/familyResponsibility.service';
 import type { CatalogResponsibilityCard, FamilyResponsibilityCard } from '@/types/responsibility-cards';
 
-interface CatalogViewModalProps {
+interface ResponsibilityCatalogModalProps {
   isOpen: boolean;
   onClose: () => void;
   familyId: string;
   userId: string;
+  categoryLabel: string;
   catalogCards: CatalogResponsibilityCard[];
   familyCards: FamilyResponsibilityCard[];
   onImported: () => Promise<void>;
 }
 
-export function CatalogViewModal({
+export function ResponsibilityCatalogModal({
   isOpen,
   onClose,
   familyId,
   userId,
+  categoryLabel,
   catalogCards,
   familyCards,
   onImported,
-}: CatalogViewModalProps) {
+}: ResponsibilityCatalogModalProps) {
   const [isImportingId, setIsImportingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +51,10 @@ export function CatalogViewModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Katalog öffnen">
       <div className="stack-md">
-        <h3>Katalog</h3>
+        <div>
+          <h3>Katalog</h3>
+          <p className="helper" style={{ margin: 0 }}>{categoryLabel}</p>
+        </div>
         {catalogCards.length === 0 ? <p className="helper">Keine aktiven Katalog-Karten gefunden.</p> : null}
         {catalogCards.map((catalogCard) => {
           const alreadyImported = importedIds.has(catalogCard.id);
@@ -62,7 +67,7 @@ export function CatalogViewModal({
                 type="button"
                 className="btn-secondary"
                 disabled={alreadyImported || isImporting}
-                onClick={() => handleImport(catalogCard.id)}
+                onClick={() => void handleImport(catalogCard.id)}
               >
                 {alreadyImported ? 'Bereits übernommen' : isImporting ? 'Übernehme…' : 'Übernehmen'}
               </button>
