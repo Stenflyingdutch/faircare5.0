@@ -1,37 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
 
 import { AdminPageHeader } from '@/components/admin/common/AdminPageHeader';
-import { db } from '@/lib/firebase';
-import { createCatalogCard, deleteCatalogCard } from '@/services/adminCatalog.service';
+import {
+  createCatalogCard,
+  deleteCatalogCard,
+  getCatalogCardsForAdmin,
+} from '@/services/adminCatalog.service';
 import { observeAuthState } from '@/services/auth.service';
-import type { CatalogResponsibilityCard, ResponsibilityCatalogAgeGroup, ResponsibilityCatalogLanguage } from '@/types/responsibility-cards';
-
-const CATALOG_COLLECTION = 'catalog_responsibility_cards';
+import type {
+  CatalogResponsibilityCard,
+  ResponsibilityCatalogAgeGroup,
+  ResponsibilityCatalogLanguage,
+} from '@/types/responsibility-cards';
 
 const ageGroups: ResponsibilityCatalogAgeGroup[] = ['0-1', '1-3', '3-6', '6-12', '12-18'];
 const languages: ResponsibilityCatalogLanguage[] = ['de', 'en', 'nl'];
 
-function mapCatalogCard(id: string, payload: Record<string, unknown>): CatalogResponsibilityCard {
-  return {
-    id,
-    categoryKey: String(payload.categoryKey ?? ''),
-    title: String(payload.title ?? ''),
-    description: String(payload.description ?? ''),
-    language: (payload.language as ResponsibilityCatalogLanguage) ?? 'de',
-    ageGroup: (payload.ageGroup as ResponsibilityCatalogAgeGroup) ?? '3-6',
-    sortOrder: Number(payload.sortOrder ?? 0),
-    isActive: Boolean(payload.isActive),
-    createdBy: String(payload.createdBy ?? ''),
-    updatedBy: String(payload.updatedBy ?? ''),
-    createdAt: payload.createdAt as CatalogResponsibilityCard['createdAt'],
-    updatedAt: payload.updatedAt as CatalogResponsibilityCard['updatedAt'],
-    tags: Array.isArray(payload.tags) ? payload.tags.map((item) => String(item)) : undefined,
-    version: typeof payload.version === 'number' ? payload.version : undefined,
-  };
-}
+type LoadState = 'loading' | 'success' | 'empty' | 'error';
 
 export default function AdminResponsibilitiesPage() {
   const [cards, setCards] = useState<CatalogResponsibilityCard[]>([]);
@@ -43,21 +30,24 @@ export default function AdminResponsibilitiesPage() {
   const [newDescription, setNewDescription] = useState('');
   const [newCategory, setNewCategory] = useState('betreuung_entwicklung');
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
 
   const loadCards = useCallback(async () => {
-    const constraints = [
-      where('language', '==', languageFilter),
-      where('ageGroup', '==', ageGroupFilter),
-      orderBy('categoryKey', 'asc'),
-      orderBy('sortOrder', 'asc'),
-    ];
-
-    if (categoryFilter !== 'all') {
-      constraints.unshift(where('categoryKey', '==', categoryFilter));
+    setLoadState('loading');
+    setLoadError(null);
+    try {
+      const loadedCards = await getCatalogCardsForAdmin({
+        categoryKey: categoryFilter,
+        language: languageFilter,
+        ageGroup: ageGroupFilter,
+      });
+      setCards(loadedCards);
+      setLoadState(loadedCards.length === 0 ? 'empty' : 'success');
+    } catch {
+      setCards([]);
+      setLoadState('error');
+      setLoadError('Katalog konnte nicht geladen werden.');
     }
-
-    const snapshot = await getDocs(query(collection(db, CATALOG_COLLECTION), ...constraints));
-    setCards(snapshot.docs.map((item) => mapCatalogCard(item.id, item.data() as Record<string, unknown>)));
   }, [ageGroupFilter, categoryFilter, languageFilter]);
 
   useEffect(() => {
@@ -69,7 +59,7 @@ export default function AdminResponsibilitiesPage() {
   }, []);
 
   useEffect(() => {
-    loadCards().catch(() => setLoadError('Katalog konnte nicht geladen werden.'));
+    void loadCards();
   }, [loadCards]);
 
   const categories = useMemo(() => {
@@ -112,7 +102,7 @@ export default function AdminResponsibilitiesPage() {
         Änderungen wirken nur auf den zentralen Katalog. Bereits übernommene Karten bleiben unverändert.
       </p>
 
-      <div className="row gap-sm">
+      <div className="responsibility-filter-row">
         <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
           <option value="all">Alle Kategorien</option>
           {categories.map((category) => <option key={category} value={category}>{category}</option>)}
@@ -125,28 +115,34 @@ export default function AdminResponsibilitiesPage() {
         </select>
       </div>
 
-      <div className="card-surface stack-xs">
-        <h3>Neue Karte</h3>
+      <div className="card-surface stack-xs responsibility-create-card">
+        <h3>Neue Katalog-Karte</h3>
         <input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="Kategorie" />
         <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Titel" />
         <textarea value={newDescription} onChange={(event) => setNewDescription(event.target.value)} placeholder="Beschreibung" />
         <button type="button" className="btn-primary" onClick={handleCreate}>Neue Karte</button>
       </div>
 
-      <div className="stack-sm">
-        {cards.map((card) => (
-          <article key={card.id} className="card-surface stack-xs">
-            <strong>{card.title}</strong>
-            <p>{card.description}</p>
-            <p className="helper">{card.categoryKey} · {card.language} · {card.ageGroup}</p>
-            <div className="row gap-sm">
-              <button type="button" className="btn-secondary" onClick={() => handleDelete(card.id)}>Löschen</button>
-            </div>
-          </article>
-        ))}
-      </div>
+      {loadState === 'loading' ? <p className="helper">Katalog wird geladen…</p> : null}
 
-      {loadError ? <p className="inline-error">{loadError}</p> : null}
+      {loadState === 'empty' ? <p className="helper">Für diese Auswahl gibt es noch keine Katalog-Karten.</p> : null}
+
+      {loadState === 'success' ? (
+        <div className="stack-sm">
+          {cards.map((card) => (
+            <article key={card.id} className="card-surface stack-xs">
+              <strong>{card.title}</strong>
+              <p>{card.description}</p>
+              <p className="helper">{card.categoryKey} · {card.language} · {card.ageGroup}</p>
+              <div className="row gap-sm">
+                <button type="button" className="btn-secondary" onClick={() => handleDelete(card.id)}>Löschen</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      {loadState === 'error' && loadError ? <p className="inline-error">{loadError}</p> : null}
     </div>
   );
 }
