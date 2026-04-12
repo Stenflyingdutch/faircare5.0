@@ -263,15 +263,27 @@ export async function getTasksForSelectedDate(familyId: string, userId: string, 
 
 export async function getTaskOverviewForSelectedDate(userId: string, dateKey: string): Promise<TaskOverviewResponse> {
   const context = await resolveTaskContext(userId);
-  const [tasks, delegations, overrides, dayTasks] = await Promise.all([
+  const settled = await Promise.allSettled([
     readFamilyTasks(context.familyId),
     readFamilyTaskDelegations(context.familyId),
     readFamilyTaskOverrides(context.familyId),
-    getTasksForSelectedDate(context.familyId, userId, dateKey),
   ]);
+
+  const [tasksResult, delegationsResult, overridesResult] = settled;
+  if (tasksResult.status === 'rejected') throw tasksResult.reason;
+  if (delegationsResult.status === 'rejected') throw delegationsResult.reason;
+  if (overridesResult.status === 'rejected') throw overridesResult.reason;
+
+  const tasks = tasksResult.value;
+  const delegations = delegationsResult.value;
+  const overrides = overridesResult.value;
 
   const delegationsByTask = groupDelegationsByTask(delegations);
   const overridesByTask = groupOverridesByTask(overrides);
+  const dayTasks = tasks
+    .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], overridesByTask.get(task.id) ?? [], dateKey))
+    .filter((task) => task.isDueOnSelectedDate)
+    .sort(sortDayTasks);
   const responsibilityTasks = tasks
     .filter((task) => Boolean(task.responsibilityId))
     .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], overridesByTask.get(task.id) ?? [], dateKey))
@@ -281,6 +293,11 @@ export async function getTaskOverviewForSelectedDate(userId: string, dateKey: st
     selectedDate: dateKey,
     dayTasks,
     responsibilityTasks,
+    tasks: dayTasks,
+    responsibilities: responsibilityTasks,
+    taskThreads: [],
+    inbox: [],
+    warnings: [] as string[],
   };
 
   return appendThreadMetaToOverview({

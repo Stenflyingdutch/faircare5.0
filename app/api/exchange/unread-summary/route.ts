@@ -9,7 +9,28 @@ export async function GET(request: NextRequest) {
   try {
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const context = await getTaskContextFromSessionCookie(sessionCookie);
-    const unreadChatCount = await getUnreadChatCount({ familyId: context.familyId, userId: context.userId });
+    let unreadChatCount = 0;
+    try {
+      unreadChatCount = await getUnreadChatCount({ familyId: context.familyId, userId: context.userId });
+    } catch (error) {
+      const chatError = error as { code?: string; message?: string };
+      console.warn('[home] optional inbox loader failed.', {
+        endpoint: '/api/exchange/unread-summary',
+        userId: context.userId,
+        familyId: context.familyId,
+        loader: 'inbox',
+        code: chatError?.code ?? 'unknown',
+        message: chatError?.message ?? String(error),
+      });
+      if (chatError?.code === 'failed-precondition') {
+        console.warn('[home] missing composite index for taskThreads inbox query.', {
+          endpoint: '/api/exchange/unread-summary',
+          userId: context.userId,
+          familyId: context.familyId,
+          loader: 'inbox',
+        });
+      }
+    }
     const unreadCheckInCount = isTeamCheckBadgeVisible({
       nextCheckInAt: context.family.teamCheckPlan?.nextCheckInAt,
       reminderActiveAt: context.family.teamCheckPlan?.reminderActiveAt,

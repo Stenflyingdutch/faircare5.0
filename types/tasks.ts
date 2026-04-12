@@ -1,4 +1,5 @@
 import type { QuizCategory } from '@/types/quiz';
+import type { TaskThreadListItem } from '@/types/task-chat';
 
 export type TaskType = 'responsibilityTask' | 'dayTask';
 export type TaskStatus = 'active' | 'completed';
@@ -95,6 +96,11 @@ export interface TaskOverviewResponse {
   selectedDate: string;
   dayTasks: TaskOverviewItem[];
   responsibilityTasks: TaskOverviewItem[];
+  tasks?: TaskOverviewItem[];
+  responsibilities?: TaskOverviewItem[];
+  taskThreads?: TaskThreadListItem[];
+  inbox?: TaskThreadListItem[];
+  warnings?: string[];
   taskThreadMetaByTaskId?: Record<string, TaskThreadOverviewMeta>;
   unreadChatCount?: number;
 }
