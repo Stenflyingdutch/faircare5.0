@@ -2652,10 +2652,17 @@ textarea.input {
   color: #70808d;
   text-decoration: line-through;
   text-decoration-thickness: 1.5px;
+  opacity: 0.62;
 }
 
-.task-row-title.is-delegated {
-  font-style: italic;
+.task-list-item.is-delegated {
+  opacity: 0.64;
+  background: linear-gradient(180deg, #f7f9fb 0%, #f0f4f7 100%);
+}
+
+.task-list-item.is-delegated .task-row-title {
+  color: #7b8995;
+  text-decoration: none;
 }
 
 .task-row-subtitle {
@@ -2673,6 +2680,7 @@ textarea.input {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-left: auto;
 }
 
 .task-chip {
@@ -2685,6 +2693,11 @@ textarea.input {
   color: #35556f;
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.task-chip.is-delegated {
+  background: rgba(232, 233, 237, 0.98);
+  color: #5c6774;
 }
 
 .task-row-icon-button,
@@ -2732,8 +2745,7 @@ textarea.input {
 }
 
 .responsibility-task-toggle-copy {
-  display: grid;
-  gap: 2px;
+  display: flex;
   text-align: left;
 }
 
@@ -2941,6 +2953,21 @@ textarea.input {
   border: 1px solid transparent;
   cursor: pointer;
   font-weight: 700;
+}
+
+.task-delete-action {
+  min-height: 44px;
+  width: fit-content;
+  border: 1px solid rgba(235, 176, 176, 0.95);
+  border-radius: 14px;
+  padding: 0 12px;
+  background: #fff6f6;
+  color: #9f2d2d;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .task-primary-button {

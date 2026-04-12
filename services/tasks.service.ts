@@ -80,3 +80,12 @@ export async function updateTaskInstance(taskId: string, date: string, input: Up
   });
   return parseJson<{ override: unknown | null }>(response);
 }
+
+
+export async function deleteTask(taskId: string) {
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  return parseJson<{ success: true }>(response);
+}

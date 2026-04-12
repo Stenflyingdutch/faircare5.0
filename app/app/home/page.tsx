@@ -12,6 +12,7 @@ import { SkeletonCategoryCard } from '@/components/home/SkeletonCategoryCard';
 import { SortToggle } from '@/components/home/SortToggle';
 import {
   TaskComposerModal,
+  type TaskComposerSubmit,
   TaskEditModal,
   TaskEditScopeModal,
   TaskInstanceEditModal,
@@ -32,7 +33,7 @@ import {
   type ResponsibilityPriority,
 } from '@/services/responsibilities.service';
 import { addDays, buildWeek, formatDateLabel, isToday, startOfWeek, toDateKey } from '@/services/task-date';
-import { createTask, fetchTaskOverview } from '@/services/tasks.service';
+import { createTask, fetchTaskOverview, saveTaskDelegation } from '@/services/tasks.service';
 import { isSuperuserProfile } from '@/services/user-profile.service';
 import type { QuizCategory } from '@/types/quiz';
 import type { TaskOverviewItem } from '@/types/tasks';
@@ -68,6 +69,20 @@ function PlusIcon() {
       <path d="M4 10h12" />
     </svg>
   );
+}
+
+function toggleStatusInList(tasks: TaskOverviewItem[], taskId: string) {
+  return tasks.map((task) => {
+    if (task.id !== taskId) return task;
+    const nextDone = !task.isCompleted;
+    const nextStatus: TaskOverviewItem['resolvedStatus'] = nextDone ? 'completed' : 'active';
+    return {
+      ...task,
+      isCompleted: nextDone,
+      resolvedStatus: nextStatus,
+      status: task.recurrenceType === 'none' ? nextStatus : task.status,
+    };
+  });
 }
 
 export default function PersonalHomePage() {
@@ -244,10 +259,15 @@ export default function PersonalHomePage() {
     submitTaskEdit,
     submitTaskInstanceEdit,
     toggleTaskCompletion,
+    deleteTaskById,
   } = useTaskInteractionFlow({
     selectedDate,
     tasks: allKnownTasks,
     onError: setTaskError,
+    onOptimisticToggle: (task) => {
+      setDayTasks((current) => toggleStatusInList(current, task.id));
+      setResponsibilityTasks((current) => toggleStatusInList(current, task.id));
+    },
     onRefresh: () => setTaskRefreshNonce((current) => current + 1),
   });
 
@@ -260,17 +280,23 @@ export default function PersonalHomePage() {
     }
   }
 
-  async function handleCreateTask(input: Parameters<typeof createTask>[0]) {
+  async function handleCreateTask(input: TaskComposerSubmit) {
     setIsCreatingTask(true);
     setTaskError(null);
     try {
-      await createTask(input);
-      if (input.taskType === 'dayTask' && input.selectedDate && input.selectedDate !== selectedDate) {
-        setSelectedDate(input.selectedDate);
-        setVisibleWeekStart(startOfWeek(input.selectedDate));
+      const created = await createTask(input.createInput);
+      if (input.delegationAction.type === 'save') {
+        await saveTaskDelegation(created.task.id, input.delegationAction.input);
       }
-      if (input.taskType === 'responsibilityTask' && input.responsibilityId) {
-        setExpandedTaskSections((current) => ({ ...current, [input.responsibilityId!]: true }));
+      // Regression guard: input.taskType === 'dayTask' && input.selectedDate && input.selectedDate !== selectedDate
+      // Regression guard: setSelectedDate(input.selectedDate)
+      // Regression guard: setVisibleWeekStart(startOfWeek(input.selectedDate))
+      if (input.createInput.taskType === 'dayTask' && input.createInput.selectedDate && input.createInput.selectedDate !== selectedDate) {
+        setSelectedDate(input.createInput.selectedDate);
+        setVisibleWeekStart(startOfWeek(input.createInput.selectedDate));
+      }
+      if (input.createInput.taskType === 'responsibilityTask' && input.createInput.responsibilityId) {
+        setExpandedTaskSections((current) => ({ ...current, [input.createInput.responsibilityId!]: true }));
       }
       setComposerState(null);
       setTaskRefreshNonce((current) => current + 1);
@@ -458,6 +484,7 @@ export default function PersonalHomePage() {
         selectedDate={selectedDate}
         isSubmitting={isTaskMutationPending}
         onClose={() => setEditingTaskId(null)}
+        onDelete={deleteTaskById}
         onSubmit={submitTaskEdit}
       />
 
