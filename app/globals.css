@@ -3319,3 +3319,15 @@ textarea.input {
   background: rgba(108, 76, 241, 0.14);
   color: #4f38b4;
 }
+
+.admin-shell {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+@media (min-width: 900px) {
+  .admin-shell {
+    padding: 24px;
+  }
+}
