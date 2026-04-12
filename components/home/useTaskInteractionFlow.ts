@@ -170,9 +170,9 @@ export function useTaskInteractionFlow({
   }
 
   async function reclaimDelegatedTask(task: TaskOverviewItem) {
-    if (!currentUserId || !task.delegatedToUserId) return;
+    if (!currentUserId || !task.delegatedToUserId) return false;
     const creatorId = task.creatorUserId ?? task.createdByUserId;
-    if (creatorId !== currentUserId) return;
+    if (creatorId !== currentUserId) return false;
 
     setIsTaskMutationPending(true);
     onError(null);
@@ -181,8 +181,10 @@ export function useTaskInteractionFlow({
       await clearTaskDelegation(task.id);
       closeAllTaskFlows();
       onRefresh();
+      return true;
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Delegation konnte nicht zurückgenommen werden.');
+      return false;
     } finally {
       setIsTaskMutationPending(false);
     }

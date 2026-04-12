@@ -275,6 +275,21 @@ function assertTaskWriteAccess(task: TaskDocument, userId: string) {
   }
 }
 
+function assertTaskDelegationClearAccess(task: TaskDocument, userId: string) {
+  const creatorId = task.creatorUserId ?? task.createdByUserId;
+  const delegatedUserId = task.delegatedToUserId ?? null;
+
+  if (userId === creatorId) {
+    return;
+  }
+
+  if (delegatedUserId && userId === delegatedUserId) {
+    return;
+  }
+
+  throw new TaskAccessError('Diese Delegation kann nur vom Ersteller oder der zugewiesenen Person zurückgenommen werden.', 403);
+}
+
 export class TaskAccessError extends Error {
   status: number;
 
@@ -612,7 +627,7 @@ export async function delegateTask(userId: string, taskId: string, input: SaveTa
 export async function clearTaskDelegationsForUser(userId: string, taskId: string, options?: ClearDelegationOptions) {
   const context = await resolveTaskContext(userId);
   const task = await resolveTaskById(context, taskId);
-  assertTaskWriteAccess(task, context.userId);
+  assertTaskDelegationClearAccess(task, context.userId);
 
   if (!options?.mode) {
     const snapshot = await taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get();
