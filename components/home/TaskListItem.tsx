@@ -59,7 +59,7 @@ export function TaskListItem({
     chips.push({ key: 'delegated', label: 'Delegiert', variant: 'delegated' });
   }
   if (hasUnreadMessage) {
-    chips.push({ key: 'new', label: 'Neu', variant: 'new' });
+    chips.push({ key: 'new', label: 'Ungelesen', variant: 'new' });
   }
 
   const handleRowClick = () => {
