@@ -3,7 +3,14 @@ import 'server-only';
 import { familySubcollections, firestoreCollections } from '@/types/domain';
 import { adminDb, verifyAdminSessionCookie } from '@/lib/firebase-admin';
 import { assertDateKey } from '@/services/task-date';
-import { isTaskDueOnDate, toTaskOverviewItem } from '@/services/tasks.logic';
+import {
+  canUserEditTask,
+  canUserSeeTask,
+  isTaskDueOnDate,
+  resolveTaskVisibleToUserIds,
+  toTaskOverviewItem,
+} from '@/services/tasks.logic';
+import { appendThreadMetaToOverview, createDelegationSystemMessage } from '@/services/server/task-chat.service';
 import { isSuperuserProfile, resolveAccountStatus } from '@/services/user-profile.service';
 import type { AppUserProfile, FamilyDocument } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
@@ -189,6 +196,21 @@ async function readFamilyTasks(familyId: string) {
   return snapshot.docs.map((entry) => ({ ...(entry.data() as TaskDocument), id: entry.id }));
 }
 
+async function readVisibleFamilyTasks(familyId: string, userId: string) {
+  const [visibleSnapshot, createdBySnapshot, delegatedSnapshot] = await Promise.all([
+    tasksCollection(familyId).where('visibleToUserIds', 'array-contains', userId).get(),
+    tasksCollection(familyId).where('createdByUserId', '==', userId).get(),
+    tasksCollection(familyId).where('delegatedToUserId', '==', userId).get(),
+  ]);
+
+  const byId = new Map<string, TaskDocument>();
+  for (const entry of [...visibleSnapshot.docs, ...createdBySnapshot.docs, ...delegatedSnapshot.docs]) {
+    byId.set(entry.id, { ...(entry.data() as TaskDocument), id: entry.id });
+  }
+
+  return [...byId.values()].filter((task) => !task.deletedAt && canUserSeeTask(task, userId));
+}
+
 async function readFamilyTaskDelegations(familyId: string) {
   const snapshot = await taskDelegationsCollection(familyId).get();
   return snapshot.docs.map((entry) => ({ ...(entry.data() as TaskDelegationDocument), id: entry.id }));
@@ -222,7 +244,17 @@ async function resolveTaskById(context: TaskContext, taskId: string) {
   if (!snapshot.exists) {
     throw new TaskAccessError('Aufgabe nicht gefunden.', 404);
   }
-  return { ...(snapshot.data() as TaskDocument), id: snapshot.id };
+  const task = { ...(snapshot.data() as TaskDocument), id: snapshot.id };
+  if (!canUserSeeTask(task, context.userId)) {
+    throw new TaskAccessError('Kein Zugriff auf diese Aufgabe.', 403);
+  }
+  return task;
+}
+
+function assertTaskWriteAccess(task: TaskDocument, userId: string) {
+  if (!canUserEditTask(task, userId)) {
+    throw new TaskAccessError('Diese Aufgabe kann nur von der aktuell zugewiesenen Person bearbeitet werden.', 403);
+  }
 }
 
 export class TaskAccessError extends Error {
@@ -246,7 +278,7 @@ export async function getTasksForSelectedDate(familyId: string, userId: string, 
   }
 
   const [tasks, delegations, overrides] = await Promise.all([
-    readFamilyTasks(familyId),
+    readVisibleFamilyTasks(familyId, userId),
     readFamilyTaskDelegations(familyId),
     readFamilyTaskOverrides(familyId),
   ]);
@@ -262,25 +294,48 @@ export async function getTasksForSelectedDate(familyId: string, userId: string, 
 
 export async function getTaskOverviewForSelectedDate(userId: string, dateKey: string): Promise<TaskOverviewResponse> {
   const context = await resolveTaskContext(userId);
-  const [tasks, delegations, overrides, dayTasks] = await Promise.all([
-    readFamilyTasks(context.familyId),
+  const settled = await Promise.allSettled([
+    readVisibleFamilyTasks(context.familyId, userId),
     readFamilyTaskDelegations(context.familyId),
     readFamilyTaskOverrides(context.familyId),
-    getTasksForSelectedDate(context.familyId, userId, dateKey),
   ]);
+
+  const [tasksResult, delegationsResult, overridesResult] = settled;
+  if (tasksResult.status === 'rejected') throw tasksResult.reason;
+  if (delegationsResult.status === 'rejected') throw delegationsResult.reason;
+  if (overridesResult.status === 'rejected') throw overridesResult.reason;
+
+  const tasks = tasksResult.value;
+  const delegations = delegationsResult.value;
+  const overrides = overridesResult.value;
 
   const delegationsByTask = groupDelegationsByTask(delegations);
   const overridesByTask = groupOverridesByTask(overrides);
+  const dayTasks = tasks
+    .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], overridesByTask.get(task.id) ?? [], dateKey))
+    .filter((task) => task.isDueOnSelectedDate)
+    .sort(sortDayTasks);
   const responsibilityTasks = tasks
     .filter((task) => Boolean(task.responsibilityId))
     .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], overridesByTask.get(task.id) ?? [], dateKey))
     .sort(sortOverviewItems);
 
-  return {
+  const overview = {
     selectedDate: dateKey,
     dayTasks,
     responsibilityTasks,
+    tasks: dayTasks,
+    responsibilities: responsibilityTasks,
+    taskThreads: [],
+    inbox: [],
+    warnings: [] as string[],
   };
+
+  return appendThreadMetaToOverview({
+    familyId: context.familyId,
+    userId,
+    overview,
+  });
 }
 
 export async function createTaskForUser(userId: string, input: CreateTaskInput) {
@@ -313,8 +368,15 @@ export async function createTaskForUser(userId: string, input: CreateTaskInput) 
     categoryKey,
     title,
     notes: normalizeOptionalText(input.notes),
+    creatorUserId: context.userId,
     createdByUserId: context.userId,
     assignedToUserId: context.userId,
+    ownerUserId: context.userId,
+    delegatedToUserId: null,
+    delegatedByUserId: null,
+    delegatedAt: null,
+    visibilityMode: 'private',
+    visibleToUserIds: [context.userId],
     taskType: input.taskType,
     selectedDate,
     recurrenceType,
@@ -322,6 +384,12 @@ export async function createTaskForUser(userId: string, input: CreateTaskInput) 
     endMode: input.endMode ?? 'never',
     endDate: normalizeOptionalDate(input.endDate),
     status: 'active',
+    threadId: null,
+    unreadForUserIds: [],
+    lastMessageAt: null,
+    lastMessagePreview: null,
+    source: 'manual',
+    deletedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -333,6 +401,7 @@ export async function createTaskForUser(userId: string, input: CreateTaskInput) 
 export async function updateTaskForUser(userId: string, taskId: string, input: UpdateTaskInput) {
   const context = await resolveTaskContext(userId);
   const existingTask = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(existingTask, context.userId);
 
   const nextTitle = input.title !== undefined ? input.title.trim() : existingTask.title;
   if (!nextTitle) {
@@ -371,6 +440,7 @@ export async function updateTaskInstanceForUser(userId: string, taskId: string, 
   assertDateKey(dateKey);
   const context = await resolveTaskContext(userId);
   const task = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(task, context.userId);
 
   if (!isTaskDueOnDate(task, dateKey)) {
     throw new TaskAccessError('Für diesen Termin gibt es keine aktive Aufgabeninstanz.', 400);
@@ -422,6 +492,7 @@ export async function updateTaskInstanceForUser(userId: string, taskId: string, 
 export async function saveTaskDelegationForUser(userId: string, taskId: string, input: SaveTaskDelegationInput) {
   const context = await resolveTaskContext(userId);
   const task = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(task, context.userId);
 
   if (!context.partnerUserId) {
     throw new TaskAccessError('Es ist noch kein Partnerkonto mit dieser Familie verknüpft.', 400);
@@ -432,10 +503,16 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
   }
 
   if (input.mode === 'recurring' && !input.weekdays?.length) {
-    throw new TaskAccessError('Bitte wähle mindestens einen Wochentag für die regelmäßige Delegation.', 400);
+    const hasStrategy = input.recurringStrategy === 'always' || input.recurringStrategy === 'alternating';
+    if (!hasStrategy) {
+      throw new TaskAccessError('Bitte wähle eine Strategie für die regelmäßige Delegation.', 400);
+    }
   }
 
   const normalizedDate = normalizeOptionalDate(input.date);
+  if (input.mode === 'recurring' && input.recurringStrategy === 'alternating' && !normalizedDate) {
+    throw new TaskAccessError('Für Delegation im Wechsel wird ein Startdatum benötigt.', 400);
+  }
   if (input.mode === 'singleDate' && (!normalizedDate || !isTaskDueOnDate(task, normalizedDate))) {
     throw new TaskAccessError('Die Delegation muss auf einen echten Termin dieser Aufgabe gesetzt werden.', 400);
   }
@@ -457,17 +534,67 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
     mode: input.mode,
     date: normalizedDate,
     weekdays: normalizeWeekdays(input.weekdays),
+    recurringStrategy: input.recurringStrategy ?? null,
     createdAt: existingDelegation?.createdAt ?? timestamp,
     updatedAt: timestamp,
   };
 
   await delegationRef.set(payload, { merge: true });
+
+  const systemText = 'Diese Aufgabe wurde dir delegiert.';
+
+  const visibleToUserIds = resolveTaskVisibleToUserIds(task);
+  const updatedVisibleToUserIds = [...new Set([...visibleToUserIds, context.partnerUserId])];
+  await tasksCollection(context.familyId).doc(task.id).set({
+    delegatedToUserId: context.partnerUserId,
+    delegatedByUserId: context.userId,
+    delegatedAt: timestamp,
+    visibilityMode: 'delegated',
+    visibleToUserIds: updatedVisibleToUserIds,
+    unreadForUserIds: [context.partnerUserId],
+    lastMessageAt: timestamp,
+    lastMessagePreview: systemText,
+    hasConversation: true,
+    lastConversationActivityAt: timestamp,
+    lastConversationMessageAt: timestamp,
+    lastConversationMessageText: systemText,
+    lastConversationMessageType: 'system_message',
+    lastConversationSenderId: 'system',
+    updatedAt: timestamp,
+  } satisfies Partial<TaskDocument>, { merge: true });
+
+  const systemResult = await createDelegationSystemMessage({
+    familyId: context.familyId,
+    taskId: task.id,
+    authorUserId: context.userId,
+    participantUserIds: updatedVisibleToUserIds,
+    responsibilityId: task.responsibilityId ?? null,
+    text: systemText,
+    idempotencyKey: `${task.id}:${timestamp}:${input.mode}:${normalizedDate ?? 'none'}`,
+    meta: {
+      delegatedByUserId: context.userId,
+      delegatedToUserId: context.partnerUserId,
+      delegationMode: input.mode,
+      date: normalizedDate,
+      weekdays: input.weekdays ?? null,
+    },
+  });
+
+  await tasksCollection(context.familyId).doc(task.id).set({
+    threadId: systemResult.threadId,
+  } satisfies Partial<TaskDocument>, { merge: true });
+
   return payload;
+}
+
+export async function delegateTask(userId: string, taskId: string, input: SaveTaskDelegationInput) {
+  return saveTaskDelegationForUser(userId, taskId, input);
 }
 
 export async function clearTaskDelegationsForUser(userId: string, taskId: string, options?: ClearDelegationOptions) {
   const context = await resolveTaskContext(userId);
-  await resolveTaskById(context, taskId);
+  const task = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(task, context.userId);
 
   if (!options?.mode) {
     const snapshot = await taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get();
@@ -498,4 +625,22 @@ export async function clearTaskDelegationsForUser(userId: string, taskId: string
   if (recurringSnapshot.exists) {
     await recurringRef.delete();
   }
+}
+
+
+export async function deleteTaskForUser(userId: string, taskId: string) {
+  const context = await resolveTaskContext(userId);
+  const task = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(task, context.userId);
+
+  const [delegationsSnapshot, overridesSnapshot] = await Promise.all([
+    taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get(),
+    taskOverridesCollection(context.familyId).where('taskId', '==', taskId).get(),
+  ]);
+
+  const batch = adminDb.batch();
+  delegationsSnapshot.docs.forEach((entry) => batch.delete(entry.ref));
+  overridesSnapshot.docs.forEach((entry) => batch.delete(entry.ref));
+  batch.delete(tasksCollection(context.familyId).doc(taskId));
+  await batch.commit();
 }

@@ -6,6 +6,7 @@ import { ReactNode, useEffect, useState } from 'react';
 
 import { observeAuthState } from '@/services/auth.service';
 import { ensureUserProfile, fetchDashboardBundle } from '@/services/partnerFlow.service';
+import { fetchExchangeUnreadSummary } from '@/services/task-chat.service';
 import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
 import { isTeamCheckBadgeVisible } from '@/services/teamCheck.logic';
 
@@ -24,6 +25,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showTeamCheckDot, setShowTeamCheckDot] = useState(false);
   const [partnerCompleted, setPartnerCompleted] = useState(false);
+  const [exchangeBadgeCount, setExchangeBadgeCount] = useState(0);
   const [hasLoggedFirstQuery, setHasLoggedFirstQuery] = useState(false);
 
   useEffect(() => {
@@ -124,6 +126,8 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           reminderActiveAt: bundle.family?.teamCheckPlan?.reminderActiveAt,
         }));
         setPartnerCompleted(Boolean(bundle.family?.partnerCompleted));
+        const unreadSummary = await fetchExchangeUnreadSummary().catch(() => null);
+        setExchangeBadgeCount(unreadSummary?.unreadChatCount ?? 0);
         setIsReady(true);
         setLoadError(null);
         logSignupInfo('personal_shell_ready', {
@@ -215,7 +219,8 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
                         className={`personal-area-nav-link ${isActive ? `active tone-${item.tone}` : ''}`}
                       >
                         {item.label}
-                        {item.href === '/app/review' && showTeamCheckDot && <span className="team-check-nav-dot" aria-hidden="true" />}
+                        {item.href === '/app/review' && exchangeBadgeCount > 0 && <span className="exchange-nav-badge" aria-label={`${exchangeBadgeCount} neue Einträge`}>{exchangeBadgeCount}</span>}
+                        {item.href === '/app/review' && exchangeBadgeCount === 0 && showTeamCheckDot && <span className="team-check-nav-dot" aria-hidden="true" />}
                       </Link>
                     );
                   })}

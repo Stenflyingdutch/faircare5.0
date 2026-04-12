@@ -51,6 +51,18 @@ service cloud.firestore {
       );
     }
 
+    function taskVisibleToCurrentUser() {
+      return !('visibleToUserIds' in resource.data)
+        || resource.data.visibleToUserIds.size() == 0
+        || resource.data.visibleToUserIds.hasAny([request.auth.uid]);
+    }
+
+    function taskVisibleToCurrentUserInRequest() {
+      return !('visibleToUserIds' in request.resource.data)
+        || request.resource.data.visibleToUserIds.size() == 0
+        || request.resource.data.visibleToUserIds.hasAny([request.auth.uid]);
+    }
+
     function familyResultsUnlocked(familyId) {
       return exists(/databases/$(database)/documents/families/$(familyId)) &&
         familyDoc(familyId).data.resultsUnlocked == true;
@@ -134,7 +146,11 @@ service cloud.firestore {
       }
 
       match /tasks/{taskId} {
-        allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && taskVisibleToCurrentUser();
+        allow create, update, delete: if isActiveAccount()
+          && isFamilyMember(familyId)
+          && isSuperuser()
+          && taskVisibleToCurrentUserInRequest();
       }
 
       match /taskDelegations/{delegationId} {
@@ -143,6 +159,58 @@ service cloud.firestore {
 
       match /taskOverrides/{overrideId} {
         allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+      }
+
+      match /users/{userId} {
+        allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && request.auth.uid == userId;
+        allow create, update, delete: if false;
+
+        match /conversationStates/{taskId} {
+          allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && request.auth.uid == userId;
+          allow create, update, delete: if false;
+        }
+
+        match /inboxEntries/{taskId} {
+          allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && request.auth.uid == userId;
+          allow create, update, delete: if false;
+        }
+
+        match /uiState/{docId} {
+          allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && request.auth.uid == userId;
+          allow create, update, delete: if false;
+        }
+      }
+
+      match /taskThreads/{threadId} {
+        allow read: if isActiveAccount()
+          && isFamilyMember(familyId)
+          && isSuperuser()
+          && (
+            !('participantUserIds' in resource.data) ||
+            resource.data.participantUserIds.hasAny([request.auth.uid])
+          );
+        allow create, update, delete: if false;
+
+        match /messages/{messageId} {
+          allow read: if isActiveAccount()
+            && isFamilyMember(familyId)
+            && isSuperuser()
+            && (
+              !('visibleToUserIds' in resource.data) ||
+              resource.data.visibleToUserIds.hasAny([request.auth.uid])
+            );
+          allow create: if isActiveAccount()
+            && isFamilyMember(familyId)
+            && isSuperuser()
+            && request.resource.data.type == 'user_message'
+            && request.resource.data.senderUserId == request.auth.uid;
+          allow update, delete: if false;
+        }
+
+        match /readState/{userId} {
+          allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+          allow create, update, delete: if false;
+        }
       }
     }
 

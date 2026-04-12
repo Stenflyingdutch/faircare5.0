@@ -21,7 +21,15 @@ export async function fetchTaskOverview(selectedDate: string) {
   const response = await fetch(`/api/tasks/overview?date=${encodeURIComponent(selectedDate)}`, {
     credentials: 'same-origin',
   });
-  return parseJson<TaskOverviewResponse>(response);
+  const payload = await parseJson<TaskOverviewResponse>(response);
+  return {
+    ...payload,
+    dayTasks: payload.dayTasks ?? payload.tasks ?? [],
+    responsibilityTasks: payload.responsibilityTasks ?? payload.responsibilities ?? [],
+    taskThreads: payload.taskThreads ?? [],
+    inbox: payload.inbox ?? [],
+    warnings: payload.warnings ?? [],
+  };
 }
 
 export async function createTask(input: CreateTaskInput) {
@@ -79,4 +87,13 @@ export async function updateTaskInstance(taskId: string, date: string, input: Up
     body: JSON.stringify(input),
   });
   return parseJson<{ override: unknown | null }>(response);
+}
+
+
+export async function deleteTask(taskId: string) {
+  const response = await fetch(`/api/tasks/${taskId}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  return parseJson<{ success: true }>(response);
 }

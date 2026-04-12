@@ -3,6 +3,7 @@ import { TaskListItem } from '@/components/home/TaskListItem';
 import type { TaskOverviewItem } from '@/types/tasks';
 
 export function ResponsibilityTasksSheet({
+  currentUserId,
   isOpen,
   onClose,
   onEditTask,
@@ -11,6 +12,7 @@ export function ResponsibilityTasksSheet({
   selectedDate,
   tasks,
 }: {
+  currentUserId: string | null;
   isOpen: boolean;
   onClose: () => void;
   onEditTask: (task: TaskOverviewItem) => void;
@@ -38,6 +40,7 @@ export function ResponsibilityTasksSheet({
               {tasks.map((task) => (
                 <TaskListItem
                   key={task.id}
+                  currentUserId={currentUserId}
                   task={task}
                   selectedDate={selectedDate}
                   onEdit={() => onEditTask(task)}

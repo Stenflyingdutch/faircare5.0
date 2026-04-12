@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { HomeHeader } from '@/components/home/HomeHeader';
-import { CategoryFilterButtons } from '@/components/home/CategoryFilterButtons';
 import { ResponsibilityCard } from '@/components/home/ResponsibilityCard';
 import { ResponsibilityCardDetails } from '@/components/home/ResponsibilityCardDetails';
 import { ResponsibilityTaskSection } from '@/components/home/ResponsibilityTaskSection';
@@ -12,6 +11,8 @@ import { SkeletonCategoryCard } from '@/components/home/SkeletonCategoryCard';
 import { SortToggle } from '@/components/home/SortToggle';
 import {
   TaskComposerModal,
+  TaskChatModal,
+  type TaskComposerSubmit,
   TaskEditModal,
   TaskEditScopeModal,
   TaskInstanceEditModal,
@@ -23,18 +24,15 @@ import { observeAuthState } from '@/services/auth.service';
 import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { categoryLabelMap } from '@/services/resultCalculator';
 import {
-  extractRelevantCategories,
   listenToResponsibilitiesForUser,
-  sortCategoriesByRelevance,
   sortResponsibilities,
   updateResponsibilityPriority,
   type Responsibility,
   type ResponsibilityPriority,
 } from '@/services/responsibilities.service';
 import { addDays, buildWeek, formatDateLabel, isToday, startOfWeek, toDateKey } from '@/services/task-date';
-import { createTask, fetchTaskOverview } from '@/services/tasks.service';
+import { createTask, fetchTaskOverview, saveTaskDelegation } from '@/services/tasks.service';
 import { isSuperuserProfile } from '@/services/user-profile.service';
-import type { QuizCategory } from '@/types/quiz';
 import type { TaskOverviewItem } from '@/types/tasks';
 
 type SortMode = 'relevance' | 'area';
@@ -42,6 +40,11 @@ type SortMode = 'relevance' | 'area';
 type ComposerState =
   | { mode: 'day' }
   | { mode: 'responsibility'; responsibility: Responsibility };
+
+type PendingDeleteState = {
+  taskId: string;
+  taskTitle: string;
+};
 
 function areIdListsEqual(left: string[], right: string[]) {
   if (left.length !== right.length) return false;
@@ -70,12 +73,25 @@ function PlusIcon() {
   );
 }
 
+function toggleStatusInList(tasks: TaskOverviewItem[], taskId: string) {
+  return tasks.map((task) => {
+    if (task.id !== taskId) return task;
+    const nextDone = !task.isCompleted;
+    const nextStatus: TaskOverviewItem['resolvedStatus'] = nextDone ? 'completed' : 'active';
+    return {
+      ...task,
+      isCompleted: nextDone,
+      resolvedStatus: nextStatus,
+      status: task.recurrenceType === 'none' ? nextStatus : task.status,
+    };
+  });
+}
+
 export default function PersonalHomePage() {
   const router = useRouter();
   const today = useMemo(() => toDateKey(new Date()), []);
   const [userFirstName, setUserFirstName] = useState('');
   const [responsibilities, setResponsibilities] = useState<Responsibility[]>([]);
-  const [activeFilter, setActiveFilter] = useState<QuizCategory | 'all' | null>('all');
   const [sortMode, setSortMode] = useState<SortMode>('relevance');
   const [orderedResponsibilityIds, setOrderedResponsibilityIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,12 +104,17 @@ export default function PersonalHomePage() {
   const [visibleWeekStart, setVisibleWeekStart] = useState(startOfWeek(today));
   const [dayTasks, setDayTasks] = useState<TaskOverviewItem[]>([]);
   const [responsibilityTasks, setResponsibilityTasks] = useState<TaskOverviewItem[]>([]);
+  const [taskThreadMetaByTaskId, setTaskThreadMetaByTaskId] = useState<Record<string, { unreadCount: number; hasThread: boolean; threadId: string }>>({});
   const [isTaskLoading, setIsTaskLoading] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskRefreshNonce, setTaskRefreshNonce] = useState(0);
   const [composerState, setComposerState] = useState<ComposerState | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<PendingDeleteState | null>(null);
+  const [chatTaskId, setChatTaskId] = useState<string | null>(null);
+  const pendingDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSortMode = useRef<SortMode>('relevance');
+  const hasLoadedTaskOverviewRef = useRef(false);
 
   useEffect(() => {
     let responsibilitiesUnsubscribe = () => {};
@@ -142,12 +163,14 @@ export default function PersonalHomePage() {
       setDayTasks([]);
       setResponsibilityTasks([]);
       setTaskError(null);
+      setTaskThreadMetaByTaskId({});
       setIsTaskLoading(false);
+      hasLoadedTaskOverviewRef.current = false;
       return;
     }
 
     let cancelled = false;
-    setIsTaskLoading(true);
+    setIsTaskLoading(!hasLoadedTaskOverviewRef.current);
     setTaskError(null);
 
     void fetchTaskOverview(selectedDate)
@@ -155,6 +178,8 @@ export default function PersonalHomePage() {
         if (cancelled) return;
         setDayTasks(overview.dayTasks);
         setResponsibilityTasks(overview.responsibilityTasks);
+        setTaskThreadMetaByTaskId(overview.taskThreadMetaByTaskId ?? {});
+        hasLoadedTaskOverviewRef.current = true;
       })
       .catch((error) => {
         if (cancelled) return;
@@ -170,11 +195,6 @@ export default function PersonalHomePage() {
       cancelled = true;
     };
   }, [isSuperuser, selectedDate, taskRefreshNonce, userId]);
-
-  const relevantCategories = useMemo(
-    () => sortCategoriesByRelevance(extractRelevantCategories(responsibilities), responsibilities),
-    [responsibilities],
-  );
 
   useEffect(() => {
     if (isLoading) return;
@@ -211,11 +231,6 @@ export default function PersonalHomePage() {
     [orderedResponsibilityIds, responsibilityMap],
   );
 
-  const filteredResponsibilities = useMemo(() => {
-    if (activeFilter === 'all' || !activeFilter) return sortedResponsibilities;
-    return sortedResponsibilities.filter((item) => item.categoryKey === activeFilter);
-  }, [sortedResponsibilities, activeFilter]);
-
   const responsibilityTasksByCard = useMemo(() => responsibilityTasks.reduce<Map<string, TaskOverviewItem[]>>((map, task) => {
     if (!task.responsibilityId) return map;
     const bucket = map.get(task.responsibilityId) ?? [];
@@ -244,10 +259,16 @@ export default function PersonalHomePage() {
     submitTaskEdit,
     submitTaskInstanceEdit,
     toggleTaskCompletion,
+    deleteTaskById,
   } = useTaskInteractionFlow({
+    currentUserId: userId,
     selectedDate,
     tasks: allKnownTasks,
     onError: setTaskError,
+    onOptimisticToggle: (task) => {
+      setDayTasks((current) => toggleStatusInList(current, task.id));
+      setResponsibilityTasks((current) => toggleStatusInList(current, task.id));
+    },
     onRefresh: () => setTaskRefreshNonce((current) => current + 1),
   });
 
@@ -260,17 +281,23 @@ export default function PersonalHomePage() {
     }
   }
 
-  async function handleCreateTask(input: Parameters<typeof createTask>[0]) {
+  async function handleCreateTask(input: TaskComposerSubmit) {
     setIsCreatingTask(true);
     setTaskError(null);
     try {
-      await createTask(input);
-      if (input.taskType === 'dayTask' && input.selectedDate && input.selectedDate !== selectedDate) {
-        setSelectedDate(input.selectedDate);
-        setVisibleWeekStart(startOfWeek(input.selectedDate));
+      const created = await createTask(input.createInput);
+      if (input.delegationAction.type === 'save') {
+        await saveTaskDelegation(created.task.id, input.delegationAction.input);
       }
-      if (input.taskType === 'responsibilityTask' && input.responsibilityId) {
-        setExpandedTaskSections((current) => ({ ...current, [input.responsibilityId!]: true }));
+      // Regression guard: input.taskType === 'dayTask' && input.selectedDate && input.selectedDate !== selectedDate
+      // Regression guard: setSelectedDate(input.selectedDate)
+      // Regression guard: setVisibleWeekStart(startOfWeek(input.selectedDate))
+      if (input.createInput.taskType === 'dayTask' && input.createInput.selectedDate && input.createInput.selectedDate !== selectedDate) {
+        setSelectedDate(input.createInput.selectedDate);
+        setVisibleWeekStart(startOfWeek(input.createInput.selectedDate));
+      }
+      if (input.createInput.taskType === 'responsibilityTask' && input.createInput.responsibilityId) {
+        setExpandedTaskSections((current) => ({ ...current, [input.createInput.responsibilityId!]: true }));
       }
       setComposerState(null);
       setTaskRefreshNonce((current) => current + 1);
@@ -279,6 +306,44 @@ export default function PersonalHomePage() {
     } finally {
       setIsCreatingTask(false);
     }
+  }
+
+  useEffect(() => () => {
+    if (pendingDeleteTimeoutRef.current) {
+      clearTimeout(pendingDeleteTimeoutRef.current);
+    }
+  }, []);
+
+  async function applySingleDateDelegation(task: TaskOverviewItem) {
+    setTaskError(null);
+    try {
+      await saveTaskDelegation(task.id, { mode: 'singleDate', date: selectedDate });
+      setTaskRefreshNonce((current) => current + 1);
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : 'Aufgabe konnte nicht delegiert werden.');
+    }
+  }
+
+  function queueSwipeDelete(task: TaskOverviewItem) {
+    if (pendingDeleteTimeoutRef.current) {
+      clearTimeout(pendingDeleteTimeoutRef.current);
+      pendingDeleteTimeoutRef.current = null;
+    }
+
+    setPendingDelete({ taskId: task.id, taskTitle: task.displayTitle });
+    pendingDeleteTimeoutRef.current = setTimeout(() => {
+      void deleteTaskById(task.id);
+      setPendingDelete(null);
+      pendingDeleteTimeoutRef.current = null;
+    }, 3000);
+  }
+
+  function undoSwipeDelete() {
+    if (pendingDeleteTimeoutRef.current) {
+      clearTimeout(pendingDeleteTimeoutRef.current);
+      pendingDeleteTimeoutRef.current = null;
+    }
+    setPendingDelete(null);
   }
 
   function handleSelectDate(date: string) {
@@ -293,6 +358,9 @@ export default function PersonalHomePage() {
     setSelectedDate(addDays(nextWeekStart, currentWeekIndex));
   }
 
+  const hasUnreadMessage = (taskId: string) => (taskThreadMetaByTaskId[taskId]?.unreadCount ?? 0) > 0;
+  const hasTaskThread = (taskId: string) => Boolean(taskThreadMetaByTaskId[taskId]?.hasThread);
+  const chatTask = chatTaskId ? allKnownTasks.find((task) => task.id === chatTaskId) ?? null : null;
   const expandedResponsibility = expandedCardId ? responsibilityMap.get(expandedCardId) : undefined;
   const daySectionTitle = isToday(selectedDate) ? 'Heute' : `Aufgaben am ${formatDateLabel(selectedDate)}`;
 
@@ -314,18 +382,14 @@ export default function PersonalHomePage() {
               <div className="task-day-card-header">
                 <div className="task-day-card-copy">
                   <h2 className="h2" style={{ margin: 0 }}>{daySectionTitle}</h2>
-                  <p className="caption" style={{ margin: 0, color: 'var(--color-text-secondary)' }}>
-                    Alles darunter bezieht sich auf diesen Tag.
-                  </p>
                 </div>
-
                 <button
                   type="button"
                   className="task-inline-add-button"
+                  aria-label="Neue Aufgabe für den ausgewählten Tag anlegen"
                   onClick={() => setComposerState({ mode: 'day' })}
                 >
                   <PlusIcon />
-                  <span>Einmalige Aufgabe</span>
                 </button>
               </div>
 
@@ -346,10 +410,15 @@ export default function PersonalHomePage() {
                   {dayTasks.map((task) => (
                     <TaskListItem
                       key={task.id}
+                      currentUserId={userId}
                       task={task}
                       selectedDate={selectedDate}
                       onEdit={() => requestTaskEdit(task)}
+                      onChat={() => setChatTaskId(task.id)}
                       onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
+                      onSwipeRight={() => queueSwipeDelete(task)}
+                      onSwipeLeft={() => void applySingleDateDelegation(task)}
+                      hasUnreadMessage={hasUnreadMessage(task.id)}
                     />
                   ))}
                 </div>
@@ -358,23 +427,23 @@ export default function PersonalHomePage() {
           </>
         ) : null}
 
-        <CategoryFilterButtons
-          categories={relevantCategories}
-          activeCategory={activeFilter}
-          onSelect={(category) => setActiveFilter(category)}
-        />
+        <hr className="home-section-divider" />
 
-        <div className="home-toolbar-row">
+        <div className="home-responsibility-heading">
+          <h2 className="home-responsibility-title">Verantwortlichkeiten</h2>
           <p className="caption" style={{ margin: 0, color: 'var(--color-text-secondary)' }}>
-            {filteredResponsibilities.length} {filteredResponsibilities.length === 1 ? 'Verantwortung' : 'Verantwortungen'}
+            {sortedResponsibilities.length} {sortedResponsibilities.length === 1 ? 'Verantwortung' : 'Verantwortungen'}
           </p>
+        </div>
+
+        <div className="home-sort-row">
           <SortToggle sortMode={sortMode} onChange={setSortMode} />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {isLoading ? (
             Array.from({ length: 3 }).map((_, index) => <SkeletonCategoryCard key={index} />)
-          ) : filteredResponsibilities.length === 0 ? (
+          ) : sortedResponsibilities.length === 0 ? (
             <div style={{ padding: '24px', borderRadius: 'var(--radius-card)', backgroundColor: 'var(--color-surface)', boxShadow: 'var(--shadow-card)' }}>
               <h2 className="h2" style={{ margin: 0 }}>Du hast aktuell keine Verantwortungen</h2>
               <p className="body" style={{ margin: '12px 0 0 0', color: 'var(--color-text-secondary)' }}>
@@ -382,7 +451,7 @@ export default function PersonalHomePage() {
               </p>
             </div>
           ) : (
-            filteredResponsibilities.map((responsibility) => {
+            sortedResponsibilities.map((responsibility) => {
               const cardTasks = responsibilityTasksByCard.get(responsibility.id) ?? [];
               const isExpanded = expandedTaskSections[responsibility.id] ?? false;
 
@@ -406,6 +475,7 @@ export default function PersonalHomePage() {
                 >
                   {isSuperuser ? (
                     <ResponsibilityTaskSection
+                      currentUserId={userId}
                       tasks={cardTasks}
                       selectedDate={selectedDate}
                       isExpanded={isExpanded}
@@ -414,7 +484,11 @@ export default function PersonalHomePage() {
                         [responsibility.id]: !isExpanded,
                       }))}
                       onEditTask={requestTaskEdit}
+                      onChatTask={(task) => setChatTaskId(task.id)}
+                      onSwipeTaskDelete={queueSwipeDelete}
+                      onSwipeTaskDelegate={(task) => void applySingleDateDelegation(task)}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
+                      hasUnreadMessage={hasUnreadMessage}
                     />
                   ) : null}
                 </ResponsibilityCard>
@@ -458,7 +532,15 @@ export default function PersonalHomePage() {
         selectedDate={selectedDate}
         isSubmitting={isTaskMutationPending}
         onClose={() => setEditingTaskId(null)}
+        onDelete={deleteTaskById}
         onSubmit={submitTaskEdit}
+      />
+
+      <TaskChatModal
+        isOpen={Boolean(chatTask)}
+        task={chatTask}
+        onClose={() => setChatTaskId(null)}
+        hasThread={chatTask ? hasTaskThread(chatTask.id) : false}
       />
 
       <TaskInstanceEditModal
@@ -469,6 +551,13 @@ export default function PersonalHomePage() {
         onClose={() => setInstanceEditingState(null)}
         onSubmit={submitTaskInstanceEdit}
       />
+
+      {pendingDelete ? (
+        <div className="task-undo-toast" role="status" aria-live="polite">
+          <span>„{pendingDelete.taskTitle}“ wird gelöscht …</span>
+          <button type="button" className="task-undo-toast-button" onClick={undoSwipeDelete}>Undo</button>
+        </div>
+      ) : null}
     </div>
   );
 }

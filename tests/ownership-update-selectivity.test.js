@@ -58,6 +58,15 @@ test('stale local snapshot cannot force isActive in unrelated owner update path'
   assert.doesNotMatch(ownerUpdateBlock[0], /isActive:/);
 });
 
+test('owner-cycle action is protected against duplicate click bursts', () => {
+  const src = read('components/ownership/OwnershipBoard.tsx');
+  const ownerUpdateBlock = src.match(/async function cycleOwner[\s\S]*?\n  }\n\n  function toggleCategory/);
+  assert.ok(ownerUpdateBlock, 'cycleOwner block not found');
+  assert.match(ownerUpdateBlock[0], /if \(ownerMutationInFlight\.current\) return;/);
+  assert.match(ownerUpdateBlock[0], /ownerMutationInFlight\.current = true;/);
+  assert.match(ownerUpdateBlock[0], /ownerMutationInFlight\.current = false;/);
+});
+
 test('type-level guard rails exist for ownership patch payload kinds', () => {
   const src = read('services/ownership.service.ts');
   assert.match(src, /export interface OwnershipCardOwnerPatch/);

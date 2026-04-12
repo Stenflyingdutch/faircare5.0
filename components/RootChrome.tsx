@@ -12,7 +12,12 @@ export function RootChrome({ children }: { children: ReactNode }) {
   const isPersonalArea = pathname.startsWith('/app');
 
   if (isPersonalArea) {
-    return <main>{children}</main>;
+    return (
+      <>
+        <AuthSessionSync />
+        <main>{children}</main>
+      </>
+    );
   }
 
   return (

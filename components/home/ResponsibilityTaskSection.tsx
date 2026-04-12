@@ -21,23 +21,32 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 }
 
 export function ResponsibilityTaskSection({
+  currentUserId,
   emptyLabel = 'Noch keine Aufgaben',
   isExpanded,
   onEditTask,
+  onChatTask,
+  onSwipeTaskDelete,
+  onSwipeTaskDelegate,
   onToggle,
   onToggleTaskStatus,
   selectedDate,
   tasks,
+  hasUnreadMessage,
 }: {
+  currentUserId: string | null;
   emptyLabel?: string;
   isExpanded: boolean;
   onEditTask: (task: TaskOverviewItem) => void;
+  onChatTask?: (task: TaskOverviewItem) => void;
+  onSwipeTaskDelete?: (task: TaskOverviewItem) => void;
+  onSwipeTaskDelegate?: (task: TaskOverviewItem) => void;
   onToggle: () => void;
   onToggleTaskStatus: (task: TaskOverviewItem) => void;
   selectedDate: string;
   tasks: TaskOverviewItem[];
+  hasUnreadMessage?: (taskId: string) => boolean;
 }) {
-  const countLabel = tasks.length === 1 ? '1 Aufgabe' : `${tasks.length} Aufgaben`;
 
   return (
     <section className={`responsibility-task-section ${isExpanded ? 'is-expanded' : ''}`}>
@@ -48,8 +57,7 @@ export function ResponsibilityTaskSection({
         aria-expanded={isExpanded}
       >
         <div className="responsibility-task-toggle-copy">
-          <span className="responsibility-task-toggle-title">Aufgaben</span>
-          <span className="responsibility-task-toggle-count">{countLabel}</span>
+          <span className="responsibility-task-toggle-title">Aufgaben ({tasks.length})</span>
         </div>
         <ChevronIcon expanded={isExpanded} />
       </button>
@@ -61,10 +69,15 @@ export function ResponsibilityTaskSection({
               {tasks.map((task) => (
                 <TaskListItem
                   key={task.id}
+                  currentUserId={currentUserId}
                   task={task}
                   selectedDate={selectedDate}
                   onEdit={() => onEditTask(task)}
+                  onChat={onChatTask ? () => onChatTask(task) : undefined}
                   onToggleStatus={() => onToggleTaskStatus(task)}
+                  onSwipeLeft={() => onSwipeTaskDelegate?.(task)}
+                  onSwipeRight={() => onSwipeTaskDelete?.(task)}
+                  hasUnreadMessage={hasUnreadMessage?.(task.id) ?? false}
                 />
               ))}
             </div>

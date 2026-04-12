@@ -205,7 +205,57 @@ export function resolveAppliedOverride(overrides: TaskOverrideDocument[], dateKe
   return sortByUpdatedAtDesc(overrides.filter((override) => override.date === dateKey))[0] ?? null;
 }
 
-export function resolveAppliedDelegation(delegations: TaskDelegationDocument[], dateKey: string) {
+function matchesAlternatingDelegation(
+  task: Pick<TaskDocument, 'createdAt' | 'endDate' | 'endMode' | 'recurrenceConfig' | 'recurrenceType' | 'selectedDate'>,
+  delegation: Pick<TaskDelegationDocument, 'createdAt' | 'date'>,
+  dateKey: string,
+) {
+  const startDate = delegation.date ?? delegation.createdAt.slice(0, 10);
+  if (compareDateKeys(dateKey, startDate) <= 0) {
+    return false;
+  }
+
+  const firstDelegatedDate = findNextTaskOccurrence(task, addDays(startDate, 1));
+  if (!firstDelegatedDate || compareDateKeys(dateKey, firstDelegatedDate) < 0) {
+    return false;
+  }
+
+  let delegatedOccurrenceIndex = 0;
+  let probeDate = firstDelegatedDate;
+  while (compareDateKeys(probeDate, dateKey) <= 0) {
+    if (isTaskDueOnDate(task, probeDate)) {
+      if (probeDate === dateKey) {
+        return delegatedOccurrenceIndex % 2 === 0;
+      }
+      delegatedOccurrenceIndex += 1;
+    }
+    probeDate = addDays(probeDate, 1);
+  }
+
+  return false;
+}
+
+function matchesRecurringDelegation(
+  task: Pick<TaskDocument, 'createdAt' | 'endDate' | 'endMode' | 'recurrenceConfig' | 'recurrenceType' | 'selectedDate'>,
+  delegation: TaskDelegationDocument,
+  dateKey: string,
+) {
+  if (delegation.recurringStrategy === 'always') {
+    return true;
+  }
+
+  if (delegation.recurringStrategy === 'alternating') {
+    return matchesAlternatingDelegation(task, delegation, dateKey);
+  }
+
+  return matchesWeekdaySet(dateKey, delegation.weekdays);
+}
+
+export function resolveAppliedDelegation(
+  task: Pick<TaskDocument, 'createdAt' | 'endDate' | 'endMode' | 'recurrenceConfig' | 'recurrenceType' | 'selectedDate'>,
+  delegations: TaskDelegationDocument[],
+  dateKey: string,
+) {
   const matchingSingleDate = sortByUpdatedAtDesc(
     delegations.filter((delegation) => delegation.mode === 'singleDate' && delegation.date === dateKey),
   )[0];
@@ -215,13 +265,13 @@ export function resolveAppliedDelegation(delegations: TaskDelegationDocument[], 
   }
 
   return sortByUpdatedAtDesc(
-    delegations.filter((delegation) => delegation.mode === 'recurring' && matchesWeekdaySet(dateKey, delegation.weekdays)),
+    delegations.filter((delegation) => delegation.mode === 'recurring' && matchesRecurringDelegation(task, delegation, dateKey)),
   )[0] ?? null;
 }
 
 export function resolveTaskInstanceState(task: TaskWithInstanceCollections, dateKey: string) {
   const appliedOverride = resolveAppliedOverride(task.overrides ?? [], dateKey);
-  const appliedDelegation = resolveAppliedDelegation(task.delegations ?? [], dateKey);
+  const appliedDelegation = resolveAppliedDelegation(task, task.delegations ?? [], dateKey);
   const resolvedStatus: TaskStatus = appliedOverride?.status ?? task.status;
 
   return {
@@ -270,6 +320,38 @@ export function toTaskOverviewItem(
     appliedDelegationMode: instanceState.appliedDelegation?.mode ?? null,
     effectiveAssignedToUserId: instanceState.effectiveAssignedToUserId,
   };
+}
+
+export function resolveTaskVisibleToUserIds(
+  task: Pick<TaskDocument, 'createdByUserId' | 'creatorUserId' | 'delegatedToUserId' | 'visibleToUserIds'>,
+) {
+  if (task.visibleToUserIds?.length) {
+    return [...new Set(task.visibleToUserIds)];
+  }
+
+  const creatorId = task.creatorUserId ?? task.createdByUserId;
+  if (!creatorId) return [];
+  if (!task.delegatedToUserId) return [creatorId];
+  return [...new Set([creatorId, task.delegatedToUserId])];
+}
+
+export function canUserSeeTask(
+  task: Pick<TaskDocument, 'createdByUserId' | 'creatorUserId' | 'delegatedToUserId' | 'visibleToUserIds'>,
+  userId: string,
+) {
+  return resolveTaskVisibleToUserIds(task).includes(userId);
+}
+
+export function canUserEditTask(
+  task: Pick<TaskDocument, 'createdByUserId' | 'creatorUserId' | 'delegatedToUserId'>,
+  userId: string,
+) {
+  if (task.delegatedToUserId) {
+    return task.delegatedToUserId === userId;
+  }
+
+  const creatorId = task.creatorUserId ?? task.createdByUserId;
+  return creatorId === userId;
 }
 
 export function getRecurrenceLabel(recurrenceType: TaskRecurrenceType) {

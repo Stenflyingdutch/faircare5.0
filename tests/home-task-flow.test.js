@@ -16,7 +16,6 @@ test('home page mounts weekly strip and selected-day task section for superusers
   assert.match(homePage, /ResponsibilityTaskSection/);
   assert.match(homePage, /useTaskInteractionFlow/);
   assert.match(homePage, /isSuperuserProfile/);
-  assert.match(homePage, /Einmalige Aufgabe/);
   assert.match(homePage, /Für diesen Tag gibt es noch keine Aufgaben\./);
   assert.match(homePage, /responsibility-task-add-button/);
 });
@@ -38,9 +37,10 @@ test('task dialogs stay manual-only without suggestions or catalog text', () => 
   assert.match(dialogs, /Einmalige Aufgabe/);
   assert.match(dialogs, /Aufgabe hinzufügen/);
   assert.match(dialogs, /Aufgabe bearbeiten/);
-  assert.match(dialogs, /Nur diesen Tag/);
+  assert.match(dialogs, /Nur heute/);
   assert.match(dialogs, /Ganze Serie/);
-  assert.match(dialogs, /Delegieren/);
+  assert.match(dialogs, /In Wechsel/);
+  assert.match(dialogs, /Immer/);
   assert.match(dialogs, /const \[draftDate, setDraftDate\] = useState\(selectedDate\)/);
   assert.match(dialogs, /type="date"/);
   assert.match(dialogs, /selectedDate: draftDate/);

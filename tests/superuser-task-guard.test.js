@@ -21,12 +21,15 @@ test('superuser helper and firestore task gates exist', () => {
 test('task server access is tied to superuser + selected-date resolver', () => {
   const service = read('services/server/tasks.service.ts');
   const route = read('app/api/tasks/overview/route.ts');
+  const taskChatService = read('services/server/task-chat.service.ts');
 
   assert.match(service, /if \(!isSuperuserProfile\(profile\)\)/);
   assert.match(service, /export async function getTasksForSelectedDate/);
   assert.match(service, /export async function getTaskOverviewForSelectedDate/);
   assert.match(route, /getTaskOverviewForSelectedDate/);
   assert.match(route, /SESSION_COOKIE_NAME/);
+  assert.match(taskChatService, /collection\('conversationStates'\)/);
+  assert.match(taskChatService, /collection\('inboxEntries'\)/);
 });
 
 test('admin user management exposes superuser toggle', () => {

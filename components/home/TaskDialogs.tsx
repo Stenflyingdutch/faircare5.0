@@ -1,14 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { Modal } from '@/components/Modal';
 import { formatDateLabel, getWeekday, parseDateKey } from '@/services/task-date';
 import { getTaskTimingLabel, resolveTaskInstanceDate, resolveTaskInstanceState } from '@/services/tasks.logic';
+import { sendTaskMessageByTask } from '@/services/task-chat.service';
 import type { Responsibility } from '@/services/responsibilities.service';
 import type {
   CreateTaskInput,
   SaveTaskDelegationInput,
+  TaskDelegationRecurringStrategy,
   TaskMonthlyPatternMode,
   TaskOrdinal,
   TaskOverviewItem,
@@ -46,11 +49,11 @@ const weekdayOptions: Array<{ value: TaskWeekday; label: string }> = [
 ];
 
 const recurrenceOptions: Array<{ value: TaskRecurrenceType; label: string }> = [
-  { value: 'none', label: 'Keine Wiederholung' },
+  { value: 'none', label: 'Keine' },
   { value: 'daily', label: 'Täglich' },
   { value: 'weekly', label: 'Wöchentlich' },
   { value: 'monthly', label: 'Monatlich' },
-  { value: 'quarterly', label: 'Quartalsweise' },
+  { value: 'quarterly', label: 'Quartärlich' },
   { value: 'yearly', label: 'Jährlich' },
 ];
 
@@ -83,6 +86,7 @@ type DelegationDraft = {
   enabled: boolean;
   mode: 'singleDate' | 'recurring';
   weekdays: TaskWeekday[];
+  recurringStrategy: TaskDelegationRecurringStrategy;
 };
 
 function getSortedDelegationCandidates(task: TaskOverviewItem) {
@@ -114,8 +118,10 @@ function buildInitialRecurrenceDraft(task: TaskOverviewItem, selectedDate: strin
       ? task.recurrenceConfig.weekdays
       : task.recurrenceType === 'daily'
         ? weekdayOptions.map((entry) => entry.value)
-        : [getWeekday(anchorDate)],
-    monthlyMode: monthlyPattern?.mode ?? 'dayOfMonth',
+        : task.recurrenceType === 'weekly'
+          ? ['mon']
+          : [getWeekday(anchorDate)],
+    monthlyMode: monthlyPattern?.mode ?? 'weekdayOfMonth',
     monthlyDayOfMonth: monthlyPattern?.mode === 'dayOfMonth' ? monthlyPattern.dayOfMonth : parsedAnchor.day,
     monthlyOrdinal: monthlyPattern?.mode === 'weekdayOfMonth' ? monthlyPattern.ordinal : 1,
     monthlyWeekday: monthlyPattern?.mode === 'weekdayOfMonth' ? monthlyPattern.weekday : getWeekday(anchorDate),
@@ -136,6 +142,7 @@ function buildInitialDelegationDraft(task: TaskOverviewItem, selectedDate: strin
     enabled: Boolean(existingDelegation),
     mode: existingDelegation?.mode ?? 'singleDate',
     weekdays: existingDelegation?.weekdays?.length ? existingDelegation.weekdays : [getWeekday(selectedDate)],
+    recurringStrategy: existingDelegation?.recurringStrategy ?? 'always',
   };
 }
 
@@ -144,10 +151,15 @@ function buildInitialInstanceDelegationDraft(task: TaskOverviewItem, instanceDat
     enabled: Boolean(findSingleDateDelegation(task, instanceDate)),
     mode: 'singleDate',
     weekdays: [getWeekday(instanceDate)],
+    recurringStrategy: 'always',
   };
 }
 
-function toggleWeekday(current: TaskWeekday[], weekday: TaskWeekday) {
+function toggleWeekday(current: TaskWeekday[], weekday: TaskWeekday, singleSelect = false) {
+  if (singleSelect) {
+    return [weekday];
+  }
+
   return current.includes(weekday)
     ? current.filter((entry) => entry !== weekday)
     : [...current, weekday];
@@ -155,9 +167,11 @@ function toggleWeekday(current: TaskWeekday[], weekday: TaskWeekday) {
 
 function WeekdaySelector({
   value,
+  singleSelect = false,
   onChange,
 }: {
   value: TaskWeekday[];
+  singleSelect?: boolean;
   onChange: (nextValue: TaskWeekday[]) => void;
 }) {
   return (
@@ -169,7 +183,7 @@ function WeekdaySelector({
             key={option.value}
             type="button"
             className={`task-weekday-chip ${isSelected ? 'is-selected' : ''}`}
-            onClick={() => onChange(toggleWeekday(value, option.value))}
+            onClick={() => onChange(toggleWeekday(value, option.value, singleSelect))}
           >
             {option.label}
           </button>
@@ -188,19 +202,32 @@ function DialogHeader({ title, subtitle }: { title: string; subtitle?: string })
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 5h12" />
+      <path d="M7 5V3.8c0-.5.4-.8.8-.8h4.4c.5 0 .8.3.8.8V5" />
+      <path d="m7.2 8 .3 8h5l.3-8" />
+    </svg>
+  );
+}
+
 function DialogActions({
   submitLabel,
   onCancel,
   disabled,
   busy,
+  leadingAction,
 }: {
   submitLabel: string;
   onCancel: () => void;
   disabled?: boolean;
   busy?: boolean;
+  leadingAction?: ReactNode;
 }) {
   return (
     <div className="task-dialog-actions">
+      {leadingAction ? <div className="task-dialog-actions-leading">{leadingAction}</div> : null}
       <button type="button" className="task-secondary-button" onClick={onCancel}>
         Abbrechen
       </button>
@@ -228,6 +255,11 @@ function RecurrenceFields({
           onChange={(event) => onChange({
             ...draft,
             recurrenceType: event.target.value as TaskRecurrenceType,
+            weekdays: event.target.value === 'daily'
+              ? weekdayOptions.map((entry) => entry.value)
+              : event.target.value === 'weekly'
+                ? ['mon']
+                : draft.weekdays,
           })}
         >
           {recurrenceOptions.map((option) => (
@@ -246,7 +278,7 @@ function RecurrenceFields({
       {draft.recurrenceType === 'weekly' ? (
         <div className="task-field">
           <span className="task-field-label">Wochentage</span>
-          <WeekdaySelector value={draft.weekdays} onChange={(weekdays) => onChange({ ...draft, weekdays })} />
+          <WeekdaySelector value={draft.weekdays} singleSelect onChange={(weekdays) => onChange({ ...draft, weekdays: weekdays.length ? weekdays : ['mon'] })} />
         </div>
       ) : null}
 
@@ -259,8 +291,8 @@ function RecurrenceFields({
               value={draft.monthlyMode}
               onChange={(event) => onChange({ ...draft, monthlyMode: event.target.value as TaskMonthlyPatternMode })}
             >
-              <option value="dayOfMonth">Tag im Monat</option>
               <option value="weekdayOfMonth">Wochentag im Monat</option>
+              <option value="dayOfMonth">Tag im Monat</option>
             </select>
           </label>
 
@@ -316,8 +348,8 @@ function RecurrenceFields({
               value={draft.quarterlyMode}
               onChange={(event) => onChange({ ...draft, quarterlyMode: event.target.value as TaskMonthlyPatternMode })}
             >
-              <option value="dayOfMonth">Tag im Monat</option>
               <option value="weekdayOfMonth">Wochentag im Monat</option>
+              <option value="dayOfMonth">Tag im Monat</option>
             </select>
           </label>
 
@@ -425,73 +457,96 @@ function RecurrenceFields({
 function DelegationFields({
   draft,
   canUseRecurring,
+  recurrenceType,
   selectedDate,
   showEnabledToggle = true,
   onChange,
 }: {
   draft: DelegationDraft;
   canUseRecurring: boolean;
+  recurrenceType: TaskRecurrenceType;
   selectedDate: string;
   showEnabledToggle?: boolean;
   onChange: (nextValue: DelegationDraft) => void;
 }) {
+  const usesRecurringStrategy = recurrenceType === 'weekly' || recurrenceType === 'monthly' || recurrenceType === 'quarterly' || recurrenceType === 'yearly';
+
   return (
     <div className="task-stack">
-      {showEnabledToggle ? (
-        <div className="task-segmented">
+      <div className="task-segmented">
+        <button
+          type="button"
+          className={`task-segment ${draft.enabled && draft.mode === 'singleDate' ? 'is-selected' : ''}`}
+          onClick={() => onChange({
+            ...draft,
+            enabled: !(draft.enabled && draft.mode === 'singleDate'),
+            mode: 'singleDate',
+          })}
+        >
+          Nur heute
+        </button>
+        {canUseRecurring ? (
           <button
             type="button"
-            className={`task-segment ${!draft.enabled ? 'is-selected' : ''}`}
-            onClick={() => onChange({ ...draft, enabled: false })}
+            className={`task-segment ${draft.enabled && draft.mode === 'recurring' ? 'is-selected' : ''}`}
+            onClick={() => onChange({
+              ...draft,
+              enabled: !(draft.enabled && draft.mode === 'recurring'),
+              mode: 'recurring',
+            })}
           >
-            Nein
+            Ganze Serie
           </button>
-          <button
-            type="button"
-            className={`task-segment ${draft.enabled ? 'is-selected' : ''}`}
-            onClick={() => onChange({ ...draft, enabled: true })}
-          >
-            Ja, an Partner
-          </button>
-        </div>
+        ) : null}
+      </div>
+
+      {showEnabledToggle && !draft.enabled ? (
+        <p className="task-inline-hint">Nicht delegiert.</p>
       ) : null}
 
       {draft.enabled ? (
         <>
-          <div className="task-segmented">
-            <button
-              type="button"
-              className={`task-segment ${draft.mode === 'singleDate' ? 'is-selected' : ''}`}
-              onClick={() => onChange({ ...draft, mode: 'singleDate' })}
-            >
-              Nur diesen Tag
-            </button>
-            {canUseRecurring ? (
-              <button
-                type="button"
-                className={`task-segment ${draft.mode === 'recurring' ? 'is-selected' : ''}`}
-                onClick={() => onChange({ ...draft, mode: 'recurring' })}
-              >
-                Ganze Serie
-              </button>
-            ) : null}
-          </div>
+          <p className="task-inline-hint">Hinweis: Die Aufgabe erscheint beim Partner.</p>
 
           {draft.mode === 'singleDate' ? (
             <p className="task-inline-hint">Datum: {formatDateLabel(selectedDate)}</p>
           ) : null}
 
           {draft.mode === 'recurring' ? (
-            <div className="task-field">
-              <span className="task-field-label">Wochentage</span>
-              <WeekdaySelector value={draft.weekdays} onChange={(weekdays) => onChange({ ...draft, weekdays })} />
-            </div>
+            usesRecurringStrategy ? (
+              <div className="task-segmented">
+                <button
+                  type="button"
+                  className={`task-segment ${draft.recurringStrategy === 'alternating' ? 'is-selected' : ''}`}
+                  onClick={() => onChange({ ...draft, recurringStrategy: 'alternating' })}
+                >
+                  In Wechsel
+                </button>
+                <button
+                  type="button"
+                  className={`task-segment ${draft.recurringStrategy === 'always' ? 'is-selected' : ''}`}
+                  onClick={() => onChange({ ...draft, recurringStrategy: 'always' })}
+                >
+                  Immer
+                </button>
+              </div>
+            ) : (
+              <div className="task-field">
+                <span className="task-field-label">Wochentage</span>
+                <WeekdaySelector value={draft.weekdays} onChange={(weekdays) => onChange({ ...draft, weekdays })} />
+              </div>
+            )
           ) : null}
         </>
       ) : null}
     </div>
   );
 }
+
+export type TaskComposerSubmit = {
+  createInput: CreateTaskInput;
+  delegationAction: DelegationAction;
+};
 
 export function TaskComposerModal({
   isOpen,
@@ -508,21 +563,64 @@ export function TaskComposerModal({
   responsibility?: Responsibility | null;
   isSubmitting?: boolean;
   onClose: () => void;
-  onSubmit: (input: CreateTaskInput) => Promise<void>;
+  onSubmit: (input: TaskComposerSubmit) => Promise<void>;
 }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
-  const [createForSelectedDay, setCreateForSelectedDay] = useState(true);
   const [draftDate, setDraftDate] = useState(selectedDate);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [recurrenceDraft, setRecurrenceDraft] = useState<RecurrenceDraft>({
+    recurrenceType: 'none',
+    weekdays: ['mon'],
+    monthlyMode: 'weekdayOfMonth',
+    monthlyDayOfMonth: parseDateKey(selectedDate).day,
+    monthlyOrdinal: 1,
+    monthlyWeekday: getWeekday(selectedDate),
+    quarterlyMode: 'dayOfMonth',
+    quarterlyDayOfMonth: parseDateKey(selectedDate).day,
+    quarterlyOrdinal: 1,
+    quarterlyWeekday: getWeekday(selectedDate),
+    yearlyMonth: parseDateKey(selectedDate).month,
+    yearlyDay: parseDateKey(selectedDate).day,
+    endMode: 'never',
+    endDate: '',
+  });
+  const [delegationDraft, setDelegationDraft] = useState<DelegationDraft>({
+    enabled: false,
+    mode: 'singleDate',
+    weekdays: [getWeekday(selectedDate)],
+    recurringStrategy: 'always',
+  });
 
   useEffect(() => {
     if (!isOpen) return;
+    const parsed = parseDateKey(selectedDate);
     setTitle('');
     setNotes('');
-    setCreateForSelectedDay(true);
     setDraftDate(selectedDate);
     setIsDatePickerOpen(false);
+    setRecurrenceDraft({
+      recurrenceType: 'none',
+      weekdays: ['mon'],
+      monthlyMode: 'weekdayOfMonth',
+      monthlyDayOfMonth: parsed.day,
+      monthlyOrdinal: 1,
+      monthlyWeekday: getWeekday(selectedDate),
+      quarterlyMode: 'dayOfMonth',
+      quarterlyDayOfMonth: parsed.day,
+      quarterlyOrdinal: 1,
+      quarterlyWeekday: getWeekday(selectedDate),
+      yearlyMonth: parsed.month,
+      yearlyDay: parsed.day,
+      endMode: 'never',
+      endDate: '',
+    });
+    setDelegationDraft({
+      enabled: false,
+      mode: 'singleDate',
+      weekdays: [getWeekday(selectedDate)],
+      recurringStrategy: 'always',
+    });
   }, [isOpen, mode, responsibility?.id, selectedDate]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -532,41 +630,74 @@ export function TaskComposerModal({
 
     if (mode === 'day') {
       await onSubmit({
-        taskType: 'dayTask',
-        title,
-        notes,
-        selectedDate: draftDate,
-        recurrenceType: 'none',
-        endMode: 'never',
+        createInput: {
+          taskType: 'dayTask',
+          title,
+          notes,
+          selectedDate: draftDate,
+          recurrenceType: 'none',
+          endMode: 'never',
+        },
+        delegationAction: { type: 'clear' },
       });
       return;
     }
 
-    await onSubmit({
+    const createInput: CreateTaskInput = {
       taskType: 'responsibilityTask',
       responsibilityId: responsibility?.id ?? null,
       categoryKey: responsibility?.categoryKey ?? null,
       title,
       notes,
-      selectedDate: createForSelectedDay ? selectedDate : null,
-      recurrenceType: 'none',
-      endMode: 'never',
+      selectedDate,
+      recurrenceType: recurrenceDraft.recurrenceType,
+      recurrenceConfig: recurrenceDraft.recurrenceType === 'daily' || recurrenceDraft.recurrenceType === 'weekly'
+        ? { weekdays: recurrenceDraft.weekdays }
+        : recurrenceDraft.recurrenceType === 'monthly'
+          ? {
+            monthlyPattern: recurrenceDraft.monthlyMode === 'dayOfMonth'
+              ? { mode: 'dayOfMonth', dayOfMonth: recurrenceDraft.monthlyDayOfMonth }
+              : { mode: 'weekdayOfMonth', ordinal: recurrenceDraft.monthlyOrdinal, weekday: recurrenceDraft.monthlyWeekday },
+          }
+          : recurrenceDraft.recurrenceType === 'quarterly'
+            ? {
+              quarterlyPattern: recurrenceDraft.quarterlyMode === 'dayOfMonth'
+                ? { mode: 'dayOfMonth', dayOfMonth: recurrenceDraft.quarterlyDayOfMonth }
+                : { mode: 'weekdayOfMonth', ordinal: recurrenceDraft.quarterlyOrdinal, weekday: recurrenceDraft.quarterlyWeekday },
+            }
+            : recurrenceDraft.recurrenceType === 'yearly'
+              ? { yearlyMonth: recurrenceDraft.yearlyMonth, yearlyDay: recurrenceDraft.yearlyDay }
+              : null,
+      endMode: recurrenceDraft.recurrenceType === 'none' ? 'never' : recurrenceDraft.endMode,
+      endDate: recurrenceDraft.recurrenceType === 'none' || recurrenceDraft.endMode === 'never' ? null : recurrenceDraft.endDate,
+    };
+
+    await onSubmit({
+      createInput,
+      delegationAction: delegationDraft.enabled
+        ? delegationDraft.mode === 'recurring' && recurrenceDraft.recurrenceType !== 'none'
+          ? {
+            type: 'save',
+            input: recurrenceDraft.recurrenceType === 'weekly'
+              || recurrenceDraft.recurrenceType === 'monthly'
+              || recurrenceDraft.recurrenceType === 'quarterly'
+              || recurrenceDraft.recurrenceType === 'yearly'
+              ? {
+                mode: 'recurring',
+                recurringStrategy: delegationDraft.recurringStrategy,
+                date: delegationDraft.recurringStrategy === 'alternating' ? selectedDate : null,
+              }
+              : { mode: 'recurring', weekdays: delegationDraft.weekdays },
+          }
+          : { type: 'save', input: { mode: 'singleDate', date: selectedDate } }
+        : { type: 'clear' },
     });
   }
-
-  const dialogTitle = mode === 'day' ? 'Einmalige Aufgabe' : 'Aufgabe hinzufügen';
-  const dialogSubtitle = mode === 'day'
-    ? 'Was soll an diesem Tag erledigt werden?'
-    : 'Was muss konkret gemacht werden?';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <form className="task-dialog-shell" onSubmit={handleSubmit}>
-        <DialogHeader title={dialogTitle} subtitle={dialogSubtitle} />
-
-        {mode === 'responsibility' && responsibility ? (
-          <p className="task-inline-hint">Verantwortungsgebiet: {responsibility.title}</p>
-        ) : null}
+        <DialogHeader title={mode === 'day' ? 'Einmalige Aufgabe' : 'Aufgabe hinzufügen'} />
 
         {mode === 'day' ? (
           <div className="task-date-stack">
@@ -591,42 +722,39 @@ export function TaskComposerModal({
               </label>
             ) : null}
           </div>
-        ) : (
-          <div className="task-date-pill">Datum: {formatDateLabel(selectedDate)}</div>
-        )}
+        ) : null}
 
         <label className="task-field">
           <span className="task-field-label">Aufgabe</span>
-          <input
-            className="input"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Zum Beispiel Apotheke anrufen"
-          />
+          <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
 
         <label className="task-field">
           <span className="task-field-label">Notiz</span>
-          <textarea
-            className="input task-textarea"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="Optional"
-          />
+          <textarea className="input task-textarea" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional" />
         </label>
 
         {mode === 'responsibility' ? (
-          <label className="task-checkbox-row">
-            <input
-              type="checkbox"
-              checked={createForSelectedDay}
-              onChange={(event) => setCreateForSelectedDay(event.target.checked)}
-            />
-            <span>Einmalig für den ausgewählten Tag erstellen</span>
-          </label>
+          <>
+            <div className="task-stack">
+              <p className="task-section-title">Wiederholt sich diese Aufgabe?</p>
+              <RecurrenceFields draft={recurrenceDraft} onChange={setRecurrenceDraft} />
+            </div>
+
+            <div className="task-stack">
+              <p className="task-section-title">Soll die Aufgabe delegiert werden?</p>
+              <DelegationFields
+                draft={delegationDraft}
+                canUseRecurring={recurrenceDraft.recurrenceType !== 'none'}
+                recurrenceType={recurrenceDraft.recurrenceType}
+                selectedDate={selectedDate}
+                onChange={setDelegationDraft}
+              />
+            </div>
+          </>
         ) : null}
 
-        <DialogActions submitLabel="Erstellen" onCancel={onClose} disabled={!title.trim()} busy={isSubmitting} />
+        <DialogActions submitLabel="Speichern" onCancel={onClose} disabled={!title.trim()} busy={isSubmitting} />
       </form>
     </Modal>
   );
@@ -638,6 +766,7 @@ export function TaskEditModal({
   selectedDate,
   isSubmitting,
   onClose,
+  onDelete,
   onSubmit,
 }: {
   isOpen: boolean;
@@ -645,6 +774,7 @@ export function TaskEditModal({
   selectedDate: string;
   isSubmitting?: boolean;
   onClose: () => void;
+  onDelete: (taskId: string) => Promise<void>;
   onSubmit: (input: TaskEditSubmit) => Promise<void>;
 }) {
   const [title, setTitle] = useState('');
@@ -721,7 +851,16 @@ export function TaskEditModal({
       ? {
         type: 'save',
         input: currentDelegationDraft.mode === 'recurring' && allowRecurringDelegation
-          ? { mode: 'recurring', weekdays: currentDelegationDraft.weekdays }
+          ? currentRecurrenceDraft.recurrenceType === 'weekly'
+            || currentRecurrenceDraft.recurrenceType === 'monthly'
+            || currentRecurrenceDraft.recurrenceType === 'quarterly'
+            || currentRecurrenceDraft.recurrenceType === 'yearly'
+            ? {
+              mode: 'recurring',
+              recurringStrategy: currentDelegationDraft.recurringStrategy,
+              date: currentDelegationDraft.recurringStrategy === 'alternating' ? selectedDate : null,
+            }
+            : { mode: 'recurring', weekdays: currentDelegationDraft.weekdays }
           : { mode: 'singleDate', date: selectedDate },
       }
       : { type: 'clear' };
@@ -758,13 +897,94 @@ export function TaskEditModal({
           <DelegationFields
             draft={currentDelegationDraft}
             canUseRecurring={allowRecurringDelegation}
+            recurrenceType={currentRecurrenceDraft.recurrenceType}
             selectedDate={selectedDate}
             onChange={setDelegationDraft}
           />
         </div>
 
-        <DialogActions submitLabel="Speichern" onCancel={onClose} disabled={!title.trim()} busy={isSubmitting} />
+        <DialogActions
+          submitLabel="Speichern"
+          onCancel={onClose}
+          disabled={!title.trim()}
+          busy={isSubmitting}
+          leadingAction={(
+            <button
+              type="button"
+              className="task-delete-action"
+              onClick={() => {
+                const confirmed = window.confirm('Aufgabe wirklich löschen?');
+                if (!confirmed) return;
+                void onDelete(currentTask.id);
+              }}
+            >
+              <TrashIcon />
+              <span>Löschen</span>
+            </button>
+          )}
+        />
       </form>
+    </Modal>
+  );
+}
+
+export function TaskChatModal({
+  isOpen,
+  task,
+  onClose,
+  hasThread,
+}: {
+  isOpen: boolean;
+  task: TaskOverviewItem | null;
+  onClose: () => void;
+  hasThread?: boolean;
+}) {
+  const [chatMessage, setChatMessage] = useState('');
+  const [isSendingChatMessage, setIsSendingChatMessage] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !task) return;
+    setChatMessage('');
+  }, [isOpen, task]);
+
+  if (!task) {
+    return null;
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="task-dialog-shell">
+        <DialogHeader title={hasThread ? 'Chat öffnen' : 'Nachricht senden'} subtitle={task.displayTitle} />
+        <p className="task-inline-hint">Diese Nachricht gehört zu dieser Aufgabe.</p>
+        <textarea
+          className="input task-textarea"
+          value={chatMessage}
+          onChange={(event) => setChatMessage(event.target.value)}
+          placeholder="Was möchtest du dazu sagen?"
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+          <button type="button" className="task-secondary-button" onClick={onClose}>
+            Schließen
+          </button>
+          <button
+            type="button"
+            className="task-primary-button"
+            disabled={!chatMessage.trim() || isSendingChatMessage}
+            onClick={() => {
+              if (!chatMessage.trim()) return;
+              setIsSendingChatMessage(true);
+              void sendTaskMessageByTask(task.id, chatMessage)
+                .then(() => {
+                  setChatMessage('');
+                  onClose();
+                })
+                .finally(() => setIsSendingChatMessage(false));
+            }}
+          >
+            {isSendingChatMessage ? 'Sendet …' : 'Senden'}
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }
@@ -787,7 +1007,6 @@ export function TaskInstanceEditModal({
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [delegationDraft, setDelegationDraft] = useState<DelegationDraft | null>(null);
-
   useEffect(() => {
     if (!isOpen || !task || !instanceDate) return;
     const instanceState = resolveTaskInstanceState(task, instanceDate);
@@ -828,7 +1047,7 @@ export function TaskInstanceEditModal({
     <Modal isOpen={isOpen} onClose={onClose}>
       <form className="task-dialog-shell" onSubmit={handleSubmit}>
         <DialogHeader
-          title="Nur diesen Tag"
+          title="Nur heute"
           subtitle={`${formatDateLabel(instanceDate)} · ${getTaskTimingLabel(task)}`}
         />
 
@@ -852,6 +1071,7 @@ export function TaskInstanceEditModal({
             <DelegationFields
               draft={delegationDraft}
               canUseRecurring={false}
+              recurrenceType="none"
               selectedDate={instanceDate}
               onChange={setDelegationDraft}
             />
@@ -893,7 +1113,7 @@ export function TaskEditScopeModal({
         <div className="task-scope-stack">
           {instanceDate ? (
             <button type="button" className="task-scope-option" onClick={onEditInstance}>
-              <strong>Nur diesen Tag</strong>
+              <strong>Nur heute</strong>
               <span>{formatDateLabel(instanceDate)}</span>
             </button>
           ) : null}
@@ -948,7 +1168,16 @@ export function TaskDelegationModal({
     event.preventDefault();
     await onSubmit(
       currentDraft.mode === 'recurring' && canUseRecurring
-        ? { mode: 'recurring', weekdays: currentDraft.weekdays }
+        ? currentTask.recurrenceType === 'weekly'
+          || currentTask.recurrenceType === 'monthly'
+          || currentTask.recurrenceType === 'quarterly'
+          || currentTask.recurrenceType === 'yearly'
+          ? {
+            mode: 'recurring',
+            recurringStrategy: currentDraft.recurringStrategy,
+            date: currentDraft.recurringStrategy === 'alternating' ? selectedDate : null,
+          }
+          : { mode: 'recurring', weekdays: currentDraft.weekdays }
         : { mode: 'singleDate', date: selectedDate },
     );
   }
@@ -961,6 +1190,7 @@ export function TaskDelegationModal({
         <DelegationFields
           draft={{ ...currentDraft, enabled: true }}
           canUseRecurring={canUseRecurring}
+          recurrenceType={currentTask.recurrenceType}
           selectedDate={selectedDate}
           showEnabledToggle={false}
           onChange={setDraft}

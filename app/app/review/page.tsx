@@ -1,5 +1,5 @@
-import { TeamCheckContent } from '@/components/review/TeamCheckContent';
+import { ExchangeContent } from '@/components/review/ExchangeContent';
 
 export default function TeamCheckPage() {
-  return <TeamCheckContent />;
+  return <ExchangeContent />;
 }
