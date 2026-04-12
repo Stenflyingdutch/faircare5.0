@@ -499,3 +499,20 @@ export async function clearTaskDelegationsForUser(userId: string, taskId: string
     await recurringRef.delete();
   }
 }
+
+
+export async function deleteTaskForUser(userId: string, taskId: string) {
+  const context = await resolveTaskContext(userId);
+  await resolveTaskById(context, taskId);
+
+  const [delegationsSnapshot, overridesSnapshot] = await Promise.all([
+    taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get(),
+    taskOverridesCollection(context.familyId).where('taskId', '==', taskId).get(),
+  ]);
+
+  const batch = adminDb.batch();
+  delegationsSnapshot.docs.forEach((entry) => batch.delete(entry.ref));
+  overridesSnapshot.docs.forEach((entry) => batch.delete(entry.ref));
+  batch.delete(tasksCollection(context.familyId).doc(taskId));
+  await batch.commit();
+}

@@ -184,6 +184,7 @@ function OwnershipDashboardPageContent() {
     submitTaskEdit,
     submitTaskInstanceEdit,
     toggleTaskCompletion,
+    deleteTaskById,
   } = useTaskInteractionFlow({
     selectedDate: today,
     tasks: responsibilityTasks,
@@ -265,6 +266,7 @@ function OwnershipDashboardPageContent() {
         selectedDate={today}
         isSubmitting={isTaskMutationPending}
         onClose={() => setEditingTaskId(null)}
+        onDelete={deleteTaskById}
         onSubmit={submitTaskEdit}
       />
 

@@ -37,7 +37,6 @@ export function ResponsibilityTaskSection({
   selectedDate: string;
   tasks: TaskOverviewItem[];
 }) {
-  const countLabel = tasks.length === 1 ? '1 Aufgabe' : `${tasks.length} Aufgaben`;
 
   return (
     <section className={`responsibility-task-section ${isExpanded ? 'is-expanded' : ''}`}>
@@ -48,8 +47,7 @@ export function ResponsibilityTaskSection({
         aria-expanded={isExpanded}
       >
         <div className="responsibility-task-toggle-copy">
-          <span className="responsibility-task-toggle-title">Aufgaben</span>
-          <span className="responsibility-task-toggle-count">{countLabel}</span>
+          <span className="responsibility-task-toggle-title">Aufgaben ({tasks.length})</span>
         </div>
         <ChevronIcon expanded={isExpanded} />
       </button>

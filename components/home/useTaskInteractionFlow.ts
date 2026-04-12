@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
-import { clearTaskDelegation, saveTaskDelegation, updateTask, updateTaskInstance } from '@/services/tasks.service';
+import { clearTaskDelegation, deleteTask, saveTaskDelegation, updateTask, updateTaskInstance } from '@/services/tasks.service';
 import { resolveTaskInstanceDate, resolveTaskInstanceState } from '@/services/tasks.logic';
 import type { TaskOverviewItem } from '@/types/tasks';
 import type { TaskEditSubmit, TaskInstanceEditSubmit } from '@/components/home/TaskDialogs';
@@ -16,11 +16,13 @@ export function useTaskInteractionFlow({
   selectedDate,
   tasks,
   onError,
+  onOptimisticToggle,
   onRefresh,
 }: {
   selectedDate: string;
   tasks: TaskOverviewItem[];
   onError: (message: string | null) => void;
+  onOptimisticToggle?: (task: TaskOverviewItem, date: string) => void;
   onRefresh: () => void;
 }) {
   const [isTaskMutationPending, setIsTaskMutationPending] = useState(false);
@@ -119,8 +121,8 @@ export function useTaskInteractionFlow({
   }
 
   async function toggleTaskCompletion(task: TaskOverviewItem, date: string) {
-    setIsTaskMutationPending(true);
     onError(null);
+    onOptimisticToggle?.(task, date);
 
     try {
       if (task.recurrenceType === 'none') {
@@ -135,6 +137,21 @@ export function useTaskInteractionFlow({
       onRefresh();
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Status konnte nicht aktualisiert werden.');
+    } finally {
+      setIsTaskMutationPending(false);
+    }
+  }
+
+  async function deleteTaskById(taskId: string) {
+    setIsTaskMutationPending(true);
+    onError(null);
+
+    try {
+      await deleteTask(taskId);
+      closeAllTaskFlows();
+      onRefresh();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Aufgabe konnte nicht gelöscht werden.');
     } finally {
       setIsTaskMutationPending(false);
     }
@@ -156,5 +173,6 @@ export function useTaskInteractionFlow({
     submitTaskEdit,
     submitTaskInstanceEdit,
     toggleTaskCompletion,
+    deleteTaskById,
   };
 }
