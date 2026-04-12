@@ -161,6 +161,49 @@ service cloud.firestore {
         allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
       }
 
+
+      match /taskConversations/{conversationId} {
+        allow read: if isActiveAccount()
+          && isFamilyMember(familyId)
+          && isSuperuser()
+          && (
+            !('participantUserIds' in resource.data) ||
+            resource.data.participantUserIds.hasAny([request.auth.uid])
+          );
+        allow create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+
+        match /messages/{messageId} {
+          allow read: if isActiveAccount()
+            && isFamilyMember(familyId)
+            && isSuperuser()
+            && (
+              !('visibleToUserIds' in resource.data) ||
+              resource.data.visibleToUserIds.hasAny([request.auth.uid])
+            );
+          allow create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        }
+      }
+
+      match /users/{userId} {
+        allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && request.auth.uid == userId;
+        allow create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+
+        match /conversationStates/{taskId} {
+          allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && request.auth.uid == userId;
+          allow create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        }
+
+        match /inboxEntries/{taskId} {
+          allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && request.auth.uid == userId;
+          allow create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        }
+
+        match /uiState/{docId} {
+          allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser() && request.auth.uid == userId;
+          allow create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        }
+      }
+
       match /taskThreads/{threadId} {
         allow read, create, update, delete: if isActiveAccount()
           && isFamilyMember(familyId)

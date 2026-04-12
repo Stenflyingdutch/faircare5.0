@@ -28,8 +28,8 @@ test('task server access is tied to superuser + selected-date resolver', () => {
   assert.match(service, /export async function getTaskOverviewForSelectedDate/);
   assert.match(route, /getTaskOverviewForSelectedDate/);
   assert.match(route, /SESSION_COOKIE_NAME/);
-  assert.match(taskChatService, /\.where\('createdAt', '>', lastReadAt\)/);
-  assert.doesNotMatch(taskChatService, /\.where\('authorUserId', '!=', params\.userId\)/);
+  assert.match(taskChatService, /collection\('conversationStates'\)/);
+  assert.match(taskChatService, /collection\('inboxEntries'\)/);
 });
 
 test('admin user management exposes superuser toggle', () => {

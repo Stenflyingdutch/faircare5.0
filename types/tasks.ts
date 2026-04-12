@@ -59,6 +59,12 @@ export interface TaskDocument {
   unreadForUserIds?: string[];
   lastMessageAt?: string | null;
   lastMessagePreview?: string | null;
+  hasConversation?: boolean;
+  lastConversationActivityAt?: string | null;
+  lastConversationMessageAt?: string | null;
+  lastConversationMessageText?: string | null;
+  lastConversationMessageType?: 'user_message' | 'system_message' | null;
+  lastConversationSenderId?: string | null;
   source?: 'manual' | 'system';
   deletedAt?: string | null;
   createdAt: string;

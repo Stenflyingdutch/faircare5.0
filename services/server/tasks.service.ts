@@ -526,7 +526,7 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
 
   await delegationRef.set(payload, { merge: true });
 
-  const systemText = 'Diese Aufgabe wurde delegiert';
+  const systemText = 'Diese Aufgabe wurde dir delegiert.';
 
   const visibleToUserIds = resolveTaskVisibleToUserIds(task);
   const updatedVisibleToUserIds = [...new Set([...visibleToUserIds, context.partnerUserId])];
@@ -539,6 +539,12 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
     unreadForUserIds: [context.partnerUserId],
     lastMessageAt: timestamp,
     lastMessagePreview: systemText,
+    hasConversation: true,
+    lastConversationActivityAt: timestamp,
+    lastConversationMessageAt: timestamp,
+    lastConversationMessageText: systemText,
+    lastConversationMessageType: 'system_message',
+    lastConversationSenderId: 'system',
     updatedAt: timestamp,
   } satisfies Partial<TaskDocument>, { merge: true });
 
@@ -551,6 +557,8 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
     text: systemText,
     idempotencyKey: `${task.id}:${timestamp}:${input.mode}:${normalizedDate ?? 'none'}`,
     meta: {
+      delegatedByUserId: context.userId,
+      delegatedToUserId: context.partnerUserId,
       delegationMode: input.mode,
       date: normalizedDate,
       weekdays: input.weekdays ?? null,

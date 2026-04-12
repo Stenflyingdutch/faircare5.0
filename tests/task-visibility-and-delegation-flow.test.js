@@ -25,7 +25,7 @@ test('overview reads only user-visible tasks and keeps legacy fallback paths', (
 test('delegation uses exact system message text and updates visibility state', () => {
   const service = read('services/server/tasks.service.ts');
 
-  assert.match(service, /const systemText = 'Diese Aufgabe wurde delegiert'/);
+  assert.match(service, /const systemText = 'Diese Aufgabe wurde dir delegiert\.'/);
   assert.match(service, /visibilityMode:\s*'delegated'/);
   assert.match(service, /unreadForUserIds:\s*\[context\.partnerUserId\]/);
 });
@@ -34,11 +34,12 @@ test('delegation chat message has deterministic idempotency key', () => {
   const service = read('services/server/task-chat.service.ts');
 
   assert.match(service, /system_task_delegated_/);
-  assert.match(service, /if \(existing\.exists\)/);
+  assert.match(service, /if \(params\.idempotencyKey && messageSnap\.exists\)/);
 });
 
-test('chat list loads task titles only for currently visible tasks', () => {
+test('chat list loads inbox entries from per-user state', () => {
   const chatService = read('services/server/task-chat.service.ts');
 
-  assert.match(chatService, /where\('visibleToUserIds', 'array-contains', params\.userId\)/);
+  assert.match(chatService, /collection\('inboxEntries'\)/);
+  assert.match(chatService, /where\('isOpen', '==', true\)/);
 });
