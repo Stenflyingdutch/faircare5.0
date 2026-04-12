@@ -114,6 +114,7 @@ export default function PersonalHomePage() {
   const [chatTaskId, setChatTaskId] = useState<string | null>(null);
   const pendingDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSortMode = useRef<SortMode>('relevance');
+  const hasLoadedTaskOverviewRef = useRef(false);
 
   useEffect(() => {
     let responsibilitiesUnsubscribe = () => {};
@@ -164,11 +165,12 @@ export default function PersonalHomePage() {
       setTaskError(null);
       setTaskThreadMetaByTaskId({});
       setIsTaskLoading(false);
+      hasLoadedTaskOverviewRef.current = false;
       return;
     }
 
     let cancelled = false;
-    setIsTaskLoading(true);
+    setIsTaskLoading(!hasLoadedTaskOverviewRef.current);
     setTaskError(null);
 
     void fetchTaskOverview(selectedDate)
@@ -177,6 +179,7 @@ export default function PersonalHomePage() {
         setDayTasks(overview.dayTasks);
         setResponsibilityTasks(overview.responsibilityTasks);
         setTaskThreadMetaByTaskId(overview.taskThreadMetaByTaskId ?? {});
+        hasLoadedTaskOverviewRef.current = true;
       })
       .catch((error) => {
         if (cancelled) return;
