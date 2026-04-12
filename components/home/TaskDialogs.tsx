@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { formatDateLabel, getWeekday, parseDateKey } from '@/services/task-date';
 import { getTaskTimingLabel, resolveTaskInstanceDate, resolveTaskInstanceState } from '@/services/tasks.logic';
+import { sendTaskMessageByTask } from '@/services/task-chat.service';
 import type { Responsibility } from '@/services/responsibilities.service';
 import type {
   CreateTaskInput,
@@ -748,6 +749,7 @@ export function TaskEditModal({
   onClose,
   onDelete,
   onSubmit,
+  hasThread,
 }: {
   isOpen: boolean;
   task: TaskOverviewItem | null;
@@ -756,11 +758,14 @@ export function TaskEditModal({
   onClose: () => void;
   onDelete: (taskId: string) => Promise<void>;
   onSubmit: (input: TaskEditSubmit) => Promise<void>;
+  hasThread?: boolean;
 }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [recurrenceDraft, setRecurrenceDraft] = useState<RecurrenceDraft | null>(null);
   const [delegationDraft, setDelegationDraft] = useState<DelegationDraft | null>(null);
+  const [chatMessage, setChatMessage] = useState('');
+  const [isSendingChatMessage, setIsSendingChatMessage] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !task) return;
@@ -768,6 +773,7 @@ export function TaskEditModal({
     setNotes(task.notes ?? '');
     setRecurrenceDraft(buildInitialRecurrenceDraft(task, selectedDate));
     setDelegationDraft(buildInitialDelegationDraft(task, selectedDate));
+    setChatMessage('');
   }, [isOpen, selectedDate, task]);
 
   if (!task || !recurrenceDraft || !delegationDraft) {
@@ -874,6 +880,34 @@ export function TaskEditModal({
           />
         </div>
 
+
+        <div className="task-stack">
+          <p className="task-section-title">{hasThread ? 'Chat öffnen' : 'Nachricht senden'}</p>
+          <p className="task-inline-hint">Diese Nachricht gehört zu dieser Aufgabe.</p>
+          <textarea
+            className="input task-textarea"
+            value={chatMessage}
+            onChange={(event) => setChatMessage(event.target.value)}
+            placeholder="Was möchtest du dazu sagen?"
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              className="button primary"
+              disabled={!chatMessage.trim() || isSendingChatMessage}
+              onClick={() => {
+                if (!chatMessage.trim()) return;
+                setIsSendingChatMessage(true);
+                void sendTaskMessageByTask(currentTask.id, chatMessage)
+                  .then(() => setChatMessage(''))
+                  .finally(() => setIsSendingChatMessage(false));
+              }}
+            >
+              {isSendingChatMessage ? 'Sendet …' : 'Senden'}
+            </button>
+          </div>
+        </div>
+
         <button
           type="button"
           className="task-delete-action"
@@ -911,7 +945,6 @@ export function TaskInstanceEditModal({
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [delegationDraft, setDelegationDraft] = useState<DelegationDraft | null>(null);
-
   useEffect(() => {
     if (!isOpen || !task || !instanceDate) return;
     const instanceState = resolveTaskInstanceState(task, instanceDate);

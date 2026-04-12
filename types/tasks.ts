@@ -93,6 +93,14 @@ export interface TaskOverviewResponse {
   selectedDate: string;
   dayTasks: TaskOverviewItem[];
   responsibilityTasks: TaskOverviewItem[];
+  taskThreadMetaByTaskId?: Record<string, TaskThreadOverviewMeta>;
+  unreadChatCount?: number;
+}
+
+export interface TaskThreadOverviewMeta {
+  threadId: string;
+  unreadCount: number;
+  hasThread: boolean;
 }
 
 export interface CreateTaskInput {

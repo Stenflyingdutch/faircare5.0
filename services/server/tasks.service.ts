@@ -4,6 +4,7 @@ import { familySubcollections, firestoreCollections } from '@/types/domain';
 import { adminDb, verifyAdminSessionCookie } from '@/lib/firebase-admin';
 import { assertDateKey } from '@/services/task-date';
 import { isTaskDueOnDate, toTaskOverviewItem } from '@/services/tasks.logic';
+import { appendThreadMetaToOverview, createDelegationSystemMessage } from '@/services/server/task-chat.service';
 import { isSuperuserProfile, resolveAccountStatus } from '@/services/user-profile.service';
 import type { AppUserProfile, FamilyDocument } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
@@ -276,11 +277,17 @@ export async function getTaskOverviewForSelectedDate(userId: string, dateKey: st
     .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], overridesByTask.get(task.id) ?? [], dateKey))
     .sort(sortOverviewItems);
 
-  return {
+  const overview = {
     selectedDate: dateKey,
     dayTasks,
     responsibilityTasks,
   };
+
+  return appendThreadMetaToOverview({
+    familyId: context.familyId,
+    userId,
+    overview,
+  });
 }
 
 export async function createTaskForUser(userId: string, input: CreateTaskInput) {
@@ -462,6 +469,27 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
   };
 
   await delegationRef.set(payload, { merge: true });
+
+  const systemText = input.mode === 'singleDate'
+    ? `Diese Aufgabe wurde dir für ${normalizedDate ?? 'diesen Tag'} delegiert.`
+    : input.weekdays?.length
+      ? 'Diese Aufgabe wurde dir regelmäßig delegiert.'
+      : 'Diese Aufgabe wurde dir delegiert.';
+
+  await createDelegationSystemMessage({
+    familyId: context.familyId,
+    taskId: task.id,
+    authorUserId: context.userId,
+    participantUserIds: [context.userId, context.partnerUserId],
+    responsibilityId: task.responsibilityId ?? null,
+    text: systemText,
+    meta: {
+      delegationMode: input.mode,
+      date: normalizedDate,
+      weekdays: input.weekdays ?? null,
+    },
+  });
+
   return payload;
 }
 
