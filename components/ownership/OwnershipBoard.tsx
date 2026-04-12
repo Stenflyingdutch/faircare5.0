@@ -216,8 +216,9 @@ export function OwnershipBoard({
   [groupedWithStatus, selectedCategories, mode]);
 
   function openDetails(card: OwnershipCardDocument) {
-    setOpenedCardId(card.id);
-    setDraft({
+    const isSameCard = openedCardId === card.id;
+    setOpenedCardId(isSameCard ? null : card.id);
+    setDraft(isSameCard ? null : {
       title: card.title,
       note: card.note,
     });
@@ -528,7 +529,9 @@ export function OwnershipBoard({
             <textarea className="input ownership-modal-input" rows={5} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
             <div className="ownership-modal-actions">
               <button type="button" className="button primary" disabled={saving} onClick={() => saveDetails(openedCard)}>Speichern</button>
-              {mode === 'dashboard' && <button type="button" className="button" disabled={saving} onClick={() => deleteCard(openedCard.id)}>Löschen</button>}
+              {mode === 'dashboard' && (
+                <button type="button" className="button" disabled={saving} onClick={() => deleteCard(openedCard.id)}>Löschen</button>
+              )}
               <button type="button" className="button secondary" onClick={() => { setOpenedCardId(null); setDraft(null); }}>Abbrechen</button>
             </div>
           </div>

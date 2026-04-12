@@ -204,6 +204,41 @@ export async function updateResponsibilityAssignment(
 }
 
 /**
+ * Update Titel/Details einer Verantwortung
+ */
+export async function updateResponsibilityMeta(
+  familyId: string,
+  cardId: string,
+  patch: { title: string; note: string },
+  userId: string,
+) {
+  const cardRef = doc(db, firestoreCollections.families, familyId, 'ownershipCards', cardId);
+  await updateDoc(cardRef, {
+    title: patch.title.trim(),
+    note: patch.note.trim(),
+    updatedBy: userId,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Soft Delete einer Verantwortung
+ */
+export async function softDeleteResponsibility(
+  familyId: string,
+  cardId: string,
+  userId: string,
+) {
+  const cardRef = doc(db, firestoreCollections.families, familyId, 'ownershipCards', cardId);
+  await updateDoc(cardRef, {
+    isDeleted: true,
+    isActive: false,
+    updatedBy: userId,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
  * Sortierung für Verantwortungen (act > plan > observe)
  */
 const priorityOrder: Record<ResponsibilityPriority, number> = {
