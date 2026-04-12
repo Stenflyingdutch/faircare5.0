@@ -210,26 +210,29 @@ service cloud.firestore {
       }
 
       match /taskThreads/{threadId} {
-        allow read, create, update, delete: if isActiveAccount()
+        allow read: if isActiveAccount()
           && isFamilyMember(familyId)
           && isSuperuser()
           && (
             !('participantUserIds' in resource.data) ||
             resource.data.participantUserIds.hasAny([request.auth.uid])
           );
+        allow create, update, delete: if false;
 
         match /messages/{messageId} {
-          allow read, create, update, delete: if isActiveAccount()
+          allow read: if isActiveAccount()
             && isFamilyMember(familyId)
             && isSuperuser()
             && (
               !('visibleToUserIds' in resource.data) ||
               resource.data.visibleToUserIds.hasAny([request.auth.uid])
             );
+          allow create, update, delete: if false;
         }
 
         match /readState/{userId} {
-          allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+          allow read: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+          allow create, update, delete: if false;
         }
       }
     }

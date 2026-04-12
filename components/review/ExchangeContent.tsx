@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { TeamCheckContent } from '@/components/review/TeamCheckContent';
 import { fetchTaskThreadDetail, fetchTaskThreads, markTaskThreadRead, sendTaskMessageInThread } from '@/services/task-chat.service';
@@ -27,7 +27,7 @@ export function ExchangeContent() {
   const [loading, setLoading] = useState(false);
   const [inboxOpenCount, setInboxOpenCount] = useState(0);
 
-  async function loadThreads(scope: 'inbox' | 'threads') {
+  const loadThreads = useCallback(async (scope: 'inbox' | 'threads') => {
     setLoading(true);
     try {
       const [scoped, inbox] = await Promise.all([
@@ -40,7 +40,7 @@ export function ExchangeContent() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     logExchangeDebug('listener mount', { listener: 'chatScopeLoader', mainTab, chatTab });
@@ -89,12 +89,12 @@ export function ExchangeContent() {
               <p className="exchange-chat-tabs-label">Chat-Ansicht</p>
               <div className="exchange-segmented exchange-sub-segmented">
                 <button type="button" className={`exchange-segment ${chatTab === 'inbox' ? 'is-active' : ''}`} onClick={() => setChatTab('inbox')}>
-                  Inbox {inboxCount > 0 ? <span className="exchange-unread-dot" aria-label={`${inboxCount} ungelesene Chats`} title={`${inboxCount} ungelesene Chats`} /> : null}
+                  Inbox {inboxCount > 0 ? <span className="exchange-unread-dot" aria-label={`${inboxCount} offene Fälle`} title={`${inboxCount} offene Fälle`} /> : null}
                 </button>
                 <button type="button" className={`exchange-segment ${chatTab === 'threads' ? 'is-active' : ''}`} onClick={() => setChatTab('threads')}>Threads</button>
               </div>
               <p className="helper exchange-chat-tabs-hint">
-                <strong>Inbox</strong> zeigt nur ungelesene Chats, <strong>Threads</strong> zeigt alle Chatverläufe.
+                <strong>Inbox</strong> zeigt offene Fälle, <strong>Threads</strong> zeigt alle Chatverläufe.
               </p>
             </div>
 
@@ -103,7 +103,7 @@ export function ExchangeContent() {
                 {loading ? <p className="helper" style={{ margin: 0 }}>Lade Chats …</p> : null}
                 {!loading && !threads.length && (
                   <p className="helper" style={{ margin: 0 }}>
-                    {chatTab === 'inbox' ? 'Keine neuen Nachrichten.' : 'Noch keine Nachrichten zu Aufgaben.'}
+                    {chatTab === 'inbox' ? 'Keine offenen Fälle.' : 'Noch keine Nachrichten zu Aufgaben.'}
                   </p>
                 )}
                 <div className="stack" style={{ gap: 8 }}>
