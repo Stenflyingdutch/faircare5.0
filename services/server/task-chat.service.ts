@@ -174,10 +174,12 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
 
     const unreadSnapshot = await taskMessagesCollection(params.familyId, thread.id)
       .where('createdAt', '>', lastReadAt)
-      .where('authorUserId', '!=', params.userId)
       .get();
 
-    const unreadCount = unreadSnapshot.size;
+    const unreadCount = unreadSnapshot.docs.reduce((count, messageEntry) => {
+      const message = messageEntry.data() as TaskThreadMessageDocument;
+      return message.authorUserId === params.userId ? count : count + 1;
+    }, 0);
     const row: TaskThreadListItem = {
       ...thread,
       unreadCount,
