@@ -3182,28 +3182,34 @@ textarea.input {
 }
 
 .exchange-segmented {
-  width: fit-content;
+  width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 6px;
-  border-radius: 999px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(205, 214, 226, 0.9);
   box-shadow: 0 6px 20px rgba(25, 38, 56, 0.06);
 }
 
+.exchange-segmented-main {
+  max-width: 720px;
+}
+
 .exchange-sub-segmented {
   width: fit-content;
+  max-width: 440px;
 }
 
 .exchange-segment {
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 12px;
   min-height: 40px;
-  padding: 0 18px;
+  padding: 0 16px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   background: transparent;
   color: #4a5b6e;
@@ -3218,14 +3224,18 @@ textarea.input {
   box-shadow: 0 10px 24px rgba(80, 123, 244, 0.28);
 }
 
+.exchange-segmented-main .exchange-segment {
+  flex: 1;
+}
+
 .exchange-chat-tabs {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .exchange-chat-tabs-label {
   margin: 0;
-  font-size: 1.95rem;
+  font-size: clamp(1.2rem, 2.6vw, 1.5rem);
   font-weight: 700;
   color: #263445;
 }
@@ -3275,7 +3285,7 @@ textarea.input {
 }
 
 .exchange-thread-messages {
-  max-height: min(45vh, 380px);
+  max-height: min(36vh, 320px);
   overflow: auto;
   padding-right: 2px;
   display: grid;

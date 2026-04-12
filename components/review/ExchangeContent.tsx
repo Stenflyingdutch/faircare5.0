@@ -53,7 +53,7 @@ export function ExchangeContent() {
   return (
     <section className="section">
       <div className="container stack">
-        <div className="exchange-segmented">
+        <div className="exchange-segmented exchange-segmented-main" role="tablist" aria-label="Austausch Ansicht wählen">
           <button type="button" className={`exchange-segment ${mainTab === 'checkins' ? 'is-active' : ''}`} onClick={() => setMainTab('checkins')}>Check-ins</button>
           <button type="button" className={`exchange-segment ${mainTab === 'chats' ? 'is-active' : ''}`} onClick={() => setMainTab('chats')}>Chats</button>
         </div>
@@ -62,7 +62,7 @@ export function ExchangeContent() {
           <TeamCheckContent />
         ) : (
           <div className="stack">
-            <div className="exchange-chat-tabs">
+            <div className="exchange-chat-tabs card">
               <p className="exchange-chat-tabs-label">Chat-Ansicht</p>
               <div className="exchange-segmented exchange-sub-segmented">
                 <button type="button" className={`exchange-segment ${chatTab === 'inbox' ? 'is-active' : ''}`} onClick={() => setChatTab('inbox')}>
