@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { getCurrentLocale } from '@/lib/i18n';
+import { getCatalogCards } from '@/services/catalog.service';
 import { isKnownQuizCategory, resolveCategoryLabel } from '@/services/resultCalculator';
 import {
   createOwnershipCard,
@@ -10,6 +12,7 @@ import {
   updateOwnershipCardMeta,
   updateOwnershipCardOwner,
 } from '@/services/ownership.service';
+import type { CatalogResponsibilityCard, ResponsibilityCatalogLanguage } from '@/types/responsibility-cards';
 import type { OwnershipCardDocument, OwnershipFocusLevel } from '@/types/ownership';
 import type { AgeGroup, QuizCategory } from '@/types/quiz';
 
@@ -129,6 +132,11 @@ export function OwnershipBoard({
   const [homeOrder, setHomeOrder] = useState<Record<string, number> | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<QuizCategory[]>([]);
   const [ownerMutationCardId, setOwnerMutationCardId] = useState<string | null>(null);
+  const [catalogCategory, setCatalogCategory] = useState<QuizCategory | null>(null);
+  const [catalogCards, setCatalogCards] = useState<CatalogResponsibilityCard[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogImportingId, setCatalogImportingId] = useState<string | null>(null);
   const hasAppliedInitialFilter = useRef(false);
   const ownerMutationInFlight = useRef(false);
 
@@ -351,6 +359,44 @@ export function OwnershipBoard({
     }
   }
 
+  async function openCatalog(categoryKey: QuizCategory) {
+    const locale = getCurrentLocale();
+    const language: ResponsibilityCatalogLanguage = locale === 'en' || locale === 'nl' ? locale : 'de';
+    setCatalogCategory(categoryKey);
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const cardsFromCatalog = await getCatalogCards(categoryKey, language);
+      setCatalogCards(cardsFromCatalog);
+    } catch {
+      setCatalogCards([]);
+      setCatalogError('Der Katalog konnte gerade nicht geladen werden. Bitte versuche es erneut.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+
+  async function importCatalogCard(categoryKey: QuizCategory, card: CatalogResponsibilityCard) {
+    setCatalogImportingId(card.id);
+    setCatalogError(null);
+    try {
+      await createOwnershipCard({
+        familyId,
+        actorUserId: currentUserId,
+        payload: {
+          categoryKey,
+          title: card.title,
+          note: card.description,
+          sortOrder: Date.now(),
+        },
+      });
+    } catch {
+      setCatalogError('Die Katalog-Karte konnte nicht übernommen werden. Bitte versuche es erneut.');
+    } finally {
+      setCatalogImportingId(null);
+    }
+  }
+
   return (
     <div className="stack">
       {mode === 'dashboard' && (
@@ -379,16 +425,25 @@ export function OwnershipBoard({
               <span className="helper ownership-group-meta">{group.active} zugeordnet von {group.total}</span>
             </div>
             {mode === 'dashboard' && (
-              <button
-                type="button"
-                className="button ownership-create-button"
-                onClick={() => {
-                  setActiveCategoryForCreate(group.category);
-                  setDraft({ title: '', note: '' });
-                }}
-              >
-                Neue Karte
-              </button>
+              <div className="ownership-group-actions">
+                <button
+                  type="button"
+                  className="button ownership-create-button"
+                  onClick={() => void openCatalog(group.category)}
+                >
+                  Katalog
+                </button>
+                <button
+                  type="button"
+                  className="button ownership-create-button"
+                  onClick={() => {
+                    setActiveCategoryForCreate(group.category);
+                    setDraft({ title: '', note: '' });
+                  }}
+                >
+                  Neue Karte
+                </button>
+              </div>
             )}
           </div>
 
@@ -542,6 +597,62 @@ export function OwnershipBoard({
               )}
               <button type="button" className="button secondary" onClick={() => { setOpenedCardId(null); setDraft(null); }}>Abbrechen</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {catalogCategory && (
+        <div
+          className="ownership-modal-backdrop"
+          onClick={() => {
+            setCatalogCategory(null);
+            setCatalogCards([]);
+            setCatalogError(null);
+          }}
+          role="presentation"
+        >
+          <div
+            className="card stack ownership-modal"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Katalog öffnen"
+          >
+            <div className="ownership-modal-header">
+              <div className="stack" style={{ gap: 6 }}>
+                <span className="ownership-card-kicker">{resolveCategoryLabel(catalogCategory, ageGroup ?? undefined)}</span>
+                <h3 className="card-title" style={{ margin: 0 }}>Katalog</h3>
+              </div>
+              <button
+                type="button"
+                className="ownership-modal-close"
+                onClick={() => {
+                  setCatalogCategory(null);
+                  setCatalogCards([]);
+                  setCatalogError(null);
+                }}
+              >
+                Schließen
+              </button>
+            </div>
+
+            {catalogLoading ? <p className="helper">Katalog wird geladen…</p> : null}
+            {!catalogLoading && !catalogCards.length ? <p className="helper">Für diese Kategorie gibt es noch keine Katalog-Karten.</p> : null}
+            {catalogCards.map((entry) => (
+              <article key={entry.id} className="card-surface stack-xs">
+                <strong>{entry.title}</strong>
+                <p>{entry.description}</p>
+                <button
+                  type="button"
+                  className="button"
+                  disabled={catalogImportingId === entry.id}
+                  onClick={() => void importCatalogCard(catalogCategory, entry)}
+                >
+                  {catalogImportingId === entry.id ? 'Übernehme…' : 'Übernehmen'}
+                </button>
+              </article>
+            ))}
+            {catalogError ? <p className="inline-error">{catalogError}</p> : null}
           </div>
         </div>
       )}

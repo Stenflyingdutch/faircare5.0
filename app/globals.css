@@ -1382,6 +1382,13 @@ textarea.input {
   gap: 4px;
 }
 
+.ownership-group-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .ownership-group-meta {
   font-size: 0.95rem;
 }
