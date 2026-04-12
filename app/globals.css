@@ -2578,7 +2578,6 @@ textarea.input {
 
 .task-day-row,
 .responsibility-task-row,
-.task-list-item,
 .task-action-button {
   width: 100%;
   display: flex;
@@ -2600,8 +2599,64 @@ textarea.input {
 }
 
 .task-list-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(220, 227, 235, 0.96);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  padding: 14px 16px;
+  text-align: left;
+  font: inherit;
+  color: var(--color-text-primary);
+  box-shadow: 0 4px 16px rgba(31, 41, 51, 0.04);
   cursor: default;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.task-swipe-shell {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.task-swipe-actions {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  pointer-events: none;
+}
+
+.task-swipe-action {
+  display: flex;
+  align-items: center;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+  transition: opacity 0.16s ease;
+}
+
+.task-swipe-action.is-delete {
+  justify-content: flex-start;
+  padding-left: 16px;
+  background: linear-gradient(135deg, #ff5f5f 0%, #d3213f 100%);
+}
+
+.task-swipe-action.is-delegate {
+  justify-content: flex-end;
+  padding-right: 16px;
+  background: linear-gradient(135deg, #6f59ff 0%, #8e4de8 100%);
+}
+
+.task-swipe-action.is-active {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
 }
 
 .task-list-item.is-clickable {
