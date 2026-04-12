@@ -43,3 +43,10 @@ test('chat list loads inbox entries from per-user state', () => {
   assert.match(chatService, /collection\('inboxEntries'\)/);
   assert.match(chatService, /where\('isOpen', '==', true\)/);
 });
+
+test('chat messages keep both partner ids as participants for inbox routing', () => {
+  const chatService = read('services/server/task-chat.service.ts');
+
+  assert.match(chatService, /\.\.\.resolveTaskVisibleToUserIds\(task\)/);
+  assert.match(chatService, /\.\.\.params\.participantUserIds/);
+});
