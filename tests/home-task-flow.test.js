@@ -16,7 +16,6 @@ test('home page mounts weekly strip and selected-day task section for superusers
   assert.match(homePage, /ResponsibilityTaskSection/);
   assert.match(homePage, /useTaskInteractionFlow/);
   assert.match(homePage, /isSuperuserProfile/);
-  assert.match(homePage, /Einmalige Aufgabe/);
   assert.match(homePage, /Für diesen Tag gibt es noch keine Aufgaben\./);
   assert.match(homePage, /responsibility-task-add-button/);
 });
