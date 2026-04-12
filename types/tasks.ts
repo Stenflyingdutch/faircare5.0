@@ -8,6 +8,7 @@ export type TaskWeekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 export type TaskOrdinal = 1 | 2 | 3 | 4 | -1;
 export type TaskMonthlyPatternMode = 'dayOfMonth' | 'weekdayOfMonth';
 export type TaskDelegationMode = 'singleDate' | 'recurring';
+export type TaskDelegationRecurringStrategy = 'always' | 'alternating';
 
 export interface TaskMonthlyPatternByDay {
   mode: 'dayOfMonth';
@@ -59,6 +60,7 @@ export interface TaskDelegationDocument {
   mode: TaskDelegationMode;
   date?: string | null;
   weekdays?: TaskWeekday[] | null;
+  recurringStrategy?: TaskDelegationRecurringStrategy | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -123,6 +125,7 @@ export interface SaveTaskDelegationInput {
   mode: TaskDelegationMode;
   date?: string | null;
   weekdays?: TaskWeekday[] | null;
+  recurringStrategy?: TaskDelegationRecurringStrategy | null;
 }
 
 export interface UpdateTaskInstanceInput {
