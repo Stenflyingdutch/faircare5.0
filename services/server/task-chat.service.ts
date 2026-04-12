@@ -14,6 +14,12 @@ export class TaskChatAccessError extends Error {
   }
 }
 
+function resolveFirestoreErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const maybeCode = (error as { code?: unknown }).code;
+  return typeof maybeCode === 'string' ? maybeCode : null;
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -245,7 +251,25 @@ export async function appendThreadMetaToOverview(params: {
   userId: string;
   overview: TaskOverviewResponse;
 }) {
-  const rows = await getAllTaskThreads({ familyId: params.familyId, userId: params.userId });
+  let rows: Awaited<ReturnType<typeof getAllTaskThreads>>;
+  try {
+    rows = await getAllTaskThreads({ familyId: params.familyId, userId: params.userId });
+  } catch (error) {
+    const code = resolveFirestoreErrorCode(error);
+    if (code === 'failed-precondition') {
+      console.warn('[tasks] appendThreadMetaToOverview skipped task thread metadata due to missing Firestore index.', {
+        familyId: params.familyId,
+        userId: params.userId,
+        code,
+      });
+      return {
+        ...params.overview,
+        taskThreadMetaByTaskId: {},
+        unreadChatCount: 0,
+      };
+    }
+    throw error;
+  }
   const byTaskId = rows.reduce<Record<string, { threadId: string; unreadCount: number; hasThread: true }>>((acc, row) => {
     acc[row.taskId] = { threadId: row.id, unreadCount: row.unreadCount, hasThread: true };
     return acc;
