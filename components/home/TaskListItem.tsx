@@ -42,7 +42,7 @@ export function TaskListItem({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const skipClickRef = useRef(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
-  const canToggleStatus = !task.isDelegated && (task.recurrenceType === 'none'
+  const canToggleStatus = (task.recurrenceType === 'none'
     ? task.selectedDate === selectedDate
     : task.isDueOnSelectedDate);
   const chips: Array<{ key: string; label: string; variant?: 'delegated' | 'new' | 'series' }> = [];
@@ -68,17 +68,12 @@ export function TaskListItem({
       return;
     }
 
-    if (task.isDelegated) {
-      onEdit();
-      return;
-    }
-
     if (canToggleStatus) {
       onToggleStatus?.();
     }
   };
 
-  const isInteractive = task.isDelegated || canToggleStatus;
+  const isInteractive = canToggleStatus;
 
   const swipeIntensity = Math.min(Math.abs(swipeOffset) / 120, 1);
 
@@ -94,7 +89,7 @@ export function TaskListItem({
       </div>
 
       <div
-        className={`task-list-item ${isInteractive ? 'is-clickable' : ''} ${task.isCompleted ? 'is-completed' : ''} ${task.isDelegated ? 'is-delegated' : ''}`}
+        className={`task-list-item ${isInteractive ? 'is-clickable' : ''} ${task.isCompleted ? 'is-completed' : ''}`}
         style={swipeOffset === 0 ? undefined : { transform: `translateX(${swipeOffset}px)` }}
         onClick={isInteractive ? handleRowClick : undefined}
         role={isInteractive ? 'button' : undefined}
