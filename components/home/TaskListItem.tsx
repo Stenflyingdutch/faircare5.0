@@ -62,10 +62,10 @@ export function TaskListItem({
   return (
     <div className="task-swipe-shell">
       <div className="task-swipe-actions" aria-hidden="true">
-        <div className={`task-swipe-action is-delete ${swipeOffset > 0 ? 'is-active' : ''}`} style={{ opacity: swipeOffset > 0 ? 0.35 + swipeIntensity * 0.65 : 0.25 }}>
+        <div className={`task-swipe-action is-delete ${swipeOffset > 0 ? 'is-active' : ''}`} style={{ opacity: swipeOffset > 0 ? 0.35 + swipeIntensity * 0.65 : 0 }}>
           Löschen
         </div>
-        <div className={`task-swipe-action is-delegate ${swipeOffset < 0 ? 'is-active' : ''}`} style={{ opacity: swipeOffset < 0 ? 0.35 + swipeIntensity * 0.65 : 0.25 }}>
+        <div className={`task-swipe-action is-delegate ${swipeOffset < 0 ? 'is-active' : ''}`} style={{ opacity: swipeOffset < 0 ? 0.35 + swipeIntensity * 0.65 : 0 }}>
           Delegieren
         </div>
       </div>
