@@ -12,6 +12,11 @@ function formatTime(value: string) {
   return new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(parsed);
 }
 
+function logExchangeDebug(event: string, context: Record<string, unknown> = {}) {
+  if (process.env.NODE_ENV === 'production') return;
+  console.info(`[exchange] ${event}`, context);
+}
+
 export function ExchangeContent() {
   const [mainTab, setMainTab] = useState<'checkins' | 'chats'>('checkins');
   const [chatTab, setChatTab] = useState<'inbox' | 'threads'>('inbox');
@@ -20,20 +25,38 @@ export function ExchangeContent() {
   const [activeThread, setActiveThread] = useState<TaskThreadDetailResponse | null>(null);
   const [messageDraft, setMessageDraft] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inboxOpenCount, setInboxOpenCount] = useState(0);
 
   async function loadThreads(scope: 'inbox' | 'threads') {
     setLoading(true);
     try {
-      const result = await fetchTaskThreads(scope);
-      setThreads(result.threads);
+      const [scoped, inbox] = await Promise.all([
+        fetchTaskThreads(scope),
+        fetchTaskThreads('inbox'),
+      ]);
+      setThreads(scoped.threads);
+      setInboxOpenCount(inbox.threads.length);
+      logExchangeDebug('badge recompute', { scope, inboxOpenCount: inbox.threads.length });
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (mainTab !== 'chats') return;
+    logExchangeDebug('listener mount', { listener: 'chatScopeLoader', mainTab, chatTab });
+    if (mainTab !== 'chats') {
+      return () => logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab, chatTab });
+    }
+
     void loadThreads(chatTab);
+    const intervalId = window.setInterval(() => {
+      void loadThreads(chatTab);
+    }, 15000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab, chatTab });
+    };
   }, [chatTab, mainTab]);
 
   useEffect(() => {
@@ -46,9 +69,9 @@ export function ExchangeContent() {
       setActiveThread(detail);
       return markTaskThreadRead(activeThreadId);
     }).then(() => loadThreads(chatTab));
-  }, [activeThreadId, chatTab]);
+  }, [activeThreadId]);
 
-  const inboxCount = useMemo(() => threads.filter((item) => item.unreadCount > 0).length, [threads]);
+  const inboxCount = useMemo(() => inboxOpenCount, [inboxOpenCount]);
 
   return (
     <section className="section">
