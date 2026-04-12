@@ -44,6 +44,11 @@ type ComposerState =
   | { mode: 'day' }
   | { mode: 'responsibility'; responsibility: Responsibility };
 
+type PendingDeleteState = {
+  taskId: string;
+  taskTitle: string;
+};
+
 function areIdListsEqual(left: string[], right: string[]) {
   if (left.length !== right.length) return false;
   return left.every((entry, index) => entry === right[index]);
@@ -108,6 +113,8 @@ export default function PersonalHomePage() {
   const [taskRefreshNonce, setTaskRefreshNonce] = useState(0);
   const [composerState, setComposerState] = useState<ComposerState | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<PendingDeleteState | null>(null);
+  const pendingDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSortMode = useRef<SortMode>('relevance');
 
   useEffect(() => {
@@ -307,6 +314,44 @@ export default function PersonalHomePage() {
     }
   }
 
+  useEffect(() => () => {
+    if (pendingDeleteTimeoutRef.current) {
+      clearTimeout(pendingDeleteTimeoutRef.current);
+    }
+  }, []);
+
+  async function applySingleDateDelegation(task: TaskOverviewItem) {
+    setTaskError(null);
+    try {
+      await saveTaskDelegation(task.id, { mode: 'singleDate', date: selectedDate });
+      setTaskRefreshNonce((current) => current + 1);
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : 'Aufgabe konnte nicht delegiert werden.');
+    }
+  }
+
+  function queueSwipeDelete(task: TaskOverviewItem) {
+    if (pendingDeleteTimeoutRef.current) {
+      clearTimeout(pendingDeleteTimeoutRef.current);
+      pendingDeleteTimeoutRef.current = null;
+    }
+
+    setPendingDelete({ taskId: task.id, taskTitle: task.displayTitle });
+    pendingDeleteTimeoutRef.current = setTimeout(() => {
+      void deleteTaskById(task.id);
+      setPendingDelete(null);
+      pendingDeleteTimeoutRef.current = null;
+    }, 3000);
+  }
+
+  function undoSwipeDelete() {
+    if (pendingDeleteTimeoutRef.current) {
+      clearTimeout(pendingDeleteTimeoutRef.current);
+      pendingDeleteTimeoutRef.current = null;
+    }
+    setPendingDelete(null);
+  }
+
   function handleSelectDate(date: string) {
     setSelectedDate(date);
     setVisibleWeekStart(startOfWeek(date));
@@ -376,6 +421,8 @@ export default function PersonalHomePage() {
                       selectedDate={selectedDate}
                       onEdit={() => requestTaskEdit(task)}
                       onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
+                      onSwipeRight={() => void applySingleDateDelegation(task)}
+                      onSwipeLeft={() => queueSwipeDelete(task)}
                     />
                   ))}
                 </div>
@@ -440,6 +487,8 @@ export default function PersonalHomePage() {
                         [responsibility.id]: !isExpanded,
                       }))}
                       onEditTask={requestTaskEdit}
+                      onSwipeTaskDelete={queueSwipeDelete}
+                      onSwipeTaskDelegate={(task) => void applySingleDateDelegation(task)}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
                     />
                   ) : null}
@@ -496,6 +545,13 @@ export default function PersonalHomePage() {
         onClose={() => setInstanceEditingState(null)}
         onSubmit={submitTaskInstanceEdit}
       />
+
+      {pendingDelete ? (
+        <div className="task-undo-toast" role="status" aria-live="polite">
+          <span>„{pendingDelete.taskTitle}“ wird gelöscht …</span>
+          <button type="button" className="task-undo-toast-button" onClick={undoSwipeDelete}>Undo</button>
+        </div>
+      ) : null}
     </div>
   );
 }

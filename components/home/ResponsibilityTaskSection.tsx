@@ -24,6 +24,8 @@ export function ResponsibilityTaskSection({
   emptyLabel = 'Noch keine Aufgaben',
   isExpanded,
   onEditTask,
+  onSwipeTaskDelete,
+  onSwipeTaskDelegate,
   onToggle,
   onToggleTaskStatus,
   selectedDate,
@@ -32,6 +34,8 @@ export function ResponsibilityTaskSection({
   emptyLabel?: string;
   isExpanded: boolean;
   onEditTask: (task: TaskOverviewItem) => void;
+  onSwipeTaskDelete?: (task: TaskOverviewItem) => void;
+  onSwipeTaskDelegate?: (task: TaskOverviewItem) => void;
   onToggle: () => void;
   onToggleTaskStatus: (task: TaskOverviewItem) => void;
   selectedDate: string;
@@ -63,6 +67,8 @@ export function ResponsibilityTaskSection({
                   selectedDate={selectedDate}
                   onEdit={() => onEditTask(task)}
                   onToggleStatus={() => onToggleTaskStatus(task)}
+                  onSwipeLeft={() => onSwipeTaskDelete?.(task)}
+                  onSwipeRight={() => onSwipeTaskDelegate?.(task)}
                 />
               ))}
             </div>

@@ -456,20 +456,13 @@ function DelegationFields({
   return (
     <div className="task-stack">
       {showEnabledToggle ? (
-        <div className="task-segmented">
-          <button
-            type="button"
-            className={`task-segment ${!draft.enabled ? 'is-selected' : ''}`}
-            onClick={() => onChange({ ...draft, enabled: false })}
-          >
-            Nein
-          </button>
+        <div className="task-single-action">
           <button
             type="button"
             className={`task-segment ${draft.enabled ? 'is-selected' : ''}`}
-            onClick={() => onChange({ ...draft, enabled: true })}
+            onClick={() => onChange({ ...draft, enabled: !draft.enabled, mode: 'singleDate' })}
           >
-            Ja, an Partner
+            Delegieren
           </button>
         </div>
       ) : null}
