@@ -489,34 +489,6 @@ export function OwnershipBoard({
                 </div>
               );
             })}
-            {mode === 'dashboard' && openedCard && draft && group.cards.some((card) => card.id === openedCard.id) && (
-              <div
-                className="report-block stack ownership-create-panel"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <p className="helper" style={{ margin: 0 }}>
-                  Inhalte bearbeiten für <strong>{openedCard.title}</strong>
-                </p>
-                <input
-                  className="input"
-                  value={draft.title}
-                  placeholder="Titel"
-                  onChange={(event) => setDraft({ ...draft, title: event.target.value })}
-                />
-                <textarea
-                  className="input"
-                  rows={4}
-                  value={draft.note}
-                  placeholder="Notiz"
-                  onChange={(event) => setDraft({ ...draft, note: event.target.value })}
-                />
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" className="button primary" disabled={saving} onClick={() => saveDetails(openedCard)}>Speichern</button>
-                  <button type="button" className="button" disabled={saving} onClick={() => deleteCard(openedCard.id)}>Löschen</button>
-                  <button type="button" className="button secondary" onClick={() => { setOpenedCardId(null); setDraft(null); }}>Abbrechen</button>
-                </div>
-              </div>
-            )}
             {!group.cards.length && <p className="helper">Für diesen Filterzustand gibt es hier keine Karten.</p>}
           </div>
         </article>
@@ -531,7 +503,7 @@ export function OwnershipBoard({
       )}
       {error && <p className="inline-error">{error}</p>}
 
-      {mode !== 'dashboard' && openedCard && draft && (
+      {openedCard && draft && (
         <div
           className="ownership-modal-backdrop"
           onClick={() => { setOpenedCardId(null); setDraft(null); }}
@@ -557,6 +529,9 @@ export function OwnershipBoard({
             <textarea className="input ownership-modal-input" rows={5} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
             <div className="ownership-modal-actions">
               <button type="button" className="button primary" disabled={saving} onClick={() => saveDetails(openedCard)}>Speichern</button>
+              {mode === 'dashboard' && (
+                <button type="button" className="button" disabled={saving} onClick={() => deleteCard(openedCard.id)}>Löschen</button>
+              )}
               <button type="button" className="button secondary" onClick={() => { setOpenedCardId(null); setDraft(null); }}>Abbrechen</button>
             </div>
           </div>
