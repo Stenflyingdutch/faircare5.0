@@ -28,7 +28,7 @@ export interface TaskThreadDocument extends TaskConversationDocument {
 export interface TaskThreadMessageDocument {
   id: string;
   taskId: string;
-  conversationId: string;
+  threadId: string;
   familyId: string;
   type: TaskThreadMessageType;
   systemEventType: TaskThreadSystemEventType;
@@ -43,7 +43,7 @@ export interface TaskThreadMessageDocument {
   updatedAt: string;
 
   // Legacy aliases used in UI components.
-  threadId?: string;
+  conversationId?: string;
   authorUserId?: string | null;
   messageType?: 'text' | 'systemDelegation' | 'systemInfo';
   meta?: Record<string, unknown> | null;

@@ -17,6 +17,8 @@ function logExchangeDebug(event: string, context: Record<string, unknown> = {}) 
   console.info(`[exchange] ${event}`, context);
 }
 
+const EXCHANGE_DEBUG = process.env.NEXT_PUBLIC_TASK_CHAT_DEBUG === '1';
+
 export function ExchangeContent() {
   const [mainTab, setMainTab] = useState<'checkins' | 'chats'>('checkins');
   const [chatTab, setChatTab] = useState<'inbox' | 'threads'>('inbox');
@@ -26,9 +28,12 @@ export function ExchangeContent() {
   const [messageDraft, setMessageDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [inboxOpenCount, setInboxOpenCount] = useState(0);
+  const [lastQueryError, setLastQueryError] = useState<string | null>(null);
+  const [lastWriteError, setLastWriteError] = useState<string | null>(null);
 
   const loadThreads = useCallback(async (scope: 'inbox' | 'threads') => {
     setLoading(true);
+    setLastQueryError(null);
     try {
       const [scoped, inbox] = await Promise.all([
         fetchTaskThreads(scope),
@@ -37,6 +42,10 @@ export function ExchangeContent() {
       setThreads(scoped.threads);
       setInboxOpenCount(inbox.threads.length);
       logExchangeDebug('badge recompute', { scope, inboxOpenCount: inbox.threads.length });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Chats konnten nicht geladen werden.';
+      setLastQueryError(message);
+      logExchangeDebug('loadThreads.error', { scope, message });
     } finally {
       setLoading(false);
     }
@@ -57,7 +66,7 @@ export function ExchangeContent() {
       window.clearInterval(intervalId);
       logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab, chatTab });
     };
-  }, [chatTab, mainTab]);
+  }, [chatTab, loadThreads, mainTab]);
 
   useEffect(() => {
     if (!activeThreadId) {
@@ -68,8 +77,13 @@ export function ExchangeContent() {
     void fetchTaskThreadDetail(activeThreadId).then((detail) => {
       setActiveThread(detail);
       return markTaskThreadRead(activeThreadId);
-    }).then(() => loadThreads(chatTab));
-  }, [activeThreadId]);
+    }).then(() => loadThreads(chatTab))
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : 'Thread konnte nicht geladen werden.';
+        setLastQueryError(message);
+        logExchangeDebug('loadThreadDetail.error', { activeThreadId, message });
+      });
+  }, [activeThreadId, chatTab, loadThreads]);
 
   const inboxCount = useMemo(() => inboxOpenCount, [inboxOpenCount]);
 
@@ -106,6 +120,11 @@ export function ExchangeContent() {
                     {chatTab === 'inbox' ? 'Keine offenen Fälle.' : 'Noch keine Nachrichten zu Aufgaben.'}
                   </p>
                 )}
+                {!loading && lastQueryError ? (
+                  <p className="helper" style={{ margin: 0, color: '#b00020' }}>
+                    {lastQueryError}
+                  </p>
+                ) : null}
                 <div className="stack" style={{ gap: 8 }}>
                   {threads.map((thread) => (
                     <button key={thread.id} type="button" className="exchange-thread-row" onClick={() => setActiveThreadId(thread.id)}>
@@ -147,15 +166,33 @@ export function ExchangeContent() {
                       .then((detail) => {
                         setActiveThread(detail);
                         setMessageDraft('');
+                        setLastWriteError(null);
                         return loadThreads(chatTab);
+                      })
+                      .catch((error) => {
+                        const message = error instanceof Error ? error.message : 'Nachricht konnte nicht gesendet werden.';
+                        setLastWriteError(message);
+                        logExchangeDebug('sendMessage.error', { threadId: activeThread.thread.id, message });
                       });
                   }}
                 >
                   <input className="input" value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder="Antwort schreiben" />
                   <button type="submit" className="button primary" disabled={!messageDraft.trim()}>Senden</button>
                 </form>
+                {lastWriteError ? <p className="helper" style={{ margin: 0, color: '#b00020' }}>{lastWriteError}</p> : null}
               </article>
             )}
+            {EXCHANGE_DEBUG ? (
+              <article className="card stack" data-testid="exchange-debug-panel">
+                <strong>Debug</strong>
+                <p className="helper" style={{ margin: 0 }}>activeThreadId: {activeThreadId ?? '—'}</p>
+                <p className="helper" style={{ margin: 0 }}>inboxDocs: {inboxOpenCount}</p>
+                <p className="helper" style={{ margin: 0 }}>threadDocs: {threads.length}</p>
+                <p className="helper" style={{ margin: 0 }}>activeThreadMessages: {activeThread?.messages.length ?? 0}</p>
+                <p className="helper" style={{ margin: 0 }}>lastQueryError: {lastQueryError ?? '—'}</p>
+                <p className="helper" style={{ margin: 0 }}>lastWriteError: {lastWriteError ?? '—'}</p>
+              </article>
+            ) : null}
           </div>
         )}
       </div>
