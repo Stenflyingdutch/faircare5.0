@@ -21,6 +21,7 @@ function ChatBubbleIcon() {
 }
 
 export function TaskListItem({
+  currentUserId,
   task,
   selectedDate,
   onEdit,
@@ -30,6 +31,7 @@ export function TaskListItem({
   onSwipeLeft,
   hasUnreadMessage = false,
 }: {
+  currentUserId: string | null;
   task: TaskOverviewItem;
   selectedDate: string;
   onEdit: () => void;
@@ -42,9 +44,16 @@ export function TaskListItem({
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const skipClickRef = useRef(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
+  const isAssignedToCurrentUser = Boolean(currentUserId) && task.delegatedToUserId === currentUserId;
+  const isDelegatedAwayFromCurrentUser = Boolean(currentUserId) && Boolean(task.delegatedToUserId) && !isAssignedToCurrentUser;
+  const canEditTask = Boolean(currentUserId) && (
+    task.delegatedToUserId
+      ? task.delegatedToUserId === currentUserId
+      : (task.creatorUserId ?? task.createdByUserId) === currentUserId
+  );
   const canToggleStatus = (task.recurrenceType === 'none'
     ? task.selectedDate === selectedDate
-    : task.isDueOnSelectedDate);
+    : task.isDueOnSelectedDate) && canEditTask;
   const chips: Array<{ key: string; label: string; variant?: 'delegated' | 'new' | 'series' }> = [];
 
   if (task.recurrenceType !== 'none') {
@@ -55,8 +64,8 @@ export function TaskListItem({
     });
   }
 
-  if (task.isDelegated) {
-    chips.push({ key: 'delegated', label: 'Delegiert', variant: 'delegated' });
+  if (task.delegatedToUserId) {
+    chips.push({ key: 'delegated', label: isAssignedToCurrentUser ? 'Zugewiesen' : 'Delegiert', variant: 'delegated' });
   }
   if (hasUnreadMessage) {
     chips.push({ key: 'new', label: 'Ungelesen', variant: 'new' });
@@ -89,7 +98,7 @@ export function TaskListItem({
       </div>
 
       <div
-        className={`task-list-item ${isInteractive ? 'is-clickable' : ''} ${task.isCompleted ? 'is-completed' : ''}`}
+        className={`task-list-item ${isInteractive ? 'is-clickable' : ''} ${task.isCompleted ? 'is-completed' : ''} ${isDelegatedAwayFromCurrentUser ? 'is-delegated' : ''}`}
         style={swipeOffset === 0 ? undefined : { transform: `translateX(${swipeOffset}px)` }}
         onClick={isInteractive ? handleRowClick : undefined}
         role={isInteractive ? 'button' : undefined}
@@ -162,17 +171,19 @@ export function TaskListItem({
         </div>
 
         <div className="task-row-action-stack">
-          <button
-            type="button"
-            className="task-row-icon-button"
-            aria-label={`Aufgabe ${task.displayTitle} bearbeiten`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onEdit();
-            }}
-          >
-            <PencilIcon />
-          </button>
+          {canEditTask ? (
+            <button
+              type="button"
+              className="task-row-icon-button"
+              aria-label={`Aufgabe ${task.displayTitle} bearbeiten`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit();
+              }}
+            >
+              <PencilIcon />
+            </button>
+          ) : null}
           {onChat ? (
             <button
               type="button"

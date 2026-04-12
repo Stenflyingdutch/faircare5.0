@@ -3,7 +3,13 @@ import 'server-only';
 import { familySubcollections, firestoreCollections } from '@/types/domain';
 import { adminDb, verifyAdminSessionCookie } from '@/lib/firebase-admin';
 import { assertDateKey } from '@/services/task-date';
-import { canUserSeeTask, isTaskDueOnDate, resolveTaskVisibleToUserIds, toTaskOverviewItem } from '@/services/tasks.logic';
+import {
+  canUserEditTask,
+  canUserSeeTask,
+  isTaskDueOnDate,
+  resolveTaskVisibleToUserIds,
+  toTaskOverviewItem,
+} from '@/services/tasks.logic';
 import { appendThreadMetaToOverview, createDelegationSystemMessage } from '@/services/server/task-chat.service';
 import { isSuperuserProfile, resolveAccountStatus } from '@/services/user-profile.service';
 import type { AppUserProfile, FamilyDocument } from '@/types/partner-flow';
@@ -245,6 +251,12 @@ async function resolveTaskById(context: TaskContext, taskId: string) {
   return task;
 }
 
+function assertTaskWriteAccess(task: TaskDocument, userId: string) {
+  if (!canUserEditTask(task, userId)) {
+    throw new TaskAccessError('Diese Aufgabe kann nur von der aktuell zugewiesenen Person bearbeitet werden.', 403);
+  }
+}
+
 export class TaskAccessError extends Error {
   status: number;
 
@@ -389,6 +401,7 @@ export async function createTaskForUser(userId: string, input: CreateTaskInput) 
 export async function updateTaskForUser(userId: string, taskId: string, input: UpdateTaskInput) {
   const context = await resolveTaskContext(userId);
   const existingTask = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(existingTask, context.userId);
 
   const nextTitle = input.title !== undefined ? input.title.trim() : existingTask.title;
   if (!nextTitle) {
@@ -427,6 +440,7 @@ export async function updateTaskInstanceForUser(userId: string, taskId: string, 
   assertDateKey(dateKey);
   const context = await resolveTaskContext(userId);
   const task = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(task, context.userId);
 
   if (!isTaskDueOnDate(task, dateKey)) {
     throw new TaskAccessError('Für diesen Termin gibt es keine aktive Aufgabeninstanz.', 400);
@@ -478,6 +492,7 @@ export async function updateTaskInstanceForUser(userId: string, taskId: string, 
 export async function saveTaskDelegationForUser(userId: string, taskId: string, input: SaveTaskDelegationInput) {
   const context = await resolveTaskContext(userId);
   const task = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(task, context.userId);
 
   if (!context.partnerUserId) {
     throw new TaskAccessError('Es ist noch kein Partnerkonto mit dieser Familie verknüpft.', 400);
@@ -578,7 +593,8 @@ export async function delegateTask(userId: string, taskId: string, input: SaveTa
 
 export async function clearTaskDelegationsForUser(userId: string, taskId: string, options?: ClearDelegationOptions) {
   const context = await resolveTaskContext(userId);
-  await resolveTaskById(context, taskId);
+  const task = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(task, context.userId);
 
   if (!options?.mode) {
     const snapshot = await taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get();
@@ -614,7 +630,8 @@ export async function clearTaskDelegationsForUser(userId: string, taskId: string
 
 export async function deleteTaskForUser(userId: string, taskId: string) {
   const context = await resolveTaskContext(userId);
-  await resolveTaskById(context, taskId);
+  const task = await resolveTaskById(context, taskId);
+  assertTaskWriteAccess(task, context.userId);
 
   const [delegationsSnapshot, overridesSnapshot] = await Promise.all([
     taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get(),

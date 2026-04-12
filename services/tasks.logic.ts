@@ -342,6 +342,18 @@ export function canUserSeeTask(
   return resolveTaskVisibleToUserIds(task).includes(userId);
 }
 
+export function canUserEditTask(
+  task: Pick<TaskDocument, 'createdByUserId' | 'creatorUserId' | 'delegatedToUserId'>,
+  userId: string,
+) {
+  if (task.delegatedToUserId) {
+    return task.delegatedToUserId === userId;
+  }
+
+  const creatorId = task.creatorUserId ?? task.createdByUserId;
+  return creatorId === userId;
+}
+
 export function getRecurrenceLabel(recurrenceType: TaskRecurrenceType) {
   switch (recurrenceType) {
     case 'daily':

@@ -186,6 +186,7 @@ function OwnershipDashboardPageContent() {
     toggleTaskCompletion,
     deleteTaskById,
   } = useTaskInteractionFlow({
+    currentUserId: userId,
     selectedDate: today,
     tasks: responsibilityTasks,
     onError: setLoadError,
@@ -242,6 +243,7 @@ function OwnershipDashboardPageContent() {
       {loadError && <p className="inline-error">{loadError}</p>}
 
       <ResponsibilityTasksSheet
+        currentUserId={userId}
         isOpen={Boolean(activeTaskSheetCard)}
         responsibilityTitle={activeTaskSheetCard?.title ?? ''}
         tasks={activeSheetTasks}
