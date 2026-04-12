@@ -2720,6 +2720,11 @@ textarea.input {
   color: #47735c;
 }
 
+/* Legacy completion dot in task rows: keep hidden per product decision. */
+.task-list-item .task-list-toggle {
+  display: none;
+}
+
 .task-row-copy {
   min-width: 0;
   display: grid;
