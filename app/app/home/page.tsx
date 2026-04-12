@@ -252,6 +252,7 @@ export default function PersonalHomePage() {
     openInstanceEditFromScope,
     openSeriesEditFromScope,
     requestTaskEdit,
+    reclaimDelegatedTask,
     scopeTask,
     setEditingTaskId,
     setInstanceEditingState,
@@ -322,6 +323,14 @@ export default function PersonalHomePage() {
     } catch (error) {
       setTaskError(error instanceof Error ? error.message : 'Aufgabe konnte nicht delegiert werden.');
     }
+  }
+
+  function requestDelegationReclaim(task: TaskOverviewItem) {
+    if (typeof window !== 'undefined') {
+      const shouldReclaim = window.confirm('Möchtest Du die Aufgabe zurücknehmen?');
+      if (!shouldReclaim) return;
+    }
+    void reclaimDelegatedTask(task);
   }
 
   function queueSwipeDelete(task: TaskOverviewItem) {
@@ -415,6 +424,7 @@ export default function PersonalHomePage() {
                       selectedDate={selectedDate}
                       onEdit={() => requestTaskEdit(task)}
                       onChat={() => setChatTaskId(task.id)}
+                      onReclaimDelegation={() => requestDelegationReclaim(task)}
                       onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
                       onSwipeRight={() => queueSwipeDelete(task)}
                       onSwipeLeft={() => void applySingleDateDelegation(task)}
@@ -485,6 +495,7 @@ export default function PersonalHomePage() {
                       }))}
                       onEditTask={requestTaskEdit}
                       onChatTask={(task) => setChatTaskId(task.id)}
+                      onReclaimDelegation={requestDelegationReclaim}
                       onSwipeTaskDelete={queueSwipeDelete}
                       onSwipeTaskDelegate={(task) => void applySingleDateDelegation(task)}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}

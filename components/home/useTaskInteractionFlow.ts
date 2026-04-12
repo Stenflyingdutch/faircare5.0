@@ -169,6 +169,25 @@ export function useTaskInteractionFlow({
     }
   }
 
+  async function reclaimDelegatedTask(task: TaskOverviewItem) {
+    if (!currentUserId || !task.delegatedToUserId) return;
+    const creatorId = task.creatorUserId ?? task.createdByUserId;
+    if (creatorId !== currentUserId) return;
+
+    setIsTaskMutationPending(true);
+    onError(null);
+
+    try {
+      await clearTaskDelegation(task.id);
+      closeAllTaskFlows();
+      onRefresh();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Delegation konnte nicht zurückgenommen werden.');
+    } finally {
+      setIsTaskMutationPending(false);
+    }
+  }
+
   return {
     editingTask,
     instanceEditingDate: instanceEditingState?.date ?? null,
@@ -177,6 +196,7 @@ export function useTaskInteractionFlow({
     openInstanceEditFromScope,
     openSeriesEditFromScope,
     requestTaskEdit,
+    reclaimDelegatedTask,
     scopeInstanceDate,
     scopeTask,
     setEditingTaskId,

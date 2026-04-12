@@ -7,6 +7,7 @@ export function ResponsibilityTasksSheet({
   isOpen,
   onClose,
   onEditTask,
+  onReclaimDelegation,
   onToggleTaskStatus,
   responsibilityTitle,
   selectedDate,
@@ -16,6 +17,7 @@ export function ResponsibilityTasksSheet({
   isOpen: boolean;
   onClose: () => void;
   onEditTask: (task: TaskOverviewItem) => void;
+  onReclaimDelegation?: (task: TaskOverviewItem) => void;
   onToggleTaskStatus: (task: TaskOverviewItem) => void;
   responsibilityTitle: string;
   selectedDate: string;
@@ -44,6 +46,7 @@ export function ResponsibilityTasksSheet({
                   task={task}
                   selectedDate={selectedDate}
                   onEdit={() => onEditTask(task)}
+                  onReclaimDelegation={onReclaimDelegation ? () => onReclaimDelegation(task) : undefined}
                   onToggleStatus={() => onToggleTaskStatus(task)}
                 />
               ))}
