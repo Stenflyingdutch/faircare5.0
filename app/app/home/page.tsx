@@ -421,8 +421,8 @@ export default function PersonalHomePage() {
                       selectedDate={selectedDate}
                       onEdit={() => requestTaskEdit(task)}
                       onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
-                      onSwipeRight={() => void applySingleDateDelegation(task)}
-                      onSwipeLeft={() => queueSwipeDelete(task)}
+                      onSwipeRight={() => queueSwipeDelete(task)}
+                      onSwipeLeft={() => void applySingleDateDelegation(task)}
                     />
                   ))}
                 </div>
