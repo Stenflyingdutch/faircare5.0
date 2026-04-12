@@ -57,6 +57,10 @@ export function TaskListItem({
     ? task.selectedDate === selectedDate
     : task.isDueOnSelectedDate) && canEditTask;
   const canRequestDelegationReclaim = isDelegatedAwayFromCurrentUser && Boolean(onReclaimDelegation);
+  const isDelegatedByCurrentUser = Boolean(currentUserId)
+    && Boolean(task.delegatedToUserId)
+    && (task.creatorUserId ?? task.createdByUserId) === currentUserId;
+  const swipeLeftLabel = isDelegatedByCurrentUser ? 'Zurücknehmen' : 'Delegieren';
   const chips: Array<{ key: string; label: string; variant?: 'delegated' | 'new' | 'series' }> = [];
 
   if (task.recurrenceType !== 'none') {
@@ -101,7 +105,7 @@ export function TaskListItem({
           Löschen
         </div>
         <div className={`task-swipe-action is-delegate ${swipeOffset < 0 ? 'is-active' : ''}`} style={{ opacity: swipeOffset < 0 ? 0.35 + swipeIntensity * 0.65 : 0 }}>
-          Delegieren
+          {swipeLeftLabel}
         </div>
       </div>
 

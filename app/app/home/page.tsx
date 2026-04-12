@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { HomeHeader } from '@/components/home/HomeHeader';
+import { Modal } from '@/components/Modal';
 import { ResponsibilityCard } from '@/components/home/ResponsibilityCard';
 import { ResponsibilityCardDetails } from '@/components/home/ResponsibilityCardDetails';
 import { ResponsibilityTaskSection } from '@/components/home/ResponsibilityTaskSection';
@@ -45,6 +46,13 @@ type PendingDeleteState = {
   taskId: string;
   taskTitle: string;
 };
+
+type PendingUndelegationState = {
+  taskId: string;
+  taskTitle: string;
+};
+
+const RECLAIM_CONFIRM_COPY = 'Möchtest Du die Aufgabe zurücknehmen?';
 
 function areIdListsEqual(left: string[], right: string[]) {
   if (left.length !== right.length) return false;
@@ -111,6 +119,7 @@ export default function PersonalHomePage() {
   const [composerState, setComposerState] = useState<ComposerState | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<PendingDeleteState | null>(null);
+  const [pendingUndelegation, setPendingUndelegation] = useState<PendingUndelegationState | null>(null);
   const [chatTaskId, setChatTaskId] = useState<string | null>(null);
   const pendingDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSortMode = useRef<SortMode>('relevance');
@@ -326,11 +335,36 @@ export default function PersonalHomePage() {
   }
 
   function requestDelegationReclaim(task: TaskOverviewItem) {
-    if (typeof window !== 'undefined') {
-      const shouldReclaim = window.confirm('Möchtest Du die Aufgabe zurücknehmen?');
-      if (!shouldReclaim) return;
+    setPendingUndelegation({ taskId: task.id, taskTitle: task.displayTitle });
+  }
+
+  async function confirmUndelegation() {
+    if (!pendingUndelegation) return;
+    setTaskError(null);
+    try {
+      const task = allKnownTasks.find((entry) => entry.id === pendingUndelegation.taskId);
+      if (!task) {
+        setTaskError('Aufgabe wurde nicht gefunden. Bitte neu laden.');
+        return;
+      }
+
+      const wasReclaimed = await reclaimDelegatedTask(task);
+      if (!wasReclaimed) {
+        setTaskError('Delegation konnte nicht zurückgenommen werden.');
+      }
+    } finally {
+      setPendingUndelegation(null);
     }
-    void reclaimDelegatedTask(task);
+  }
+
+  function handleSwipeDelegateOrUndelegate(task: TaskOverviewItem) {
+    const creatorId = task.creatorUserId ?? task.createdByUserId;
+    const isCreator = Boolean(userId) && creatorId === userId;
+    if (task.delegatedToUserId && isCreator) {
+      setPendingUndelegation({ taskId: task.id, taskTitle: task.displayTitle });
+      return;
+    }
+    void applySingleDateDelegation(task);
   }
 
   function queueSwipeDelete(task: TaskOverviewItem) {
@@ -427,7 +461,7 @@ export default function PersonalHomePage() {
                       onReclaimDelegation={() => requestDelegationReclaim(task)}
                       onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
                       onSwipeRight={() => queueSwipeDelete(task)}
-                      onSwipeLeft={() => void applySingleDateDelegation(task)}
+                      onSwipeLeft={() => handleSwipeDelegateOrUndelegate(task)}
                       hasUnreadMessage={hasUnreadMessage(task.id)}
                     />
                   ))}
@@ -495,9 +529,9 @@ export default function PersonalHomePage() {
                       }))}
                       onEditTask={requestTaskEdit}
                       onChatTask={(task) => setChatTaskId(task.id)}
-                      onReclaimDelegation={requestDelegationReclaim}
+                      onReclaimDelegation={(task) => requestDelegationReclaim(task)}
                       onSwipeTaskDelete={queueSwipeDelete}
-                      onSwipeTaskDelegate={(task) => void applySingleDateDelegation(task)}
+                      onSwipeTaskDelegate={(task) => handleSwipeDelegateOrUndelegate(task)}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
                       hasUnreadMessage={hasUnreadMessage}
                     />
@@ -569,6 +603,28 @@ export default function PersonalHomePage() {
           <button type="button" className="task-undo-toast-button" onClick={undoSwipeDelete}>Undo</button>
         </div>
       ) : null}
+
+      <Modal
+        isOpen={Boolean(pendingUndelegation)}
+        onClose={() => setPendingUndelegation(null)}
+        ariaLabel="Delegation zurücknehmen"
+        panelClassName="app-modal-panel--sheet"
+      >
+        <div className="stack" style={{ gap: '14px' }}>
+          <h2 className="h2" style={{ margin: 0 }}>Delegation zurücknehmen?</h2>
+          <p className="body" style={{ margin: 0 }}>
+            {RECLAIM_CONFIRM_COPY} „{pendingUndelegation?.taskTitle ?? 'dieser Aufgabe'}“
+          </p>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <button type="button" className="button button-secondary" onClick={() => setPendingUndelegation(null)}>
+              Abbrechen
+            </button>
+            <button type="button" className="button" onClick={() => void confirmUndelegation()}>
+              Zurücknehmen
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
