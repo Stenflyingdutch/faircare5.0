@@ -781,6 +781,7 @@ export function TaskEditModal({
   const [notes, setNotes] = useState('');
   const [recurrenceDraft, setRecurrenceDraft] = useState<RecurrenceDraft | null>(null);
   const [delegationDraft, setDelegationDraft] = useState<DelegationDraft | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !task) return;
@@ -788,6 +789,7 @@ export function TaskEditModal({
     setNotes(task.notes ?? '');
     setRecurrenceDraft(buildInitialRecurrenceDraft(task, selectedDate));
     setDelegationDraft(buildInitialDelegationDraft(task, selectedDate));
+    setShowDeleteConfirm(false);
   }, [isOpen, selectedDate, task]);
 
   if (!task || !recurrenceDraft || !delegationDraft) {
@@ -912,11 +914,7 @@ export function TaskEditModal({
             <button
               type="button"
               className="task-delete-action"
-              onClick={() => {
-                const confirmed = window.confirm('Aufgabe wirklich löschen?');
-                if (!confirmed) return;
-                void onDelete(currentTask.id);
-              }}
+              onClick={() => setShowDeleteConfirm(true)}
             >
               <TrashIcon />
               <span>Löschen</span>
@@ -924,6 +922,27 @@ export function TaskEditModal({
           )}
         />
       </form>
+
+      <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} ariaLabel="Aufgabe löschen" hideCloseButton>
+        <div className="task-dialog-shell">
+          <h2 className="task-dialog-title">Aufgabe wirklich löschen?</h2>
+          <div className="task-dialog-actions">
+            <button type="button" className="task-secondary-button" onClick={() => setShowDeleteConfirm(false)}>
+              Nein
+            </button>
+            <button
+              type="button"
+              className="task-primary-button"
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                void onDelete(currentTask.id);
+              }}
+            >
+              Ja
+            </button>
+          </div>
+        </div>
+      </Modal>
     </Modal>
   );
 }

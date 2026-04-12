@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { HomeHeader } from '@/components/home/HomeHeader';
+import { Modal } from '@/components/Modal';
 import { ResponsibilityCard } from '@/components/home/ResponsibilityCard';
 import { ResponsibilityCardDetails } from '@/components/home/ResponsibilityCardDetails';
 import { ResponsibilityTaskSection } from '@/components/home/ResponsibilityTaskSection';
@@ -31,7 +32,7 @@ import {
   type ResponsibilityPriority,
 } from '@/services/responsibilities.service';
 import { addDays, buildWeek, formatDateLabel, isToday, startOfWeek, toDateKey } from '@/services/task-date';
-import { createTask, fetchTaskOverview, saveTaskDelegation } from '@/services/tasks.service';
+import { clearTaskDelegation, createTask, fetchTaskOverview, saveTaskDelegation } from '@/services/tasks.service';
 import { isSuperuserProfile } from '@/services/user-profile.service';
 import type { TaskOverviewItem } from '@/types/tasks';
 
@@ -44,6 +45,10 @@ type ComposerState =
 type PendingDeleteState = {
   taskId: string;
   taskTitle: string;
+};
+
+type PendingUndelegationState = {
+  taskId: string;
 };
 
 function areIdListsEqual(left: string[], right: string[]) {
@@ -111,6 +116,7 @@ export default function PersonalHomePage() {
   const [composerState, setComposerState] = useState<ComposerState | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<PendingDeleteState | null>(null);
+  const [pendingUndelegation, setPendingUndelegation] = useState<PendingUndelegationState | null>(null);
   const [chatTaskId, setChatTaskId] = useState<string | null>(null);
   const pendingDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSortMode = useRef<SortMode>('relevance');
@@ -324,6 +330,29 @@ export default function PersonalHomePage() {
     }
   }
 
+  async function confirmUndelegation() {
+    if (!pendingUndelegation) return;
+    setTaskError(null);
+    try {
+      await clearTaskDelegation(pendingUndelegation.taskId);
+      setTaskRefreshNonce((current) => current + 1);
+    } catch (error) {
+      setTaskError(error instanceof Error ? error.message : 'Delegation konnte nicht entfernt werden.');
+    } finally {
+      setPendingUndelegation(null);
+    }
+  }
+
+  function handleSwipeDelegateOrUndelegate(task: TaskOverviewItem) {
+    const creatorId = task.creatorUserId ?? task.createdByUserId;
+    const isCreator = Boolean(userId) && creatorId === userId;
+    if (task.delegatedToUserId && isCreator) {
+      setPendingUndelegation({ taskId: task.id });
+      return;
+    }
+    void applySingleDateDelegation(task);
+  }
+
   function queueSwipeDelete(task: TaskOverviewItem) {
     if (pendingDeleteTimeoutRef.current) {
       clearTimeout(pendingDeleteTimeoutRef.current);
@@ -417,7 +446,7 @@ export default function PersonalHomePage() {
                       onChat={() => setChatTaskId(task.id)}
                       onToggleStatus={() => void toggleTaskCompletion(task, selectedDate)}
                       onSwipeRight={() => queueSwipeDelete(task)}
-                      onSwipeLeft={() => void applySingleDateDelegation(task)}
+                      onSwipeLeft={() => handleSwipeDelegateOrUndelegate(task)}
                       hasUnreadMessage={hasUnreadMessage(task.id)}
                     />
                   ))}
@@ -486,7 +515,7 @@ export default function PersonalHomePage() {
                       onEditTask={requestTaskEdit}
                       onChatTask={(task) => setChatTaskId(task.id)}
                       onSwipeTaskDelete={queueSwipeDelete}
-                      onSwipeTaskDelegate={(task) => void applySingleDateDelegation(task)}
+                      onSwipeTaskDelegate={handleSwipeDelegateOrUndelegate}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
                       hasUnreadMessage={hasUnreadMessage}
                     />
@@ -558,6 +587,20 @@ export default function PersonalHomePage() {
           <button type="button" className="task-undo-toast-button" onClick={undoSwipeDelete}>Undo</button>
         </div>
       ) : null}
+
+      <Modal isOpen={Boolean(pendingUndelegation)} onClose={() => setPendingUndelegation(null)} ariaLabel="Delegation zurücknehmen" hideCloseButton>
+        <div className="task-dialog-shell">
+          <h2 className="task-dialog-title">Delegierte Aufgabe zurücknehmen?</h2>
+          <div className="task-dialog-actions">
+            <button type="button" className="task-secondary-button" onClick={() => setPendingUndelegation(null)}>
+              Nein
+            </button>
+            <button type="button" className="task-primary-button" onClick={() => void confirmUndelegation()}>
+              Ja
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

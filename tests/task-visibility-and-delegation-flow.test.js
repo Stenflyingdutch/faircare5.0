@@ -13,10 +13,9 @@ test('new tasks are persisted with private visibility for creator only', () => {
   assert.match(service, /creatorUserId:\s*context\.userId/);
 });
 
-test('overview reads only user-visible tasks and keeps legacy fallback paths', () => {
+test('overview reads only created or delegated tasks and re-checks visibility guardrails', () => {
   const service = read('services/server/tasks.service.ts');
 
-  assert.match(service, /where\('visibleToUserIds', 'array-contains', userId\)/);
   assert.match(service, /where\('createdByUserId', '==', userId\)/);
   assert.match(service, /where\('delegatedToUserId', '==', userId\)/);
   assert.match(service, /canUserSeeTask\(task, userId\)/);
@@ -51,14 +50,32 @@ test('chat messages keep both partner ids as participants for inbox routing', ()
   assert.match(chatService, /\.\.\.params\.participantUserIds/);
 });
 
-test('write access is restricted to currently assigned user once delegated', () => {
+test('write access is restricted to assignee, but undelegation stays creator-only', () => {
   const service = read('services/server/tasks.service.ts');
   const logic = read('services/tasks.logic.ts');
 
   assert.match(logic, /export function canUserEditTask/);
   assert.match(logic, /if \(task\.delegatedToUserId\)\s*{\s*return task\.delegatedToUserId === userId;/);
   assert.match(service, /assertTaskWriteAccess\(existingTask, context\.userId\)/);
-  assert.match(service, /assertTaskWriteAccess\(task, context\.userId\)/);
+  assert.match(service, /assertTaskDelegationControlAccess\(task, context\.userId\)/);
+});
+
+test('delegation clear resets visibility and delegated state to creator-only', () => {
+  const service = read('services/server/tasks.service.ts');
+
+  assert.match(service, /delegatedToUserId:\s*null/);
+  assert.match(service, /visibilityMode:\s*'private'/);
+  assert.match(service, /visibleToUserIds:\s*\[creatorId\]/);
+});
+
+test('custom modal replaces browser confirm dialogs for task actions', () => {
+  const taskDialogs = read('components/home/TaskDialogs.tsx');
+  const homePage = read('app/app/home/page.tsx');
+
+  assert.doesNotMatch(taskDialogs, /window\.confirm/);
+  assert.match(homePage, /Delegierte Aufgabe zurücknehmen\?/);
+  assert.match(homePage, />\s*Nein\s*</);
+  assert.match(homePage, />\s*Ja\s*</);
 });
 
 test('task list renders assigned label for assignee and delegated read-only state for creator', () => {

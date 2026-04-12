@@ -325,10 +325,6 @@ export function toTaskOverviewItem(
 export function resolveTaskVisibleToUserIds(
   task: Pick<TaskDocument, 'createdByUserId' | 'creatorUserId' | 'delegatedToUserId' | 'visibleToUserIds'>,
 ) {
-  if (task.visibleToUserIds?.length) {
-    return [...new Set(task.visibleToUserIds)];
-  }
-
   const creatorId = task.creatorUserId ?? task.createdByUserId;
   if (!creatorId) return [];
   if (!task.delegatedToUserId) return [creatorId];

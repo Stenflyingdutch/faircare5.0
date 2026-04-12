@@ -197,14 +197,13 @@ async function readFamilyTasks(familyId: string) {
 }
 
 async function readVisibleFamilyTasks(familyId: string, userId: string) {
-  const [visibleSnapshot, createdBySnapshot, delegatedSnapshot] = await Promise.all([
-    tasksCollection(familyId).where('visibleToUserIds', 'array-contains', userId).get(),
+  const [createdBySnapshot, delegatedSnapshot] = await Promise.all([
     tasksCollection(familyId).where('createdByUserId', '==', userId).get(),
     tasksCollection(familyId).where('delegatedToUserId', '==', userId).get(),
   ]);
 
   const byId = new Map<string, TaskDocument>();
-  for (const entry of [...visibleSnapshot.docs, ...createdBySnapshot.docs, ...delegatedSnapshot.docs]) {
+  for (const entry of [...createdBySnapshot.docs, ...delegatedSnapshot.docs]) {
     byId.set(entry.id, { ...(entry.data() as TaskDocument), id: entry.id });
   }
 
@@ -254,6 +253,13 @@ async function resolveTaskById(context: TaskContext, taskId: string) {
 function assertTaskWriteAccess(task: TaskDocument, userId: string) {
   if (!canUserEditTask(task, userId)) {
     throw new TaskAccessError('Diese Aufgabe kann nur von der aktuell zugewiesenen Person bearbeitet werden.', 403);
+  }
+}
+
+function assertTaskDelegationControlAccess(task: TaskDocument, userId: string) {
+  const creatorId = task.creatorUserId ?? task.createdByUserId;
+  if (!creatorId || creatorId !== userId) {
+    throw new TaskAccessError('Nur die erstellende Person kann Delegationen zurücknehmen.', 403);
   }
 }
 
@@ -594,15 +600,70 @@ export async function delegateTask(userId: string, taskId: string, input: SaveTa
 export async function clearTaskDelegationsForUser(userId: string, taskId: string, options?: ClearDelegationOptions) {
   const context = await resolveTaskContext(userId);
   const task = await resolveTaskById(context, taskId);
-  assertTaskWriteAccess(task, context.userId);
+  assertTaskDelegationControlAccess(task, context.userId);
+
+  const creatorId = task.creatorUserId ?? task.createdByUserId;
+  if (!creatorId) {
+    throw new TaskAccessError('Aufgabe enthält keine gültige Ersteller-ID.', 400);
+  }
 
   if (!options?.mode) {
     const snapshot = await taskDelegationsCollection(context.familyId).where('taskId', '==', taskId).get();
-    if (snapshot.empty) return;
+    if (!snapshot.empty) {
+      const batch = adminDb.batch();
+      snapshot.docs.forEach((entry) => batch.delete(entry.ref));
+      await batch.commit();
+    }
 
-    const batch = adminDb.batch();
-    snapshot.docs.forEach((entry) => batch.delete(entry.ref));
-    await batch.commit();
+    const timestamp = nowIso();
+    const visibilityReset: Partial<TaskDocument> = {
+      delegatedToUserId: null,
+      delegatedByUserId: null,
+      delegatedAt: null,
+      visibilityMode: 'private',
+      visibleToUserIds: [creatorId],
+      unreadForUserIds: [],
+      updatedAt: timestamp,
+    };
+    await tasksCollection(context.familyId).doc(task.id).set(visibilityReset, { merge: true });
+
+    if (context.partnerUserId) {
+      const partnerStateRef = adminDb
+        .collection(firestoreCollections.families)
+        .doc(context.familyId)
+        .collection(familySubcollections.users)
+        .doc(context.partnerUserId)
+        .collection('conversationStates')
+        .doc(task.id);
+      const partnerInboxRef = adminDb
+        .collection(firestoreCollections.families)
+        .doc(context.familyId)
+        .collection(familySubcollections.users)
+        .doc(context.partnerUserId)
+        .collection('inboxEntries')
+        .doc(task.id);
+
+      await Promise.all([
+        partnerStateRef.set({
+          isTaskVisible: false,
+          isDelegatedTaskVisible: false,
+          hasTaskBadge: false,
+          hasUnread: false,
+          unreadCount: 0,
+          inInbox: false,
+          inboxReason: null,
+          requiresReply: false,
+          updatedAt: timestamp,
+        }, { merge: true }),
+        partnerInboxRef.set({
+          isOpen: false,
+          isUnread: false,
+          requiresReply: false,
+          updatedAt: timestamp,
+        }, { merge: true }),
+      ]);
+    }
+
     return;
   }
 

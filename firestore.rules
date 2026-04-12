@@ -51,16 +51,18 @@ service cloud.firestore {
       );
     }
 
+    function taskCreatorId(data) {
+      return ('creatorUserId' in data) ? data.creatorUserId : data.createdByUserId;
+    }
+
     function taskVisibleToCurrentUser() {
-      return !('visibleToUserIds' in resource.data)
-        || resource.data.visibleToUserIds.size() == 0
-        || resource.data.visibleToUserIds.hasAny([request.auth.uid]);
+      return taskCreatorId(resource.data) == request.auth.uid
+        || (('delegatedToUserId' in resource.data) && resource.data.delegatedToUserId == request.auth.uid);
     }
 
     function taskVisibleToCurrentUserInRequest() {
-      return !('visibleToUserIds' in request.resource.data)
-        || request.resource.data.visibleToUserIds.size() == 0
-        || request.resource.data.visibleToUserIds.hasAny([request.auth.uid]);
+      return taskCreatorId(request.resource.data) == request.auth.uid
+        || (('delegatedToUserId' in request.resource.data) && request.resource.data.delegatedToUserId == request.auth.uid);
     }
 
     function familyResultsUnlocked(familyId) {
@@ -154,7 +156,21 @@ service cloud.firestore {
       }
 
       match /taskDelegations/{delegationId} {
-        allow read, create, update, delete: if isActiveAccount() && isFamilyMember(familyId) && isSuperuser();
+        allow read: if isActiveAccount()
+          && isFamilyMember(familyId)
+          && isSuperuser()
+          && (
+            resource.data.delegatedByUserId == request.auth.uid
+            || resource.data.delegatedToUserId == request.auth.uid
+          );
+        allow create: if isActiveAccount()
+          && isFamilyMember(familyId)
+          && isSuperuser()
+          && request.resource.data.delegatedByUserId == request.auth.uid;
+        allow update, delete: if isActiveAccount()
+          && isFamilyMember(familyId)
+          && isSuperuser()
+          && resource.data.delegatedByUserId == request.auth.uid;
       }
 
       match /taskOverrides/{overrideId} {
