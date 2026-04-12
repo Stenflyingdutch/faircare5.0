@@ -187,6 +187,56 @@ function normalizeThreadListItem(
   }, taskTitleSnapshot, Number.isFinite(unreadCount) ? unreadCount : 0);
 }
 
+function normalizeInboxEntry(
+  docId: string,
+  payload: Partial<TaskInboxEntryDocument> | null | undefined,
+): TaskInboxEntryDocument | null {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const taskId = normalizeString(payload.taskId, docId);
+  const lastMessageAt = toIsoString(payload.lastMessageAt) ?? toIsoString(payload.updatedAt) ?? new Date(0).toISOString();
+  return {
+    id: normalizeString(payload.id, taskId),
+    taskId,
+    conversationId: normalizeString(payload.conversationId, taskId),
+    familyId: normalizeString(payload.familyId),
+    userId: normalizeString(payload.userId),
+    isOpen: payload.isOpen !== false,
+    requiresReply: Boolean(payload.requiresReply),
+    isUnread: Boolean(payload.isUnread),
+    source: payload.source === 'delegation' ? 'delegation' : 'message',
+    titleSnapshot: normalizeString(payload.titleSnapshot, 'Ohne Titel'),
+    lastMessageText: normalizeString(payload.lastMessageText),
+    lastMessageType: payload.lastMessageType === 'system_message' ? 'system_message' : 'user_message',
+    lastMessageSenderId: normalizeString(payload.lastMessageSenderId),
+    lastMessageAt,
+    updatedAt: toIsoString(payload.updatedAt) ?? lastMessageAt,
+  };
+}
+
+function toThreadFromInboxEntry(entry: TaskInboxEntryDocument): TaskThreadListItem {
+  const timestamp = toIsoString(entry.lastMessageAt) ?? toIsoString(entry.updatedAt) ?? new Date(0).toISOString();
+  return toLegacyThreadListItem({
+    id: entry.taskId,
+    taskId: entry.taskId,
+    familyId: entry.familyId,
+    participantUserIds: [],
+    taskTitleSnapshot: entry.titleSnapshot || 'Ohne Titel',
+    createdAt: timestamp,
+    updatedAt: toIsoString(entry.updatedAt) ?? timestamp,
+    lastMessageAt: timestamp,
+    lastMessageText: entry.lastMessageText ?? '',
+    lastMessageType: entry.lastMessageType === 'system_message' ? 'system_message' : 'user_message',
+    lastMessageSenderId: entry.lastMessageSenderId ?? '',
+    messageCount: 0,
+    hasDelegationEvent: entry.source === 'delegation',
+    isArchived: false,
+    createdByUserId: entry.lastMessageSenderId ?? '',
+  }, entry.titleSnapshot || 'Ohne Titel', entry.isUnread ? 1 : 0);
+}
+
 async function loadInboxSnapshot(familyId: string, userId: string) {
   try {
     logTaskChatDebug('loadInbox.query.start', {
@@ -587,20 +637,40 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
   logTaskChatDebug(params.inboxOnly ? 'loadInbox.start' : 'loadThreads.start', params);
   if (params.inboxOnly) {
     const inboxSnapshot = await loadInboxSnapshot(params.familyId, params.userId);
-    logTaskChatDebug('loadInbox.snapshot.raw', { ...params, inboxEntryCount: inboxSnapshot.size, inboxTaskIds: inboxSnapshot.docs.map((entry) => entry.id) });
+    const normalizedInboxEntries = inboxSnapshot.docs
+      .map((entry) => normalizeInboxEntry(entry.id, entry.data() as Partial<TaskInboxEntryDocument>))
+      .filter((entry): entry is TaskInboxEntryDocument => Boolean(entry));
+    logTaskChatDebug('loadInbox.snapshot.raw', {
+      ...params,
+      inboxEntryCount: inboxSnapshot.size,
+      normalizedInboxEntryCount: normalizedInboxEntries.length,
+      inboxTaskIds: normalizedInboxEntries.map((entry) => entry.taskId),
+    });
 
-    const conversations = await Promise.all(inboxSnapshot.docs.map((entry) => taskThreadsCollection(params.familyId).doc(entry.id).get()));
+    const conversations = await Promise.all(normalizedInboxEntries.map((entry) => taskThreadsCollection(params.familyId).doc(entry.taskId).get()));
     logTaskChatDebug('loadInbox.threads.fetched', {
       ...params,
       requestedThreadCount: conversations.length,
       fetchedThreadIds: conversations.map((snap) => snap.id),
       existingThreadIds: conversations.filter((snap) => snap.exists).map((snap) => snap.id),
     });
-    const inboxById = new Map(inboxSnapshot.docs.map((entry) => [entry.id, entry.data() as TaskInboxEntryDocument]));
+    const inboxById = new Map(normalizedInboxEntries.map((entry) => [entry.taskId, entry]));
     const rows = sortByLastMessageAtDesc(conversations
-      .filter((snap) => snap.exists)
       .map((snap) => {
         const inbox = inboxById.get(snap.id);
+        if (!snap.exists) {
+          if (!inbox) {
+            logTaskChatDebug('loadInbox.thread.skipped.orphanInboxReference', { ...params, threadId: snap.id });
+            return null;
+          }
+          const fallback = toThreadFromInboxEntry(inbox);
+          logTaskChatDebug('loadInbox.thread.fallbackFromInboxEntry', {
+            ...params,
+            threadId: snap.id,
+            fallbackLastMessageAt: fallback.lastMessageAt ?? null,
+          });
+          return fallback;
+        }
         const normalized = normalizeThreadListItem(snap.id, snap.data() as Partial<TaskConversationDocument>, inbox?.isUnread ? 1 : 0);
         if (!normalized) {
           logTaskChatDebug('loadInbox.thread.skipped.invalid', { ...params, threadId: snap.id });
