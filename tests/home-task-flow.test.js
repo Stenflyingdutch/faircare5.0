@@ -38,9 +38,10 @@ test('task dialogs stay manual-only without suggestions or catalog text', () => 
   assert.match(dialogs, /Einmalige Aufgabe/);
   assert.match(dialogs, /Aufgabe hinzufügen/);
   assert.match(dialogs, /Aufgabe bearbeiten/);
-  assert.match(dialogs, /Nur diesen Tag/);
+  assert.match(dialogs, /Nur heute/);
   assert.match(dialogs, /Ganze Serie/);
-  assert.match(dialogs, /Delegieren/);
+  assert.match(dialogs, /In Wechsel/);
+  assert.match(dialogs, /Immer/);
   assert.match(dialogs, /const \[draftDate, setDraftDate\] = useState\(selectedDate\)/);
   assert.match(dialogs, /type="date"/);
   assert.match(dialogs, /selectedDate: draftDate/);
