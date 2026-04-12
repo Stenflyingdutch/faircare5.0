@@ -128,7 +128,9 @@ export function OwnershipBoard({
   const [focusOverrides, setFocusOverrides] = useState<Record<string, OwnershipFocusLevel | null>>({});
   const [homeOrder, setHomeOrder] = useState<Record<string, number> | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<QuizCategory[]>([]);
+  const [ownerMutationCardId, setOwnerMutationCardId] = useState<string | null>(null);
   const hasAppliedInitialFilter = useRef(false);
+  const ownerMutationInFlight = useRef(false);
 
   const openedCard = useMemo(() => cards.find((item) => item.id === openedCardId) ?? null, [cards, openedCardId]);
 
@@ -276,11 +278,15 @@ export function OwnershipBoard({
   }
 
   async function cycleOwner(card: OwnershipCardDocument) {
+    if (ownerMutationInFlight.current) return;
+
     const otherOwner = ownerOptions.find((option) => option.userId !== currentUserId)?.userId ?? null;
     const cycle: Array<string | null> = [null, currentUserId, otherOwner].filter((value, index, list) => list.indexOf(value) === index);
     const currentIndex = cycle.indexOf(card.ownerUserId ?? null);
     const nextOwner = cycle[(currentIndex + 1) % cycle.length] ?? null;
 
+    ownerMutationInFlight.current = true;
+    setOwnerMutationCardId(card.id);
     setSaving(true);
     setError(null);
     try {
@@ -293,6 +299,8 @@ export function OwnershipBoard({
     } catch {
       setError('Die Zuordnung konnte gerade nicht gespeichert werden. Bitte versuche es erneut.');
     } finally {
+      ownerMutationInFlight.current = false;
+      setOwnerMutationCardId(null);
       setSaving(false);
     }
   }
@@ -453,7 +461,7 @@ export function OwnershipBoard({
                         type="button"
                         className="ownership-owner-button"
                         onClick={() => cycleOwner(card)}
-                        disabled={saving}
+                        disabled={saving || ownerMutationCardId === card.id}
                         style={{
                           background: ownerState.background,
                           color: ownerState.color,
