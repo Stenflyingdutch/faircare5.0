@@ -2767,7 +2767,9 @@ textarea.input {
 
 .task-chip-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-end;
   gap: 8px;
   margin-left: auto;
 }
