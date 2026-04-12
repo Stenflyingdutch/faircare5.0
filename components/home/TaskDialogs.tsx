@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { Modal } from '@/components/Modal';
 import { formatDateLabel, getWeekday, parseDateKey } from '@/services/task-date';
@@ -216,14 +217,17 @@ function DialogActions({
   onCancel,
   disabled,
   busy,
+  leadingAction,
 }: {
   submitLabel: string;
   onCancel: () => void;
   disabled?: boolean;
   busy?: boolean;
+  leadingAction?: ReactNode;
 }) {
   return (
     <div className="task-dialog-actions">
+      {leadingAction ? <div className="task-dialog-actions-leading">{leadingAction}</div> : null}
       <button type="button" className="task-secondary-button" onClick={onCancel}>
         Abbrechen
       </button>
@@ -899,20 +903,26 @@ export function TaskEditModal({
           />
         </div>
 
-        <button
-          type="button"
-          className="task-delete-action"
-          onClick={() => {
-            const confirmed = window.confirm('Aufgabe wirklich löschen?');
-            if (!confirmed) return;
-            void onDelete(currentTask.id);
-          }}
-        >
-          <TrashIcon />
-          <span>Löschen</span>
-        </button>
-
-        <DialogActions submitLabel="Speichern" onCancel={onClose} disabled={!title.trim()} busy={isSubmitting} />
+        <DialogActions
+          submitLabel="Speichern"
+          onCancel={onClose}
+          disabled={!title.trim()}
+          busy={isSubmitting}
+          leadingAction={(
+            <button
+              type="button"
+              className="task-delete-action"
+              onClick={() => {
+                const confirmed = window.confirm('Aufgabe wirklich löschen?');
+                if (!confirmed) return;
+                void onDelete(currentTask.id);
+              }}
+            >
+              <TrashIcon />
+              <span>Löschen</span>
+            </button>
+          )}
+        />
       </form>
     </Modal>
   );
