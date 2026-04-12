@@ -67,8 +67,8 @@ export function ResponsibilityTaskSection({
                   selectedDate={selectedDate}
                   onEdit={() => onEditTask(task)}
                   onToggleStatus={() => onToggleTaskStatus(task)}
-                  onSwipeLeft={() => onSwipeTaskDelete?.(task)}
-                  onSwipeRight={() => onSwipeTaskDelegate?.(task)}
+                  onSwipeLeft={() => onSwipeTaskDelegate?.(task)}
+                  onSwipeRight={() => onSwipeTaskDelete?.(task)}
                 />
               ))}
             </div>
