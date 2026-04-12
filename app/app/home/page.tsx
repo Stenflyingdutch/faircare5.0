@@ -385,7 +385,14 @@ export default function PersonalHomePage() {
                     Alles darunter bezieht sich auf diesen Tag.
                   </p>
                 </div>
-
+                <button
+                  type="button"
+                  className="task-inline-add-button"
+                  aria-label="Neue Aufgabe für den ausgewählten Tag anlegen"
+                  onClick={() => setComposerState({ mode: 'day' })}
+                >
+                  <PlusIcon />
+                </button>
               </div>
 
               {taskError ? <p className="inline-error" style={{ margin: 0 }}>{taskError}</p> : null}

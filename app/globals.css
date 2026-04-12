@@ -2003,6 +2003,22 @@ textarea.input {
   letter-spacing: -0.01em;
 }
 
+.exchange-nav-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ff4d6d;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .personal-area-nav-link.active {
   color: #ffffff;
   box-shadow: 0 10px 18px rgba(31, 41, 51, 0.08);
@@ -2566,7 +2582,9 @@ textarea.input {
 
 .task-day-card-header {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 14px;
 }
 
@@ -2589,6 +2607,13 @@ textarea.input {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+}
+
+.task-inline-add-button {
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 14px;
 }
 
 .responsibility-task-add-button {
