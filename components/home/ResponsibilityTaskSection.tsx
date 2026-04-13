@@ -33,8 +33,8 @@ export function ResponsibilityTaskSection({
   onToggleTaskStatus,
   selectedDate,
   tasks,
-  hasUnreadMessage,
   unreadCountForTask,
+  hasTaskMessages,
 }: {
   currentUserId: string | null;
   emptyLabel?: string;
@@ -48,8 +48,8 @@ export function ResponsibilityTaskSection({
   onToggleTaskStatus: (task: TaskOverviewItem) => void;
   selectedDate: string;
   tasks: TaskOverviewItem[];
-  hasUnreadMessage?: (taskId: string) => boolean;
   unreadCountForTask?: (taskId: string) => number;
+  hasTaskMessages?: (taskId: string) => boolean;
 }) {
 
   return (
@@ -82,8 +82,8 @@ export function ResponsibilityTaskSection({
                   onToggleStatus={() => onToggleTaskStatus(task)}
                   onSwipeLeft={() => onSwipeTaskDelegate?.(task)}
                   onSwipeRight={() => onSwipeTaskDelete?.(task)}
-                  hasUnreadMessage={hasUnreadMessage?.(task.id) ?? false}
                   unreadCount={unreadCountForTask?.(task.id) ?? 0}
+                  hasTaskMessages={hasTaskMessages?.(task.id) ?? false}
                 />
               ))}
             </div>
