@@ -5,11 +5,11 @@ const path = require('node:path');
 
 const read = (relativePath) => fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
 
-test('new tasks are persisted with private visibility for creator only', () => {
+test('new tasks are persisted with visibility for both family members', () => {
   const service = read('services/server/tasks.service.ts');
 
   assert.match(service, /visibilityMode:\s*'private'/);
-  assert.match(service, /visibleToUserIds:\s*\[context\.userId\]/);
+  assert.match(service, /visibleToUserIds:\s*resolveFamilyMemberUserIds\(context\.family\)/);
   assert.match(service, /creatorUserId:\s*context\.userId/);
 });
 
@@ -27,7 +27,22 @@ test('delegation uses exact system message text and updates visibility state', (
 
   assert.match(service, /const systemText = 'Diese Aufgabe wurde dir übergeben\.'/);
   assert.match(service, /visibilityMode:\s*'delegated'/);
+  assert.match(service, /const updatedVisibleToUserIds = uniqueUserIds\(\[/);
   assert.match(service, /unreadForUserIds:\s*\[context\.partnerUserId\]/);
+});
+
+test('task updates merge visibility instead of overwriting it', () => {
+  const service = read('services/server/tasks.service.ts');
+
+  assert.match(service, /visibleToUserIds:\s*buildTaskVisibilityUserIds\(existingTask, context\.family\)/);
+});
+
+test('missing or empty task visibility gets repaired defensively', () => {
+  const service = read('services/server/tasks.service.ts');
+
+  assert.match(service, /async function repairFamilyTaskVisibility\(context: TaskContext\)/);
+  assert.match(service, /await repairFamilyTaskVisibility\(context\)/);
+  assert.match(service, /const visibleToUserIds = buildTaskVisibilityUserIds\(task, context\.family\)/);
 });
 
 test('delegation chat message has deterministic idempotency key', () => {
