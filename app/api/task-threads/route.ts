@@ -4,6 +4,26 @@ import { SESSION_COOKIE_NAME } from '@/lib/admin-auth';
 import { getTaskContextFromSessionCookie, TaskAccessError } from '@/services/server/tasks.service';
 import { getAllTaskThreads, getInboxThreads, TaskChatAccessError } from '@/services/server/task-chat.service';
 
+function resolveErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object') return null;
+  const maybeCode = (error as { code?: unknown }).code;
+  return typeof maybeCode === 'string' ? maybeCode : null;
+}
+
+function mapErrorToHttpStatus(error: unknown) {
+  const code = resolveErrorCode(error);
+  if (code === 'permission-denied' || code === 'firestore/permission-denied') {
+    return { status: 403, errorCode: 'CHAT_PERMISSION_DENIED', message: 'Du hast keine Berechtigung für diese Chats.' };
+  }
+  if (code === 'unauthenticated') {
+    return { status: 401, errorCode: 'UNAUTHENTICATED', message: 'Anmeldung erforderlich.' };
+  }
+  if (code === 'unavailable' || code === 'deadline-exceeded') {
+    return { status: 503, errorCode: 'CHAT_BACKEND_UNAVAILABLE', message: 'Der Chat-Dienst ist derzeit nicht erreichbar.' };
+  }
+  return { status: 500, errorCode: 'CHAT_THREADS_LOAD_FAILED', message: 'Chats konnten nicht geladen werden.' };
+}
+
 export async function GET(request: NextRequest) {
   const scopeParam = request.nextUrl.searchParams.get('scope');
   const scope = scopeParam === 'inbox' ? 'inbox' : 'threads';
@@ -16,6 +36,9 @@ export async function GET(request: NextRequest) {
       scope: scopeParam,
     },
   };
+  console.info('[task-chat] route.taskThreads.request', {
+    ...routeContext,
+  });
   try {
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const context = await getTaskContextFromSessionCookie(sessionCookie);
@@ -31,15 +54,22 @@ export async function GET(request: NextRequest) {
       normalizedItemCount: threads.length,
     });
 
-    return NextResponse.json({ success: true, items: threads, threads });
+    return NextResponse.json({ success: true, scope, items: threads, threads });
   } catch (error) {
+    const errorCode = resolveErrorCode(error);
+    const mapped = mapErrorToHttpStatus(error);
     console.error('[task-chat] route.taskThreads.error', {
       ...routeContext,
+      scope,
+      firestoreErrorCode: errorCode,
       error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
+      finalStatus: error instanceof TaskAccessError || error instanceof TaskChatAccessError ? error.status : mapped.status,
     });
     if (error instanceof TaskAccessError || error instanceof TaskChatAccessError) {
       return NextResponse.json({
         success: false,
+        scope,
+        items: [],
         errorCode: 'CHAT_ACCESS_DENIED',
         error: error.message,
         message: error.message,
@@ -47,9 +77,11 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({
       success: false,
-      errorCode: 'CHAT_THREADS_LOAD_FAILED',
-      error: 'Chats konnten derzeit nicht geladen werden. Bitte später erneut versuchen.',
-      message: 'Chats konnten derzeit nicht geladen werden. Bitte später erneut versuchen.',
-    }, { status: 503 });
+      scope,
+      items: [],
+      errorCode: mapped.errorCode,
+      error: mapped.message,
+      message: mapped.message,
+    }, { status: mapped.status });
   }
 }
