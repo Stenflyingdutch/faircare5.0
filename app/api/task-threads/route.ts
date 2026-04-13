@@ -56,6 +56,15 @@ export async function GET(request: NextRequest) {
   try {
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const context = await getTaskContextFromSessionCookie(sessionCookie);
+    console.log('[task-chat][debug] firestore-read', {
+      scope,
+      familyId: context.familyId,
+      userId: context.userId,
+      collection: scope === 'inbox'
+        ? `families/${context.familyId}/users/${context.userId}/inboxEntries`
+        : `families/${context.familyId}/taskThreads`,
+      docCount: null,
+    });
 
     const threads = scope === 'inbox'
       ? await getInboxThreads({ familyId: context.familyId, userId: context.userId })
@@ -74,22 +83,26 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const errorCode = resolveErrorCode(error);
     const mapped = mapErrorToHttpStatus(error);
+    const message = error instanceof Error ? error.message : mapped.message;
+    const stack = error instanceof Error ? error.stack ?? null : null;
     console.error('[task-chat] route.taskThreads.error', {
       ...routeContext,
       scope,
       dataSources,
       firestoreErrorCode: errorCode,
       error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
+      message,
+      code: errorCode ?? mapped.errorCode,
+      stack,
       finalStatus: error instanceof TaskAccessError || error instanceof TaskChatAccessError ? error.status : mapped.status,
     });
     if (error instanceof TaskAccessError || error instanceof TaskChatAccessError) {
       return NextResponse.json({
-        success: false,
-        scope,
+        ok: false,
         items: [],
-        errorCode: 'CHAT_ACCESS_DENIED',
-        error: error.message,
-        message: error.message,
+        error: message,
+        code: errorCode ?? 'CHAT_ACCESS_DENIED',
+        stack,
         details: {
           route: routeContext.routeName,
           scope,
@@ -98,12 +111,11 @@ export async function GET(request: NextRequest) {
       }, { status: error.status });
     }
     return NextResponse.json({
-      success: false,
-      scope,
+      ok: false,
       items: [],
-      errorCode: mapped.errorCode,
-      error: mapped.message,
-      message: mapped.message,
+      error: message,
+      code: errorCode ?? mapped.errorCode,
+      stack,
       details: {
         route: routeContext.routeName,
         scope,
