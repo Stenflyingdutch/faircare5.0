@@ -2865,10 +2865,32 @@ textarea.input {
   position: relative;
 }
 
-.task-chat-icon-badge {
+.task-chat-icon-badge-dot {
   position: absolute;
-  top: -7px;
-  right: -8px;
+  top: -6px;
+  right: -6px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+}
+
+.task-chat-icon-badge-dot.is-read {
+  width: 10px;
+  min-width: 10px;
+  height: 10px;
+  background: #6b4ce6;
+  border-width: 1.6px;
+}
+
+.task-chat-icon-badge-dot.is-unread {
+  background: #e64a3b;
 }
 
 .responsibility-task-section {
@@ -3274,9 +3296,7 @@ textarea.input {
 
 .exchange-chat-tabs-label {
   margin: 0;
-  font-size: clamp(1.2rem, 2.6vw, 1.5rem);
-  font-weight: 700;
-  color: #263445;
+  min-height: 1rem;
 }
 
 .exchange-chat-tabs-hint {
@@ -3299,11 +3319,52 @@ textarea.input {
   font: inherit;
   cursor: pointer;
   transition: transform 0.15s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .exchange-thread-row-shell {
   overflow: hidden;
   border-radius: 16px;
+  position: relative;
+}
+
+.exchange-thread-row.is-read {
+  background: #eef1f5;
+  color: #758091;
+}
+
+.exchange-thread-row.is-read .exchange-thread-title {
+  color: #5f6a79;
+}
+
+.exchange-thread-swipe-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.exchange-thread-swipe-action {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #ffffff;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.exchange-thread-swipe-action.is-active {
+  opacity: 1;
+}
+
+.exchange-thread-swipe-action.is-delete {
+  background: #d94a4a;
+}
+
+.exchange-thread-swipe-action.is-unread {
+  background: #6b4ce6;
 }
 
 .exchange-thread-title.is-unread {
@@ -3326,9 +3387,18 @@ textarea.input {
   box-shadow: 0 0 0 3px rgba(45, 127, 249, 0.22);
 }
 
-.exchange-envelope {
-  font-size: 1.2rem;
-  line-height: 1;
+.exchange-trash-button {
+  border: 1px solid rgba(201, 210, 223, 0.92);
+  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6d7684;
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .exchange-thread-header {
@@ -3365,44 +3435,12 @@ textarea.input {
   border-color: rgba(160, 202, 239, 0.92);
 }
 
-.task-thread-context {
-  display: grid;
-  gap: 2px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(210, 220, 231, 0.95);
-  background: rgba(248, 251, 255, 0.95);
-}
-
-.task-thread-context-title,
-.task-thread-context-meta {
-  margin: 0;
-}
-
-.task-thread-context-title {
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.task-thread-context-meta {
-  font-size: 0.84rem;
-  color: var(--color-text-secondary);
-}
-
 .task-thread-history {
   max-height: min(40vh, 340px);
   overflow: auto;
   display: grid;
   gap: 10px;
   padding-right: 2px;
-}
-
-.task-thread-empty {
-  display: grid;
-  gap: 4px;
-  border: 1px dashed rgba(192, 203, 215, 0.95);
-  border-radius: 14px;
-  padding: 14px;
 }
 
 .task-thread-message {
