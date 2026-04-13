@@ -99,6 +99,7 @@ export default function PersonalHomePage() {
   const router = useRouter();
   const today = useMemo(() => toDateKey(new Date()), []);
   const [userFirstName, setUserFirstName] = useState('');
+  const [partnerDisplayName, setPartnerDisplayName] = useState<string | null>(null);
   const [responsibilities, setResponsibilities] = useState<Responsibility[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>('relevance');
   const [orderedResponsibilityIds, setOrderedResponsibilityIds] = useState<string[]>([]);
@@ -138,6 +139,7 @@ export default function PersonalHomePage() {
 
       const bundle = await fetchDashboardBundle(user.uid);
       setUserFirstName(bundle.profile?.displayName?.split(' ')[0] || '');
+      setPartnerDisplayName(bundle.partnerDisplayName ?? null);
       setFamilyId(bundle.profile?.familyId ?? null);
       setIsSuperuser(isSuperuserProfile(bundle.profile));
 
@@ -590,6 +592,8 @@ export default function PersonalHomePage() {
         onClose={() => setChatTaskId(null)}
         hasThread={chatTask ? hasTaskThread(chatTask.id) : false}
         threadId={chatTask ? threadIdForTask(chatTask.id) : null}
+        currentUserId={userId}
+        partnerDisplayName={partnerDisplayName}
       />
 
       <TaskInstanceEditModal

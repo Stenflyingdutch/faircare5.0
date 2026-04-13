@@ -935,12 +935,16 @@ export function TaskChatModal({
   onClose,
   hasThread,
   threadId,
+  currentUserId,
+  partnerDisplayName,
 }: {
   isOpen: boolean;
   task: TaskOverviewItem | null;
   onClose: () => void;
   hasThread?: boolean;
   threadId?: string | null;
+  currentUserId?: string | null;
+  partnerDisplayName?: string | null;
 }) {
   const [chatMessage, setChatMessage] = useState('');
   const [isSendingChatMessage, setIsSendingChatMessage] = useState(false);
@@ -981,16 +985,7 @@ export function TaskChatModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="task-dialog-shell">
-        <DialogHeader title="Aufgaben-Thread" subtitle={task.displayTitle} />
-
-        <div className="task-thread-context">
-          <p className="task-thread-context-title">Unterhaltung zu dieser Aufgabe</p>
-          <p className="task-thread-context-meta">
-            {threadDetail
-              ? `${threadDetail.thread.participantUserIds.length} Beteiligte`
-              : 'Thread wird geladen …'}
-          </p>
-        </div>
+        <DialogHeader title={task.displayTitle} />
 
         <div ref={historyRef} className="task-thread-history">
           {loadError ? (
@@ -1006,14 +1001,14 @@ export function TaskChatModal({
               <article
                 key={message.id}
                 className={`task-thread-message ${
-                  message.senderUserId === task.delegatedToUserId ? 'is-other' : 'is-self'
+                  message.senderUserId === currentUserId ? 'is-self' : 'is-other'
                 } ${message.type === 'system_message' ? 'is-system' : ''}`}
               >
                 <p className="task-thread-author">
                   {message.type === 'system_message'
                     ? 'System'
-                    : message.senderUserId === task.delegatedToUserId
-                      ? 'Partner'
+                    : message.senderUserId !== currentUserId
+                      ? (partnerDisplayName || 'Partner')
                       : 'Du'}
                 </p>
                 <p className="task-thread-text">{message.text}</p>

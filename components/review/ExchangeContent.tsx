@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { TeamCheckContent } from '@/components/review/TeamCheckContent';
+import { observeAuthState } from '@/services/auth.service';
+import { fetchDashboardBundle } from '@/services/partnerFlow.service';
 import {
   deleteTaskThreadInboxEntry,
   fetchTaskThreadDetail,
@@ -52,11 +54,23 @@ export function ExchangeContent() {
   const [inboxOpenCount, setInboxOpenCount] = useState(0);
   const [lastQueryError, setLastQueryError] = useState<string | null>(null);
   const [lastWriteError, setLastWriteError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [partnerDisplayName, setPartnerDisplayName] = useState<string | null>(null);
   const [swipeOffsetByThread, setSwipeOffsetByThread] = useState<Record<string, number>>({});
   const loadRequestIdRef = useRef(0);
   const swipeStartXRef = useRef<number | null>(null);
   const swipeThreadIdRef = useRef<string | null>(null);
   const threadMessagesRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = observeAuthState(async (user) => {
+      if (!user) return;
+      setCurrentUserId(user.uid);
+      const bundle = await fetchDashboardBundle(user.uid).catch(() => null);
+      setPartnerDisplayName(bundle?.partnerDisplayName ?? null);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!activeThread?.messages?.length || !threadMessagesRef.current) return;
@@ -236,7 +250,9 @@ export function ExchangeContent() {
                           <div className="stack" style={{ gap: 2 }}>
                             <strong className={isUnread ? 'exchange-thread-title is-unread' : 'exchange-thread-title'}>{thread.taskTitle}</strong>
                             <span className="helper exchange-preview">{thread.lastMessageText || 'Noch keine Nachricht.'}</span>
-                            <span className="helper">{thread.lastMessageUserId === thread.createdByUserId ? 'Du' : 'Partner'} · {formatDateTime(thread.lastMessageAt)}</span>
+                            <span className="helper">
+                              {thread.lastMessageUserId === currentUserId ? 'Du' : (partnerDisplayName || 'Partner')} · {formatDateTime(thread.lastMessageAt)}
+                            </span>
                           </div>
                           <button
                             type="button"
@@ -262,14 +278,14 @@ export function ExchangeContent() {
                 <div className="exchange-thread-header">
                   <div>
                     <h3 style={{ margin: 0 }}>{activeThread.thread.taskTitle}</h3>
-                    <p className="helper" style={{ margin: 0 }}>Unterhaltung zu dieser Aufgabe · letzte Aktivität {formatDateTime(activeThread.thread.lastMessageAt)}</p>
+                    <p className="helper" style={{ margin: 0 }}>Letzte Aktivität {formatDateTime(activeThread.thread.lastMessageAt)}</p>
                   </div>
                   <button type="button" className="button" onClick={() => setActiveThreadId(null)}>Zurück</button>
                 </div>
 
                 <div ref={threadMessagesRef} className="exchange-thread-messages">
                   {activeThread.messages.map((message) => (
-                    <div key={message.id} className={`exchange-message ${message.messageType === 'systemDelegation' ? 'is-system' : ''} ${message.senderUserId === activeThread.thread.lastMessageSenderId ? 'is-own' : 'is-other'}`}>
+                    <div key={message.id} className={`exchange-message ${message.messageType === 'systemDelegation' ? 'is-system' : ''} ${message.senderUserId === currentUserId ? 'is-own' : 'is-other'}`}>
                       <p style={{ margin: 0 }}>{message.text === 'Diese Aufgabe wurde dir delegiert.' ? 'Diese Aufgabe wurde übergeben.' : message.text}</p>
                       <span className="helper">{formatDateTime(message.createdAt)}</span>
                     </div>

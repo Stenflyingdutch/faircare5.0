@@ -83,6 +83,13 @@ function uiSummaryRef(familyId: string, userId: string) {
   return familyUsersCollection(familyId).doc(userId).collection('uiState').doc('summary');
 }
 
+async function resolveFamilyMemberUserIds(familyId: string) {
+  const familySnapshot = await adminDb.collection(firestoreCollections.families).doc(familyId).get();
+  if (!familySnapshot.exists) return [];
+  const family = familySnapshot.data() as { initiatorUserId?: string; partnerUserId?: string | null };
+  return uniqueUserIds([family.initiatorUserId, family.partnerUserId ?? null]);
+}
+
 async function ensureFamilyUserDoc(params: {
   familyId: string;
   userId: string;
@@ -415,12 +422,16 @@ export async function sendTaskMessage(params: {
   }
 
   const task = await resolveTaskOrThrow(params.familyId, params.taskId);
-  if (!canUserSeeTask(task, params.authorUserId)) {
+  const familyMemberUserIds = await resolveFamilyMemberUserIds(params.familyId);
+  const taskVisibleUserIds = resolveTaskVisibleToUserIds(task);
+  const canAuthorAccessThread = canUserSeeTask(task, params.authorUserId) || familyMemberUserIds.includes(params.authorUserId);
+  if (!canAuthorAccessThread) {
     throw new TaskChatAccessError('Kein Zugriff auf diese Aufgabe.', 403);
   }
 
   const visibleParticipants = uniqueUserIds([
-    ...resolveTaskVisibleToUserIds(task),
+    ...taskVisibleUserIds,
+    ...familyMemberUserIds,
     ...params.participantUserIds,
     params.authorUserId,
   ]);
@@ -509,7 +520,7 @@ export async function sendTaskMessage(params: {
 
     transaction.set(tasksCollection(params.familyId).doc(params.taskId), {
       hasConversation: true,
-      visibleToUserIds: visibleParticipants,
+      visibleToUserIds: taskVisibleUserIds,
       lastConversationActivityAt: timestamp,
       lastConversationMessageAt: timestamp,
       lastConversationMessageText: messageText,
@@ -1069,11 +1080,11 @@ export async function getUnreadChatCount(params: { userId: string; familyId: str
   const summarySnapshot = await uiSummaryRef(params.familyId, params.userId).get();
   if (summarySnapshot.exists) {
     const summary = summarySnapshot.data() as TaskUiSummaryDocument;
-    return summary.openInboxCount ?? 0;
+    return summary.unreadConversationCount ?? 0;
   }
 
   const inboxSnapshot = await inboxEntriesCollection(params.familyId, params.userId)
-    .where('isOpen', '==', true)
+    .where('isUnread', '==', true)
     .get();
   return inboxSnapshot.size;
 }

@@ -2047,8 +2047,7 @@ textarea.input {
   height: 8px;
   border-radius: 999px;
   background: #6c4cf1;
-  margin-left: 6px;
-  box-shadow: 0 0 0 2px rgba(108, 76, 241, 0.2);
+  display: inline-flex;
 }
 
 @media (max-width: 560px) {

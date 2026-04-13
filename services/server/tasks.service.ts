@@ -46,11 +46,11 @@ function resolveFamilyMemberUserIds(family: FamilyDocument) {
 }
 
 function buildTaskVisibilityUserIds(task: Pick<TaskDocument, 'createdByUserId' | 'creatorUserId' | 'delegatedToUserId' | 'visibleToUserIds'>, family: FamilyDocument) {
+  void family;
   return uniqueUserIds([
     ...(task.visibleToUserIds ?? []),
     task.creatorUserId ?? task.createdByUserId,
     task.delegatedToUserId ?? null,
-    ...resolveFamilyMemberUserIds(family),
   ]);
 }
 
