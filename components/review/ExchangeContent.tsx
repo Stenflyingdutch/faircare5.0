@@ -56,6 +56,12 @@ export function ExchangeContent() {
   const loadRequestIdRef = useRef(0);
   const swipeStartXRef = useRef<number | null>(null);
   const swipeThreadIdRef = useRef<string | null>(null);
+  const threadMessagesRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!activeThread?.messages?.length || !threadMessagesRef.current) return;
+    threadMessagesRef.current.scrollTop = threadMessagesRef.current.scrollHeight;
+  }, [activeThread]);
 
   const loadThreads = useCallback(async () => {
     const requestId = loadRequestIdRef.current + 1;
@@ -261,7 +267,7 @@ export function ExchangeContent() {
                   <button type="button" className="button" onClick={() => setActiveThreadId(null)}>Zurück</button>
                 </div>
 
-                <div className="exchange-thread-messages">
+                <div ref={threadMessagesRef} className="exchange-thread-messages">
                   {activeThread.messages.map((message) => (
                     <div key={message.id} className={`exchange-message ${message.messageType === 'systemDelegation' ? 'is-system' : ''} ${message.senderUserId === activeThread.thread.lastMessageSenderId ? 'is-own' : 'is-other'}`}>
                       <p style={{ margin: 0 }}>{message.text === 'Diese Aufgabe wurde dir delegiert.' ? 'Diese Aufgabe wurde übergeben.' : message.text}</p>
