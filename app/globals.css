@@ -2004,16 +2004,19 @@ textarea.input {
 }
 
 .exchange-nav-badge {
+  margin-left: 6px;
+}
+
+.ios-badge {
   min-width: 18px;
   height: 18px;
   padding: 0 6px;
   border-radius: 999px;
-  margin-left: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #ff4d6d;
-  color: #ffffff;
+  background: #ff3b30;
+  color: #fff;
   font-size: 0.68rem;
   font-weight: 800;
   line-height: 1;
@@ -2859,6 +2862,13 @@ textarea.input {
   color: #3f6fbe;
   border-color: rgba(160, 188, 225, 0.95);
   background: rgba(241, 247, 255, 0.92);
+  position: relative;
+}
+
+.task-chat-icon-badge {
+  position: absolute;
+  top: -7px;
+  right: -8px;
 }
 
 .responsibility-task-section {
@@ -3290,6 +3300,10 @@ textarea.input {
   cursor: pointer;
 }
 
+.exchange-thread-title.is-unread {
+  font-weight: 800;
+}
+
 .exchange-preview {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -3333,6 +3347,89 @@ textarea.input {
 .exchange-message.is-system {
   border-color: rgba(191, 199, 214, 0.94);
   background: rgba(240, 244, 250, 0.96);
+}
+
+.exchange-message.is-own {
+  background: rgba(237, 248, 255, 0.96);
+  border-color: rgba(160, 202, 239, 0.92);
+}
+
+.task-thread-context {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(210, 220, 231, 0.95);
+  background: rgba(248, 251, 255, 0.95);
+}
+
+.task-thread-context-title,
+.task-thread-context-meta {
+  margin: 0;
+}
+
+.task-thread-context-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.task-thread-context-meta {
+  font-size: 0.84rem;
+  color: var(--color-text-secondary);
+}
+
+.task-thread-history {
+  max-height: min(40vh, 340px);
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  padding-right: 2px;
+}
+
+.task-thread-empty {
+  display: grid;
+  gap: 4px;
+  border: 1px dashed rgba(192, 203, 215, 0.95);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.task-thread-message {
+  display: grid;
+  gap: 4px;
+  max-width: 88%;
+  border-radius: 14px;
+  border: 1px solid rgba(204, 216, 229, 0.95);
+  background: #f7faff;
+  padding: 10px 12px;
+}
+
+.task-thread-message.is-self {
+  margin-left: auto;
+  background: #e9f4ff;
+}
+
+.task-thread-message.is-system {
+  margin: 0 auto;
+  max-width: 100%;
+  background: #f2f4f8;
+}
+
+.task-thread-author,
+.task-thread-text,
+.task-thread-time {
+  margin: 0;
+}
+
+.task-thread-author {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.task-thread-time {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
 }
 
 .exchange-input-row {

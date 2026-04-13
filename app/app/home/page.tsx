@@ -402,7 +402,9 @@ export default function PersonalHomePage() {
   }
 
   const hasUnreadMessage = (taskId: string) => (taskThreadMetaByTaskId[taskId]?.unreadCount ?? 0) > 0;
+  const unreadCountForTask = (taskId: string) => taskThreadMetaByTaskId[taskId]?.unreadCount ?? 0;
   const hasTaskThread = (taskId: string) => Boolean(taskThreadMetaByTaskId[taskId]?.hasThread);
+  const threadIdForTask = (taskId: string) => taskThreadMetaByTaskId[taskId]?.threadId ?? null;
   const chatTask = chatTaskId ? allKnownTasks.find((task) => task.id === chatTaskId) ?? null : null;
   const expandedResponsibility = expandedCardId ? responsibilityMap.get(expandedCardId) : undefined;
   const daySectionTitle = isToday(selectedDate) ? 'Heute' : `Aufgaben am ${formatDateLabel(selectedDate)}`;
@@ -463,6 +465,7 @@ export default function PersonalHomePage() {
                       onSwipeRight={() => queueSwipeDelete(task)}
                       onSwipeLeft={() => handleSwipeDelegateOrUndelegate(task)}
                       hasUnreadMessage={hasUnreadMessage(task.id)}
+                      unreadCount={unreadCountForTask(task.id)}
                     />
                   ))}
                 </div>
@@ -534,6 +537,7 @@ export default function PersonalHomePage() {
                       onSwipeTaskDelegate={(task) => handleSwipeDelegateOrUndelegate(task)}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
                       hasUnreadMessage={hasUnreadMessage}
+                      unreadCountForTask={unreadCountForTask}
                     />
                   ) : null}
                 </ResponsibilityCard>
@@ -586,6 +590,7 @@ export default function PersonalHomePage() {
         task={chatTask}
         onClose={() => setChatTaskId(null)}
         hasThread={chatTask ? hasTaskThread(chatTask.id) : false}
+        threadId={chatTask ? threadIdForTask(chatTask.id) : null}
       />
 
       <TaskInstanceEditModal

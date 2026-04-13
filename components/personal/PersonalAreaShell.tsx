@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 
 import { observeAuthState } from '@/services/auth.service';
 import { ensureUserProfile, fetchDashboardBundle } from '@/services/partnerFlow.service';
@@ -27,6 +27,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const [partnerCompleted, setPartnerCompleted] = useState(false);
   const [exchangeBadgeCount, setExchangeBadgeCount] = useState(0);
   const [hasLoggedFirstQuery, setHasLoggedFirstQuery] = useState(false);
+  const badgePollingRef = useRef<number | null>(null);
 
   useEffect(() => {
     logSignupInfo('partner_personal_area.mount', {
@@ -174,6 +175,23 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [hasLoggedFirstQuery, pathname, router]);
 
+  useEffect(() => {
+    if (!isReady) return;
+    if (badgePollingRef.current !== null) {
+      window.clearInterval(badgePollingRef.current);
+    }
+    badgePollingRef.current = window.setInterval(() => {
+      void fetchExchangeUnreadSummary()
+        .then((summary) => setExchangeBadgeCount(summary.unreadChatCount))
+        .catch(() => {});
+    }, 12000);
+    return () => {
+      if (badgePollingRef.current !== null) {
+        window.clearInterval(badgePollingRef.current);
+      }
+    };
+  }, [isReady]);
+
   if (loadError) {
     return (
       <section className="section">
@@ -219,7 +237,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
                         className={`personal-area-nav-link ${isActive ? `active tone-${item.tone}` : ''}`}
                       >
                         {item.label}
-                        {item.href === '/app/review' && exchangeBadgeCount > 0 && <span className="exchange-nav-badge" aria-label={`${exchangeBadgeCount} neue Einträge`}>{exchangeBadgeCount}</span>}
+                        {item.href === '/app/review' && exchangeBadgeCount > 0 && <span className="ios-badge exchange-nav-badge" aria-label={`${exchangeBadgeCount} neue Einträge`}>{exchangeBadgeCount > 99 ? '99+' : exchangeBadgeCount}</span>}
                         {item.href === '/app/review' && exchangeBadgeCount === 0 && showTeamCheckDot && <span className="team-check-nav-dot" aria-hidden="true" />}
                       </Link>
                     );
