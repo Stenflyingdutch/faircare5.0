@@ -8,7 +8,6 @@ import { observeAuthState } from '@/services/auth.service';
 import { ensureUserProfile, fetchDashboardBundle } from '@/services/partnerFlow.service';
 import { fetchExchangeUnreadSummary } from '@/services/task-chat.service';
 import { logSignupError, logSignupInfo } from '@/services/signup-debug.service';
-import { isTeamCheckBadgeVisible } from '@/services/teamCheck.logic';
 
 const personalNavItems = [
   { label: 'Meine', href: '/app/home', tone: 'violet', gatedUntilPartnerCompleted: true },
@@ -23,7 +22,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [showTeamCheckDot, setShowTeamCheckDot] = useState(false);
   const [partnerCompleted, setPartnerCompleted] = useState(false);
   const [exchangeBadgeCount, setExchangeBadgeCount] = useState(0);
   const [hasLoggedFirstQuery, setHasLoggedFirstQuery] = useState(false);
@@ -122,10 +120,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
           });
           setHasLoggedFirstQuery(true);
         }
-        setShowTeamCheckDot(isTeamCheckBadgeVisible({
-          nextCheckInAt: bundle.family?.teamCheckPlan?.nextCheckInAt,
-          reminderActiveAt: bundle.family?.teamCheckPlan?.reminderActiveAt,
-        }));
         setPartnerCompleted(Boolean(bundle.family?.partnerCompleted));
         const unreadSummary = await fetchExchangeUnreadSummary().catch(() => null);
         setExchangeBadgeCount(unreadSummary?.unreadChatCount ?? 0);
@@ -238,7 +232,7 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
                       >
                         {item.label}
                         {item.href === '/app/review' && exchangeBadgeCount > 0 && <span className="ios-badge exchange-nav-badge" aria-label={`${exchangeBadgeCount} neue Einträge`}>{exchangeBadgeCount > 99 ? '99+' : exchangeBadgeCount}</span>}
-                        {item.href === '/app/review' && exchangeBadgeCount === 0 && showTeamCheckDot && <span className="team-check-nav-dot" aria-hidden="true" />}
+                        {item.href === '/app/review' && exchangeBadgeCount === 0 && <span className="team-check-nav-dot exchange-nav-badge" aria-hidden="true" />}
                       </Link>
                     );
                   })}
