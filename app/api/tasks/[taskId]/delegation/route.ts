@@ -16,7 +16,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ta
     if (error instanceof TaskAccessError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    return NextResponse.json({ error: 'Delegation konnte nicht gespeichert werden.' }, { status: 500 });
+    return NextResponse.json({ error: 'Übergabe konnte nicht gespeichert werden.' }, { status: 500 });
   }
 }
 
@@ -38,6 +38,6 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     if (error instanceof TaskAccessError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    return NextResponse.json({ error: 'Delegation konnte nicht entfernt werden.' }, { status: 500 });
+    return NextResponse.json({ error: 'Übergabe konnte nicht entfernt werden.' }, { status: 500 });
   }
 }

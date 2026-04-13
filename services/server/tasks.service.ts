@@ -277,7 +277,7 @@ async function resolveTaskById(context: TaskContext, taskId: string) {
 
 function assertTaskWriteAccess(task: TaskDocument, userId: string) {
   if (!canUserEditTask(task, userId)) {
-    throw new TaskAccessError('Diese Aufgabe kann nur von der aktuell zugewiesenen Person bearbeitet werden.', 403);
+    throw new TaskAccessError('Diese Aufgabe kann nur von der aktuell übernehmenden Person bearbeitet werden.', 403);
   }
 }
 
@@ -293,7 +293,7 @@ function assertTaskDelegationClearAccess(task: TaskDocument, userId: string) {
     return;
   }
 
-  throw new TaskAccessError('Diese Delegation kann nur vom Ersteller oder der zugewiesenen Person zurückgenommen werden.', 403);
+  throw new TaskAccessError('Diese Übergabe kann nur vom Ersteller oder der übernehmenden Person zurückgenommen werden.', 403);
 }
 
 export class TaskAccessError extends Error {
@@ -538,22 +538,22 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
   }
 
   if (input.mode === 'singleDate' && !input.date) {
-    throw new TaskAccessError('Für eine einmalige Delegation wird ein Datum benötigt.', 400);
+    throw new TaskAccessError('Für eine einmalige Übergabe wird ein Datum benötigt.', 400);
   }
 
   if (input.mode === 'recurring' && !input.weekdays?.length) {
     const hasStrategy = input.recurringStrategy === 'always' || input.recurringStrategy === 'alternating';
     if (!hasStrategy) {
-      throw new TaskAccessError('Bitte wähle eine Strategie für die regelmäßige Delegation.', 400);
+      throw new TaskAccessError('Bitte wähle eine Strategie für die regelmäßige Übergabe.', 400);
     }
   }
 
   const normalizedDate = normalizeOptionalDate(input.date);
   if (input.mode === 'recurring' && input.recurringStrategy === 'alternating' && !normalizedDate) {
-    throw new TaskAccessError('Für Delegation im Wechsel wird ein Startdatum benötigt.', 400);
+    throw new TaskAccessError('Für Übergabe im Wechsel wird ein Startdatum benötigt.', 400);
   }
   if (input.mode === 'singleDate' && (!normalizedDate || !isTaskDueOnDate(task, normalizedDate))) {
-    throw new TaskAccessError('Die Delegation muss auf einen echten Termin dieser Aufgabe gesetzt werden.', 400);
+    throw new TaskAccessError('Die Übergabe muss auf einen echten Termin dieser Aufgabe gesetzt werden.', 400);
   }
 
   const delegationId = input.mode === 'singleDate'
@@ -580,7 +580,7 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
 
   await delegationRef.set(payload, { merge: true });
 
-  const systemText = 'Diese Aufgabe wurde dir delegiert.';
+  const systemText = 'Diese Aufgabe wurde dir übergeben.';
 
   const visibleToUserIds = resolveTaskVisibleToUserIds(task);
   const updatedVisibleToUserIds = [...new Set([...visibleToUserIds, context.partnerUserId])];
@@ -649,7 +649,7 @@ export async function clearTaskDelegationsForUser(userId: string, taskId: string
   if (options.mode === 'singleDate') {
     const date = normalizeOptionalDate(options.date);
     if (!date) {
-      throw new TaskAccessError('Für diese Delegation fehlt das Datum.', 400);
+      throw new TaskAccessError('Für diese Übergabe fehlt das Datum.', 400);
     }
 
     const delegationRef = taskDelegationsCollection(context.familyId).doc(`${taskId}__${date}`);

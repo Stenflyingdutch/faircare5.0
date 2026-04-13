@@ -60,7 +60,7 @@ export function TaskListItem({
   const isDelegatedByCurrentUser = Boolean(currentUserId)
     && Boolean(task.delegatedToUserId)
     && (task.creatorUserId ?? task.createdByUserId) === currentUserId;
-  const swipeLeftLabel = isDelegatedByCurrentUser ? 'Zurücknehmen' : 'Delegieren';
+  const swipeLeftLabel = isDelegatedByCurrentUser ? 'Zurücknehmen' : 'Übergeben';
   const chips: Array<{ key: string; label: string; variant?: 'delegated' | 'new' | 'series' }> = [];
 
   if (task.recurrenceType !== 'none') {
@@ -72,7 +72,7 @@ export function TaskListItem({
   }
 
   if (task.delegatedToUserId) {
-    chips.push({ key: 'delegated', label: isAssignedToCurrentUser ? 'Zugewiesen' : 'Delegiert', variant: 'delegated' });
+    chips.push({ key: 'delegated', label: isAssignedToCurrentUser ? 'Übernommen' : 'Übergeben', variant: 'delegated' });
   }
   if (hasUnreadMessage) {
     chips.push({ key: 'new', label: 'Ungelesen', variant: 'new' });

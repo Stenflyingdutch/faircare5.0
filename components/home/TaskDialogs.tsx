@@ -501,7 +501,7 @@ function DelegationFields({
       </div>
 
       {showEnabledToggle && !draft.enabled ? (
-        <p className="task-inline-hint">Nicht delegiert.</p>
+        <p className="task-inline-hint">Nicht übergeben.</p>
       ) : null}
 
       {draft.enabled ? (
@@ -742,7 +742,7 @@ export function TaskComposerModal({
             </div>
 
             <div className="task-stack">
-              <p className="task-section-title">Soll die Aufgabe delegiert werden?</p>
+              <p className="task-section-title">Soll die Aufgabe übergeben werden?</p>
               <DelegationFields
                 draft={delegationDraft}
                 canUseRecurring={recurrenceDraft.recurrenceType !== 'none'}
@@ -893,7 +893,7 @@ export function TaskEditModal({
         )}
 
         <div className="task-stack">
-          <p className="task-section-title">Soll die Aufgabe delegiert werden?</p>
+          <p className="task-section-title">Soll die Aufgabe übergeben werden?</p>
           <DelegationFields
             draft={currentDelegationDraft}
             canUseRecurring={allowRecurringDelegation}
@@ -1062,10 +1062,10 @@ export function TaskInstanceEditModal({
         </label>
 
         <div className="task-stack">
-          <p className="task-section-title">Delegation</p>
+          <p className="task-section-title">Übergabe</p>
           {delegationComesFromSeries ? (
             <p className="task-inline-hint">
-              Diese Aufgabe wird über die ganze Serie delegiert. Änderungen dafür machst du in der Serie.
+              Diese Aufgabe wird über die ganze Serie übergeben. Änderungen dafür machst du in der Serie.
             </p>
           ) : (
             <DelegationFields
@@ -1185,7 +1185,7 @@ export function TaskDelegationModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <form className="task-dialog-shell" onSubmit={handleSubmit}>
-        <DialogHeader title="Delegieren" subtitle="Wie soll diese Aufgabe delegiert werden?" />
+        <DialogHeader title="Übergeben" subtitle="Wie soll diese Aufgabe übergeben werden?" />
 
         <DelegationFields
           draft={{ ...currentDraft, enabled: true }}
@@ -1206,7 +1206,7 @@ export function TaskDelegationModal({
             </button>
           ) : null}
           <button type="submit" className="task-primary-button" disabled={isSubmitting}>
-            {isSubmitting ? 'Speichert …' : 'Delegieren'}
+            {isSubmitting ? 'Speichert …' : 'Übergeben'}
           </button>
         </div>
       </form>
@@ -1249,7 +1249,7 @@ export function TaskActionModal({
             Bearbeiten
           </button>
           <button type="button" className="task-action-button" onClick={onDelegate}>
-            Delegieren
+            Übergeben
           </button>
           <button type="button" className="task-secondary-button" onClick={onClose}>
             Schließen
