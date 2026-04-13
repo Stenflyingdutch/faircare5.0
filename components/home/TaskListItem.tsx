@@ -23,10 +23,10 @@ function PencilIcon() {
   );
 }
 
-function ChatBubbleIcon() {
+function ChatBubbleIcon({ filled = false }: { filled?: boolean }) {
   return (
-    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4.5 4.5h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.2 2.4a.5.5 0 0 1-.8-.4v-2H4.5A1.5 1.5 0 0 1 3 12V6a1.5 1.5 0 0 1 1.5-1.5Z" />
+    <svg viewBox="0 0 20 20" width="16" height="16" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4.5 4.5h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.2 2.4a.5.5 0 0 1-.8-.4v-2H4.5A1.5 1.5 0 0 1 3 12V6a1.5 1.5 0 0 1 1.5-1.5Z" fill={filled ? 'currentColor' : 'none'} />
     </svg>
   );
 }
@@ -74,6 +74,7 @@ export function TaskListItem({
     && Boolean(task.delegatedToUserId)
     && (task.creatorUserId ?? task.createdByUserId) === currentUserId;
   const swipeLeftLabel = isDelegatedByCurrentUser ? 'Zurücknehmen' : 'Übergeben';
+  const hasAnyChat = hasTaskMessages || unreadCount > 0;
   const chips: Array<{ key: string; label: string; variant?: 'delegated' | 'new' }> = [];
 
   if (task.delegatedToUserId) {
@@ -111,7 +112,7 @@ export function TaskListItem({
       </div>
 
       <div
-        className={`task-list-item ${isInteractive ? 'is-clickable' : ''} ${task.isCompleted ? 'is-completed' : ''} ${isDelegatedAwayFromCurrentUser ? 'is-delegated' : ''} ${task.isCarryForward ? 'is-overdue' : ''}`}
+        className={`task-list-item ${isInteractive ? 'is-clickable' : ''} ${task.isCompleted ? 'is-completed' : ''} ${isDelegatedAwayFromCurrentUser ? 'is-delegated' : ''}`}
         style={swipeOffset === 0 ? undefined : { transform: `translateX(${swipeOffset}px)` }}
         onClick={isInteractive ? handleRowClick : undefined}
         role={isInteractive ? 'button' : undefined}
@@ -212,12 +213,7 @@ export function TaskListItem({
                 onChat();
               }}
             >
-              <ChatBubbleIcon />
-              {(hasTaskMessages || unreadCount > 0) ? (
-                <span className={`task-chat-icon-badge-dot ${unreadCount > 0 ? 'is-unread' : 'is-read'}`} aria-hidden="true">
-                  {unreadCount > 0 ? '1' : ''}
-                </span>
-              ) : null}
+              <ChatBubbleIcon filled={hasAnyChat} />
             </button>
           ) : null}
         </div>

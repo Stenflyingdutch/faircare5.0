@@ -2882,34 +2882,6 @@ textarea.input {
   position: relative;
 }
 
-.task-chat-icon-badge-dot {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #ffffff;
-  border: 2px solid #ffffff;
-}
-
-.task-chat-icon-badge-dot.is-read {
-  width: 10px;
-  min-width: 10px;
-  height: 10px;
-  background: #6b4ce6;
-  border-width: 1.6px;
-}
-
-.task-chat-icon-badge-dot.is-unread {
-  background: #e64a3b;
-}
-
 .responsibility-task-section {
   display: grid;
   gap: 10px;

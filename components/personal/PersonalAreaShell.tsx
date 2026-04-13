@@ -232,7 +232,6 @@ export function PersonalAreaShell({ children }: { children: ReactNode }) {
                       >
                         {item.label}
                         {item.href === '/app/review' && exchangeBadgeCount > 0 && <span className="ios-badge exchange-nav-badge" aria-label={`${exchangeBadgeCount} neue Einträge`}>{exchangeBadgeCount > 99 ? '99+' : exchangeBadgeCount}</span>}
-                        {item.href === '/app/review' && exchangeBadgeCount === 0 && <span className="team-check-nav-dot exchange-nav-badge" aria-hidden="true" />}
                       </Link>
                     );
                   })}
