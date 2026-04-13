@@ -109,6 +109,146 @@ function toLegacyThreadListItem(
   };
 }
 
+function toIsoTimestamp(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  if (value && typeof value === 'object') {
+    const maybe = value as { toDate?: () => Date; seconds?: number; nanoseconds?: number };
+    if (typeof maybe.toDate === 'function') {
+      const date = maybe.toDate();
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    }
+    if (typeof maybe.seconds === 'number') {
+      const date = new Date((maybe.seconds * 1000) + Math.floor((maybe.nanoseconds ?? 0) / 1_000_000));
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    }
+  }
+  return null;
+}
+
+function toSafeRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>((acc, [key, entry]) => {
+    if (!key) return acc;
+    if (entry === undefined) return acc;
+    if (entry === null || typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
+      acc[key] = entry;
+      return acc;
+    }
+    const iso = toIsoTimestamp(entry);
+    if (iso) {
+      acc[key] = iso;
+      return acc;
+    }
+    if (Array.isArray(entry)) {
+      acc[key] = entry.map((item) => (typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean' || item === null ? item : String(item)));
+      return acc;
+    }
+    acc[key] = String(entry);
+    return acc;
+  }, {});
+}
+
+function normalizeChatThread(
+  raw: unknown,
+  docId: string,
+  context: { familyId: string; currentUserId: string; tab: 'inbox' | 'threads' },
+): TaskThreadListItem | null {
+  if (!raw || typeof raw !== 'object') {
+    logTaskChatRead('threads.normalize.skip', { ...context, docId, reason: 'not-an-object' });
+    return null;
+  }
+  const source = raw as Partial<TaskConversationDocument> & Record<string, unknown>;
+  const taskId = typeof source.taskId === 'string' && source.taskId.trim() ? source.taskId : docId;
+  const familyId = typeof source.familyId === 'string' && source.familyId.trim() ? source.familyId : context.familyId;
+  const participantsRaw = Array.isArray(source.participantUserIds) ? source.participantUserIds : [];
+  const participantUserIds = uniqueUserIds(participantsRaw.map((value) => (typeof value === 'string' ? value : null)));
+  if (!taskId || !participantUserIds.length) {
+    logTaskChatRead('threads.normalize.skip', {
+      ...context,
+      docId,
+      reason: !taskId ? 'missing-task-id' : 'missing-participants',
+      participantCount: participantUserIds.length,
+    });
+    return null;
+  }
+
+  const updatedAt = toIsoTimestamp(source.updatedAt) ?? toIsoTimestamp(source.lastMessageAt) ?? nowIso();
+  const createdAt = toIsoTimestamp(source.createdAt) ?? updatedAt;
+  const lastMessageAt = toIsoTimestamp(source.lastMessageAt) ?? updatedAt;
+  const lastMessageText = typeof source.lastMessageText === 'string' ? source.lastMessageText : '';
+  const lastMessageType = source.lastMessageType === 'system_message' ? 'system_message' : 'user_message';
+  const lastMessageSenderId = typeof source.lastMessageSenderId === 'string' && source.lastMessageSenderId.trim()
+    ? source.lastMessageSenderId
+    : (typeof source.createdByUserId === 'string' && source.createdByUserId.trim() ? source.createdByUserId : context.currentUserId);
+  const createdByUserId = typeof source.createdByUserId === 'string' && source.createdByUserId.trim()
+    ? source.createdByUserId
+    : lastMessageSenderId;
+
+  const normalized: TaskThreadListItem = {
+    id: typeof source.id === 'string' && source.id.trim() ? source.id : docId,
+    taskId,
+    familyId,
+    participantUserIds,
+    taskTitleSnapshot: typeof source.taskTitleSnapshot === 'string' && source.taskTitleSnapshot.trim()
+      ? source.taskTitleSnapshot
+      : 'Aufgabe',
+    createdAt,
+    updatedAt,
+    lastMessageAt,
+    lastMessageText,
+    lastMessageType,
+    lastMessageSenderId,
+    messageCount: typeof source.messageCount === 'number' ? source.messageCount : 0,
+    hasDelegationEvent: Boolean(source.hasDelegationEvent),
+    isArchived: Boolean(source.isArchived),
+    createdByUserId,
+    unreadCount: 0,
+    taskTitle: typeof source.taskTitleSnapshot === 'string' && source.taskTitleSnapshot.trim()
+      ? source.taskTitleSnapshot
+      : 'Aufgabe',
+    responsibilityId: null,
+    lastMessageUserId: lastMessageSenderId,
+  };
+
+  return normalized;
+}
+
+function normalizeChatMessage(raw: unknown, docId: string, context: { familyId: string; currentUserId: string; threadId: string }): TaskThreadMessageDocument | null {
+  if (!raw || typeof raw !== 'object') {
+    logTaskChatRead('messages.normalize.skip', { ...context, docId, reason: 'not-an-object' });
+    return null;
+  }
+  const source = raw as Partial<TaskThreadMessageDocument> & Record<string, unknown>;
+  const threadId = typeof source.threadId === 'string' && source.threadId.trim() ? source.threadId : context.threadId;
+  const taskId = typeof source.taskId === 'string' && source.taskId.trim() ? source.taskId : context.threadId;
+  const createdAt = toIsoTimestamp(source.createdAt) ?? nowIso();
+  const updatedAt = toIsoTimestamp(source.updatedAt) ?? createdAt;
+  const senderUserId = typeof source.senderUserId === 'string' && source.senderUserId.trim() ? source.senderUserId : 'system';
+
+  return {
+    id: typeof source.id === 'string' && source.id.trim() ? source.id : docId,
+    taskId,
+    threadId,
+    familyId: typeof source.familyId === 'string' && source.familyId.trim() ? source.familyId : context.familyId,
+    type: source.type === 'system_message' ? 'system_message' : 'user_message',
+    systemEventType: source.systemEventType === 'task_delegated' || source.systemEventType === 'task_redelegated' || source.systemEventType === 'task_info'
+      ? source.systemEventType
+      : null,
+    text: typeof source.text === 'string' ? source.text : '',
+    senderUserId,
+    receiverUserId: typeof source.receiverUserId === 'string' && source.receiverUserId.trim() ? source.receiverUserId : null,
+    visibleToUserIds: Array.isArray(source.visibleToUserIds) ? source.visibleToUserIds.filter((value): value is string => typeof value === 'string') : [],
+    readBy: toSafeRecord(source.readBy) as Record<string, boolean> ?? {},
+    replyToMessageId: typeof source.replyToMessageId === 'string' ? source.replyToMessageId : null,
+    metadata: toSafeRecord(source.metadata),
+    createdAt,
+    updatedAt,
+  };
+}
+
 function toLegacyMessage(message: TaskThreadMessageDocument): TaskThreadMessageDocument {
   return {
     ...message,
@@ -491,10 +631,19 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
     const rows = conversations
       .filter((snap) => snap.exists)
       .map((snap) => {
-        const conversation = snap.data() as TaskConversationDocument;
+        const conversation = normalizeChatThread(snap.data(), snap.id, {
+          familyId: params.familyId,
+          currentUserId: params.userId,
+          tab: 'inbox',
+        });
+        if (!conversation) return null;
         const inbox = inboxSnapshot.docs.find((entry) => entry.id === snap.id)?.data() as TaskInboxEntryDocument | undefined;
-        return toLegacyThreadListItem(conversation, conversation.taskTitleSnapshot, inbox?.isUnread ? 1 : 0);
-      });
+        return {
+          ...conversation,
+          unreadCount: inbox?.isUnread ? 1 : 0,
+        } satisfies TaskThreadListItem;
+      })
+      .filter((row): row is TaskThreadListItem => Boolean(row));
 
     logTaskChatRead('threads.inbox.query', {
       familyId: params.familyId,
@@ -502,15 +651,32 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
       path: `families/${params.familyId}/users/${params.userId}/inboxEntries`,
       filters: [{ field: 'isOpen', op: '==', value: true }],
       orderBy: [{ field: 'lastMessageAt', direction: 'desc' }],
-      resultCount: rows.length,
+      resultCountRaw: inboxSnapshot.docs.length,
+      resultCountNormalized: rows.length,
     });
       return rows;
     }
 
-  const snapshot = await taskThreadsCollection(params.familyId)
-    .where('participantUserIds', 'array-contains', params.userId)
-    .orderBy('lastMessageAt', 'desc')
-    .get();
+  let snapshot;
+  try {
+    snapshot = await taskThreadsCollection(params.familyId)
+      .where('participantUserIds', 'array-contains', params.userId)
+      .orderBy('lastMessageAt', 'desc')
+      .get();
+  } catch (error) {
+    if (resolveFirestoreErrorCode(error) === 'failed-precondition') {
+      logTaskChatRead('threads.all.queryFallback', {
+        familyId: params.familyId,
+        currentUserId: params.userId,
+        reason: 'missing-composite-index-lastMessageAt',
+      });
+      snapshot = await taskThreadsCollection(params.familyId)
+        .where('participantUserIds', 'array-contains', params.userId)
+        .get();
+    } else {
+      throw error;
+    }
+  }
 
   const stateSnapshot = await conversationStatesCollection(params.familyId, params.userId).get();
   const unreadByTaskId = new Map<string, number>();
@@ -519,21 +685,29 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
     unreadByTaskId.set(entry.id, state.unreadCount ?? 0);
   });
 
-  const rows = snapshot.docs.map((entry) => {
-    const conversation = entry.data() as TaskConversationDocument;
-    return toLegacyThreadListItem(
-      conversation,
-      conversation.taskTitleSnapshot,
-      unreadByTaskId.get(conversation.taskId) ?? 0,
-    );
-  });
+  const rows = snapshot.docs
+    .map((entry) => {
+      const conversation = normalizeChatThread(entry.data(), entry.id, {
+        familyId: params.familyId,
+        currentUserId: params.userId,
+        tab: 'threads',
+      });
+      if (!conversation) return null;
+      return {
+        ...conversation,
+        unreadCount: unreadByTaskId.get(conversation.taskId) ?? 0,
+      } satisfies TaskThreadListItem;
+    })
+    .filter((row): row is TaskThreadListItem => Boolean(row))
+    .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
   logTaskChatRead('threads.all.query', {
     familyId: params.familyId,
     currentUserId: params.userId,
     path: `families/${params.familyId}/taskThreads`,
     filters: [{ field: 'participantUserIds', op: 'array-contains', value: params.userId }],
     orderBy: [{ field: 'lastMessageAt', direction: 'desc' }],
-    resultCount: rows.length,
+    resultCountRaw: snapshot.docs.length,
+    resultCountNormalized: rows.length,
   });
     return rows;
   } catch (error) {
@@ -543,6 +717,7 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
       inboxOnly: params.inboxOnly,
       errorCode: resolveFirestoreErrorCode(error) ?? 'unknown',
       errorMessage: resolveFirestoreErrorMessage(error),
+      stack: error instanceof Error ? error.stack : null,
     });
     throw error;
   }
@@ -633,7 +808,14 @@ export async function getThreadDetail(params: { familyId: string; threadId: stri
     throw new TaskChatAccessError('Chat wurde nicht gefunden.', 404);
   }
 
-    const thread = threadSnapshot.data() as TaskConversationDocument;
+    const thread = normalizeChatThread(threadSnapshot.data(), threadSnapshot.id, {
+      familyId: params.familyId,
+      currentUserId: params.userId,
+      tab: 'threads',
+    });
+    if (!thread) {
+      throw new TaskChatAccessError('Chat konnte nicht verarbeitet werden.', 500);
+    }
     const task = await resolveTaskOrThrow(params.familyId, thread.taskId);
     const participantUserIds = uniqueUserIds([...(thread.participantUserIds ?? []), ...resolveTaskVisibleToUserIds(task)]);
     if (!participantUserIds.includes(params.userId)) {
@@ -661,7 +843,10 @@ export async function getThreadDetail(params: { familyId: string; threadId: stri
     ]);
 
     const unreadCount = stateSnapshot.exists ? ((stateSnapshot.data() as TaskConversationStateDocument).unreadCount ?? 0) : 0;
-    const messages = messagesSnapshot.docs.map((entry) => toLegacyMessage(entry.data() as TaskThreadMessageDocument));
+    const messages = messagesSnapshot.docs
+      .map((entry) => normalizeChatMessage(entry.data(), entry.id, { familyId: params.familyId, currentUserId: params.userId, threadId: params.threadId }))
+      .filter((message): message is TaskThreadMessageDocument => Boolean(message))
+      .map((message) => toLegacyMessage(message));
     logTaskChatRead('messages.query', {
       familyId: params.familyId,
       taskId: thread.taskId,
@@ -684,6 +869,7 @@ export async function getThreadDetail(params: { familyId: string; threadId: stri
       currentUserId: params.userId,
       errorCode: resolveFirestoreErrorCode(error) ?? 'unknown',
       errorMessage: resolveFirestoreErrorMessage(error),
+      stack: error instanceof Error ? error.stack : null,
     });
     throw error;
   }
