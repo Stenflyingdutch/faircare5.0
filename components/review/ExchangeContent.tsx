@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { TeamCheckContent } from '@/components/review/TeamCheckContent';
 import { fetchTaskThreadDetail, fetchTaskThreads, markTaskThreadRead, sendTaskMessageInThread } from '@/services/task-chat.service';
@@ -30,8 +30,11 @@ export function ExchangeContent() {
   const [inboxOpenCount, setInboxOpenCount] = useState(0);
   const [lastQueryError, setLastQueryError] = useState<string | null>(null);
   const [lastWriteError, setLastWriteError] = useState<string | null>(null);
+  const loadRequestIdRef = useRef(0);
 
   const loadThreads = useCallback(async (scope: 'inbox' | 'threads') => {
+    const requestId = loadRequestIdRef.current + 1;
+    loadRequestIdRef.current = requestId;
     setLoading(true);
     setLastQueryError(null);
     try {
@@ -39,15 +42,23 @@ export function ExchangeContent() {
         fetchTaskThreads(scope),
         fetchTaskThreads('inbox'),
       ]);
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
       setThreads(scoped.threads);
       setInboxOpenCount(inbox.threads.length);
       logExchangeDebug('badge recompute', { scope, inboxOpenCount: inbox.threads.length });
     } catch (error) {
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
       const message = error instanceof Error ? error.message : 'Chats konnten nicht geladen werden.';
       setLastQueryError(message);
       logExchangeDebug('loadThreads.error', { scope, message });
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -117,7 +128,7 @@ export function ExchangeContent() {
                 {loading ? <p className="helper" style={{ margin: 0 }}>Lade Chats …</p> : null}
                 {!loading && !threads.length && (
                   <p className="helper" style={{ margin: 0 }}>
-                    {chatTab === 'inbox' ? 'Keine offenen Fälle.' : 'Noch keine Nachrichten zu Aufgaben.'}
+                    {chatTab === 'inbox' ? 'Keine offenen Fälle.' : 'Noch keine Chatverläufe vorhanden.'}
                   </p>
                 )}
                 {!loading && lastQueryError ? (
