@@ -4,10 +4,12 @@ import type { TaskThreadListItem } from '@/types/task-chat';
 export type TaskType = 'responsibilityTask' | 'dayTask';
 export type TaskStatus = 'active' | 'completed';
 export type TaskRecurrenceType = 'none' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
-export type TaskEndMode = 'never' | 'onDate';
+export type TaskEndMode = 'none' | 'onDate';
 export type TaskWeekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 export type TaskOrdinal = 1 | 2 | 3 | 4 | -1;
 export type TaskMonthlyPatternMode = 'dayOfMonth' | 'weekdayOfMonth';
+export type TaskRecurringHandoffMode = 'none' | 'alternating' | 'always';
+export type TaskMonthlyIntervalMode = 'monthly' | 'every2Months' | 'every3Months' | 'halfYearly' | 'yearly';
 export type TaskDelegationMode = 'singleDate' | 'recurring';
 export type TaskDelegationRecurringStrategy = 'always' | 'alternating';
 
@@ -30,6 +32,7 @@ export interface TaskRecurrenceConfig {
   quarterlyPattern?: TaskMonthlyPattern;
   yearlyMonth?: number;
   yearlyDay?: number;
+  monthlyIntervalMode?: TaskMonthlyIntervalMode;
 }
 
 export interface TaskDocument {
@@ -49,11 +52,14 @@ export interface TaskDocument {
   visibilityMode?: 'private' | 'delegated';
   visibleToUserIds?: string[];
   taskType: TaskType;
+  handoffEnabled?: boolean | null;
+  recurringHandoffMode?: TaskRecurringHandoffMode | null;
   selectedDate?: string | null;
   recurrenceType: TaskRecurrenceType;
   recurrenceConfig?: TaskRecurrenceConfig | null;
   endMode: TaskEndMode;
   endDate?: string | null;
+  carryForwardFrom?: string | null;
   status: TaskStatus;
   threadId?: string | null;
   unreadForUserIds?: string[];
@@ -98,6 +104,8 @@ export interface TaskOverrideDocument {
 }
 
 export interface TaskOverviewItem extends TaskDocument {
+  isCarryForward: boolean;
+  overdueSince: string | null;
   delegations: TaskDelegationDocument[];
   overrides: TaskOverrideDocument[];
   displayTitle: string;
@@ -132,6 +140,8 @@ export interface TaskThreadOverviewMeta {
 
 export interface CreateTaskInput {
   taskType: TaskType;
+  handoffEnabled?: boolean | null;
+  recurringHandoffMode?: TaskRecurringHandoffMode | null;
   responsibilityId?: string | null;
   categoryKey?: QuizCategory | null;
   title: string;
@@ -149,6 +159,8 @@ export interface UpdateTaskInput {
   selectedDate?: string | null;
   recurrenceType?: TaskRecurrenceType;
   recurrenceConfig?: TaskRecurrenceConfig | null;
+  recurringHandoffMode?: TaskRecurringHandoffMode;
+  handoffEnabled?: boolean;
   endMode?: TaskEndMode;
   endDate?: string | null;
   status?: TaskStatus;

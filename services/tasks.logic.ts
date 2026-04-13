@@ -161,7 +161,10 @@ export function isTaskDueOnDate(task: Pick<TaskDocument, 'createdAt' | 'endDate'
     case 'monthly': {
       const pattern = task.recurrenceConfig?.monthlyPattern
         ?? { mode: 'dayOfMonth' as const, dayOfMonth: parseDateKey(anchorDate).day };
-      return differenceInMonths(anchorDate, dateKey) >= 0 && matchesMonthlyPattern(dateKey, pattern);
+      const monthDifference = differenceInMonths(anchorDate, dateKey);
+      const intervalMode = task.recurrenceConfig?.monthlyIntervalMode ?? 'monthly';
+      const interval = intervalMode === 'monthly' ? 1 : intervalMode === 'every2Months' ? 2 : intervalMode === 'every3Months' ? 3 : intervalMode === 'halfYearly' ? 6 : 12;
+      return monthDifference >= 0 && monthDifference % interval === 0 && matchesMonthlyPattern(dateKey, pattern);
     }
     case 'quarterly': {
       const monthDifference = differenceInMonths(anchorDate, dateKey);
@@ -303,6 +306,7 @@ export function toTaskOverviewItem(
   delegations: TaskDelegationDocument[],
   overrides: TaskOverrideDocument[],
   dateKey: string,
+  carryForward: { isCarryForward: boolean; overdueSince: string | null } = { isCarryForward: false, overdueSince: null },
 ): TaskOverviewItem {
   const instanceState = resolveTaskInstanceState({ ...task, delegations, overrides }, dateKey);
 
@@ -310,6 +314,8 @@ export function toTaskOverviewItem(
     ...task,
     delegations,
     overrides,
+    isCarryForward: carryForward.isCarryForward,
+    overdueSince: carryForward.overdueSince,
     displayNotes: instanceState.displayNotes,
     displayTitle: instanceState.displayTitle,
     isCompleted: instanceState.isCompleted,
