@@ -46,6 +46,14 @@ function logTaskChatDebug(event: string, context: Record<string, unknown>) {
   console.info(`[task-chat] ${event}`, context);
 }
 
+function logTaskChatRead(event: string, context: Record<string, unknown>) {
+  logTaskChatDebug(`read.${event}`, context);
+}
+
+function logTaskChatWrite(event: string, context: Record<string, unknown>) {
+  logTaskChatDebug(`write.${event}`, context);
+}
+
 function taskThreadsCollection(familyId: string) {
   return adminDb.collection(firestoreCollections.families).doc(familyId).collection(familySubcollections.taskThreads);
 }
@@ -80,6 +88,10 @@ async function resolveTaskOrThrow(familyId: string, taskId: string) {
     throw new TaskChatAccessError('Aufgabe nicht gefunden.', 404);
   }
   return { ...(snapshot.data() as TaskDocument), id: snapshot.id } as TaskDocument;
+}
+
+function uniqueUserIds(ids: Array<string | null | undefined>) {
+  return [...new Set(ids.filter((value): value is string => Boolean(value && value.trim())))];
 }
 
 function toLegacyThreadListItem(
@@ -138,7 +150,7 @@ export async function getOrCreateTaskThread(params: {
   actorUserId: string;
   participantUserIds: string[];
 }) {
-  logTaskChatDebug('createOrGetThread.start', params);
+  logTaskChatWrite('thread.upsert.start', params);
   const threadRef = taskThreadsCollection(params.familyId).doc(params.taskId);
   const snapshot = await threadRef.get();
   if (snapshot.exists) {
@@ -147,12 +159,17 @@ export async function getOrCreateTaskThread(params: {
   }
 
   const task = await resolveTaskOrThrow(params.familyId, params.taskId);
+  const participantUserIds = uniqueUserIds([
+    ...resolveTaskVisibleToUserIds(task),
+    ...params.participantUserIds,
+    params.actorUserId,
+  ]);
   const timestamp = nowIso();
   const payload: TaskConversationDocument = {
     id: params.taskId,
     taskId: params.taskId,
     familyId: params.familyId,
-    participantUserIds: params.participantUserIds,
+    participantUserIds,
     taskTitleSnapshot: task.title,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -167,7 +184,7 @@ export async function getOrCreateTaskThread(params: {
   };
 
   await threadRef.set(payload, { merge: true });
-  logTaskChatDebug('createOrGetThread.success', { ...params, existed: false, threadId: params.taskId });
+  logTaskChatWrite('thread.upsert.success', { ...params, existed: false, threadId: params.taskId, participantUserIds });
   return payload;
 }
 
@@ -185,7 +202,7 @@ export async function sendTaskMessage(params: {
   idempotencyKey?: string | null;
 }) {
   const messageText = params.text.trim();
-  logTaskChatDebug('sendTaskMessage.start', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId, messageType: params.messageType ?? 'user_message' });
+  logTaskChatWrite('message.send.start', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId, messageType: params.messageType ?? 'user_message' });
   if (!messageText) {
     throw new TaskChatAccessError('Bitte gib eine Nachricht ein.', 400);
   }
@@ -195,13 +212,11 @@ export async function sendTaskMessage(params: {
     throw new TaskChatAccessError('Kein Zugriff auf diese Aufgabe.', 403);
   }
 
-  const visibleParticipants = [...new Set([
+  const visibleParticipants = uniqueUserIds([
     ...resolveTaskVisibleToUserIds(task),
     ...params.participantUserIds,
-  ])];
-  if (!visibleParticipants.includes(params.authorUserId)) {
-    visibleParticipants.push(params.authorUserId);
-  }
+    params.authorUserId,
+  ]);
 
   const receiverUserId = resolveReceiverUserId(visibleParticipants, params.authorUserId);
   if (visibleParticipants.length > 2) {
@@ -378,12 +393,32 @@ export async function sendTaskMessage(params: {
         lastMessageAt: timestamp,
         updatedAt: timestamp,
       };
-      logTaskChatDebug('inboxEntry.upsert', { familyId: params.familyId, taskId: params.taskId, userId: receiverUserId, source: params.source ?? (params.systemEventType === 'task_delegated' ? 'delegation' : 'message') });
+      logTaskChatWrite('inboxEntry.upsert', {
+        familyId: params.familyId,
+        taskId: params.taskId,
+        userId: receiverUserId,
+        source: params.source ?? (params.systemEventType === 'task_delegated' ? 'delegation' : 'message'),
+        visibleToUserIds: visibleParticipants,
+      });
       transaction.set(inboxEntriesCollection(params.familyId, receiverUserId).doc(params.taskId), {
         ...(receiverInboxSnap?.exists ? receiverInboxSnap.data() as TaskInboxEntryDocument : {}),
         ...receiverInbox,
       }, { merge: true });
     }
+
+    logTaskChatWrite('message.send.transaction', {
+      familyId: params.familyId,
+      taskId: params.taskId,
+      messageId: messageRef.id,
+      participantUserIds: visibleParticipants,
+      visibleToUserIds: visibleParticipants,
+      senderUserId: messagePayload.senderUserId,
+      receiverUserId,
+      receiverConversationStatePath: receiverUserId ? `families/${params.familyId}/users/${receiverUserId}/conversationStates/${params.taskId}` : null,
+      receiverInboxEntryPath: receiverUserId ? `families/${params.familyId}/users/${receiverUserId}/inboxEntries/${params.taskId}` : null,
+      senderConversationStatePath: `families/${params.familyId}/users/${params.authorUserId}/conversationStates/${params.taskId}`,
+      senderInboxEntryPath: `families/${params.familyId}/users/${params.authorUserId}/inboxEntries/${params.taskId}`,
+    });
   });
 
   await Promise.all([
@@ -398,7 +433,7 @@ export async function sendTaskMessage(params: {
     threadId: params.taskId,
     existed: threadExisted,
   });
-  logTaskChatDebug('sendTaskMessage.finish', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId, receiverUserId, messageId: messagePayload.id });
+  logTaskChatWrite('message.send.finish', { familyId: params.familyId, taskId: params.taskId, authorUserId: params.authorUserId, receiverUserId, messageId: messagePayload.id });
   return { threadId: params.taskId, message: toLegacyMessage(messagePayload) };
 }
 
@@ -444,8 +479,9 @@ export async function createDelegationSystemMessage(params: {
 }
 
 async function readThreadList(params: { familyId: string; userId: string; inboxOnly: boolean }) {
-  logTaskChatDebug(params.inboxOnly ? 'loadInbox.start' : 'loadThreads.start', params);
-  if (params.inboxOnly) {
+  logTaskChatRead(params.inboxOnly ? 'threads.inbox.start' : 'threads.all.start', params);
+  try {
+    if (params.inboxOnly) {
     const inboxSnapshot = await inboxEntriesCollection(params.familyId, params.userId)
       .where('isOpen', '==', true)
       .orderBy('lastMessageAt', 'desc')
@@ -460,9 +496,16 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
         return toLegacyThreadListItem(conversation, conversation.taskTitleSnapshot, inbox?.isUnread ? 1 : 0);
       });
 
-    logTaskChatDebug('loadInbox.snapshot', { ...params, size: rows.length });
-    return rows;
-  }
+    logTaskChatRead('threads.inbox.query', {
+      familyId: params.familyId,
+      currentUserId: params.userId,
+      path: `families/${params.familyId}/users/${params.userId}/inboxEntries`,
+      filters: [{ field: 'isOpen', op: '==', value: true }],
+      orderBy: [{ field: 'lastMessageAt', direction: 'desc' }],
+      resultCount: rows.length,
+    });
+      return rows;
+    }
 
   const snapshot = await taskThreadsCollection(params.familyId)
     .where('participantUserIds', 'array-contains', params.userId)
@@ -484,8 +527,25 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
       unreadByTaskId.get(conversation.taskId) ?? 0,
     );
   });
-  logTaskChatDebug('loadThreads.snapshot', { ...params, size: rows.length });
-  return rows;
+  logTaskChatRead('threads.all.query', {
+    familyId: params.familyId,
+    currentUserId: params.userId,
+    path: `families/${params.familyId}/taskThreads`,
+    filters: [{ field: 'participantUserIds', op: 'array-contains', value: params.userId }],
+    orderBy: [{ field: 'lastMessageAt', direction: 'desc' }],
+    resultCount: rows.length,
+  });
+    return rows;
+  } catch (error) {
+    logTaskChatRead('threads.error', {
+      familyId: params.familyId,
+      currentUserId: params.userId,
+      inboxOnly: params.inboxOnly,
+      errorCode: resolveFirestoreErrorCode(error) ?? 'unknown',
+      errorMessage: resolveFirestoreErrorMessage(error),
+    });
+    throw error;
+  }
 }
 
 export async function getInboxThreads(params: { userId: string; familyId: string }) {
@@ -562,29 +622,71 @@ export async function getUnreadChatCount(params: { userId: string; familyId: str
 }
 
 export async function getThreadDetail(params: { familyId: string; threadId: string; userId: string }): Promise<TaskThreadDetailResponse> {
-  const threadSnapshot = await taskThreadsCollection(params.familyId).doc(params.threadId).get();
+  logTaskChatRead('messages.start', {
+    familyId: params.familyId,
+    threadId: params.threadId,
+    currentUserId: params.userId,
+  });
+  try {
+    const threadSnapshot = await taskThreadsCollection(params.familyId).doc(params.threadId).get();
   if (!threadSnapshot.exists) {
     throw new TaskChatAccessError('Chat wurde nicht gefunden.', 404);
   }
 
-  const thread = threadSnapshot.data() as TaskConversationDocument;
-  if (!thread.participantUserIds.includes(params.userId)) {
-    throw new TaskChatAccessError('Kein Zugriff auf diesen Chat.', 403);
+    const thread = threadSnapshot.data() as TaskConversationDocument;
+    const task = await resolveTaskOrThrow(params.familyId, thread.taskId);
+    const participantUserIds = uniqueUserIds([...(thread.participantUserIds ?? []), ...resolveTaskVisibleToUserIds(task)]);
+    if (!participantUserIds.includes(params.userId)) {
+      throw new TaskChatAccessError('Kein Zugriff auf diesen Chat.', 403);
+    }
+
+    if ((thread.participantUserIds ?? []).length !== participantUserIds.length) {
+      await taskThreadsCollection(params.familyId).doc(params.threadId).set({
+        participantUserIds,
+        updatedAt: nowIso(),
+      } satisfies Partial<TaskConversationDocument>, { merge: true });
+      logTaskChatWrite('thread.participants.backfill', {
+        familyId: params.familyId,
+        threadId: params.threadId,
+        participantUserIds,
+      });
+    }
+
+    const [stateSnapshot, messagesSnapshot] = await Promise.all([
+      conversationStatesCollection(params.familyId, params.userId).doc(params.threadId).get(),
+      taskMessagesCollection(params.familyId, params.threadId)
+        .where('visibleToUserIds', 'array-contains', params.userId)
+        .orderBy('createdAt', 'asc')
+        .get(),
+    ]);
+
+    const unreadCount = stateSnapshot.exists ? ((stateSnapshot.data() as TaskConversationStateDocument).unreadCount ?? 0) : 0;
+    const messages = messagesSnapshot.docs.map((entry) => toLegacyMessage(entry.data() as TaskThreadMessageDocument));
+    logTaskChatRead('messages.query', {
+      familyId: params.familyId,
+      taskId: thread.taskId,
+      threadId: params.threadId,
+      currentUserId: params.userId,
+      path: `families/${params.familyId}/taskThreads/${params.threadId}/messages`,
+      filters: [{ field: 'visibleToUserIds', op: 'array-contains', value: params.userId }],
+      orderBy: [{ field: 'createdAt', direction: 'asc' }],
+      resultCount: messages.length,
+    });
+
+    return {
+      thread: toLegacyThreadListItem(thread, thread.taskTitleSnapshot, unreadCount),
+      messages,
+    };
+  } catch (error) {
+    logTaskChatRead('messages.error', {
+      familyId: params.familyId,
+      threadId: params.threadId,
+      currentUserId: params.userId,
+      errorCode: resolveFirestoreErrorCode(error) ?? 'unknown',
+      errorMessage: resolveFirestoreErrorMessage(error),
+    });
+    throw error;
   }
-
-  const [stateSnapshot, messagesSnapshot] = await Promise.all([
-    conversationStatesCollection(params.familyId, params.userId).doc(params.threadId).get(),
-    taskMessagesCollection(params.familyId, params.threadId).orderBy('createdAt', 'asc').get(),
-  ]);
-
-  const unreadCount = stateSnapshot.exists ? ((stateSnapshot.data() as TaskConversationStateDocument).unreadCount ?? 0) : 0;
-  const messages = messagesSnapshot.docs.map((entry) => toLegacyMessage(entry.data() as TaskThreadMessageDocument));
-  logTaskChatDebug('loadMessages.snapshot', { ...params, size: messages.length });
-
-  return {
-    thread: toLegacyThreadListItem(thread, thread.taskTitleSnapshot, unreadCount),
-    messages,
-  };
 }
 
 export async function appendThreadMetaToOverview(params: {
