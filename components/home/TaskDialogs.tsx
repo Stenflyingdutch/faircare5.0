@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { Modal } from '@/components/Modal';
@@ -946,6 +946,12 @@ export function TaskChatModal({
   const [isSendingChatMessage, setIsSendingChatMessage] = useState(false);
   const [threadDetail, setThreadDetail] = useState<TaskThreadDetailResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const historyRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !threadDetail?.messages?.length || !historyRef.current) return;
+    historyRef.current.scrollTop = historyRef.current.scrollHeight;
+  }, [isOpen, threadDetail]);
 
   useEffect(() => {
     if (!isOpen || !task) return;
@@ -979,7 +985,7 @@ export function TaskChatModal({
             {threadDetail ? `${threadDetail.thread.participantUserIds.length} Beteiligte` : 'Thread wird geladen …'}
           </p>
         </div>
-        <div className="task-thread-history">
+        <div ref={historyRef} className="task-thread-history">
           {loadError ? <p className="task-inline-hint" style={{ color: '#b00020' }}>{loadError}</p> : null}
           {!threadDetail?.messages?.length ? (
             <div className="task-thread-empty">
