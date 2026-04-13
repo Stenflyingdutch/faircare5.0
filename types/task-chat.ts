@@ -95,6 +95,15 @@ export interface TaskUiSummaryDocument {
   lastUpdatedAt: string;
 }
 
+export interface FamilyUserChatDocument {
+  id: string;
+  userId: string;
+  familyId: string;
+  role: 'initiator' | 'partner' | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TaskThreadListItem extends TaskThreadDocument {
   unreadCount: number;
   taskTitle: string;

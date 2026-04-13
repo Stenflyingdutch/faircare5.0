@@ -10,7 +10,7 @@ import {
   resolveTaskVisibleToUserIds,
   toTaskOverviewItem,
 } from '@/services/tasks.logic';
-import { appendThreadMetaToOverview, createDelegationSystemMessage } from '@/services/server/task-chat.service';
+import { appendThreadMetaToOverview, createDelegationSystemMessage, ensureFamilyChatUserDocs } from '@/services/server/task-chat.service';
 import { isSuperuserProfile, resolveAccountStatus } from '@/services/user-profile.service';
 import type { AppUserProfile, FamilyDocument } from '@/types/partner-flow';
 import type { QuizCategory } from '@/types/quiz';
@@ -162,6 +162,12 @@ async function resolveTaskContext(userId: string): Promise<TaskContext> {
   if (!isMember) {
     throw new TaskAccessError('Kein Zugriff auf diese Familie.', 403);
   }
+
+  await ensureFamilyChatUserDocs({
+    familyId,
+    userIds: [family.initiatorUserId, family.partnerUserId ?? null].filter(Boolean) as string[],
+    source: 'resolveTaskContext.familyMembership',
+  });
 
   return {
     userId,

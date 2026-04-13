@@ -5,6 +5,7 @@ import { familySubcollections, firestoreCollections } from '@/types/domain';
 import { canUserSeeTask, resolveTaskVisibleToUserIds } from '@/services/tasks.logic';
 import type { TaskDocument, TaskOverviewResponse } from '@/types/tasks';
 import type {
+  FamilyUserChatDocument,
   TaskConversationDocument,
   TaskConversationStateDocument,
   TaskInboxEntryDocument,
@@ -80,6 +81,71 @@ function inboxEntriesCollection(familyId: string, userId: string) {
 
 function uiSummaryRef(familyId: string, userId: string) {
   return familyUsersCollection(familyId).doc(userId).collection('uiState').doc('summary');
+}
+
+async function ensureFamilyUserDoc(params: {
+  familyId: string;
+  userId: string;
+  source: string;
+  roleHint?: FamilyUserChatDocument['role'];
+}) {
+  const { familyId, userId, source, roleHint } = params;
+  const userRef = familyUsersCollection(familyId).doc(userId);
+  const userSnapshot = await userRef.get();
+  if (userSnapshot.exists) {
+    logTaskChatRead('familyUser.parent', {
+      familyId,
+      userId,
+      source,
+      parentExists: true,
+      parentCreated: false,
+    });
+    return { existed: true };
+  }
+
+  const familyRef = adminDb.collection(firestoreCollections.families).doc(familyId);
+  const familySnapshot = await familyRef.get();
+  if (!familySnapshot.exists) {
+    throw new TaskChatAccessError('Familie konnte nicht geladen werden.', 404);
+  }
+
+  const family = familySnapshot.data() as { initiatorUserId?: string; partnerUserId?: string | null };
+  const role = roleHint
+    ?? (family.initiatorUserId === userId ? 'initiator' : (family.partnerUserId === userId ? 'partner' : null));
+  const timestamp = nowIso();
+  const payload: FamilyUserChatDocument = {
+    id: userId,
+    userId,
+    familyId,
+    role,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+
+  await userRef.set(payload, { merge: true });
+  logTaskChatWrite('familyUser.parent', {
+    familyId,
+    userId,
+    source,
+    parentExists: false,
+    parentCreated: true,
+    role,
+    path: `families/${familyId}/users/${userId}`,
+  });
+  return { existed: false };
+}
+
+export async function ensureFamilyChatUserDocs(params: {
+  familyId: string;
+  userIds: string[];
+  source: string;
+}) {
+  const uniqueIds = uniqueUserIds(params.userIds);
+  await Promise.all(uniqueIds.map((userId) => ensureFamilyUserDoc({
+    familyId: params.familyId,
+    userId,
+    source: `${params.source}:${userId}`,
+  })));
 }
 
 async function resolveTaskOrThrow(familyId: string, taskId: string) {
@@ -262,6 +328,7 @@ function toLegacyMessage(message: TaskThreadMessageDocument): TaskThreadMessageD
 }
 
 async function recomputeUiSummary(familyId: string, userId: string) {
+  await ensureFamilyUserDoc({ familyId, userId, source: 'recomputeUiSummary' });
   const [openInboxSnapshot, unreadStateSnapshot, badgeSnapshot] = await Promise.all([
     inboxEntriesCollection(familyId, userId).where('isOpen', '==', true).get(),
     conversationStatesCollection(familyId, userId).where('hasUnread', '==', true).get(),
@@ -359,6 +426,10 @@ export async function sendTaskMessage(params: {
   ]);
 
   const receiverUserId = resolveReceiverUserId(visibleParticipants, params.authorUserId);
+  await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.authorUserId, source: 'sendTaskMessage.author' });
+  if (receiverUserId) {
+    await ensureFamilyUserDoc({ familyId: params.familyId, userId: receiverUserId, source: 'sendTaskMessage.receiver' });
+  }
   if (visibleParticipants.length > 2) {
     logTaskChatDebug('sendTaskMessage.participants.expanded', { taskId: params.taskId, participantCount: visibleParticipants.length, visibleParticipants });
   }
@@ -621,6 +692,7 @@ export async function createDelegationSystemMessage(params: {
 async function readThreadList(params: { familyId: string; userId: string; inboxOnly: boolean }) {
   logTaskChatRead(params.inboxOnly ? 'threads.inbox.start' : 'threads.all.start', params);
   try {
+    await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.userId, source: params.inboxOnly ? 'readThreadList.inbox' : 'readThreadList.threads' });
     if (params.inboxOnly) {
     let inboxSnapshot;
     let inboxUsedFallbackSort = false;
@@ -768,6 +840,7 @@ export async function getAllTaskThreads(params: { userId: string; familyId: stri
 
 export async function markTaskThreadAsRead(params: { familyId: string; threadId: string; userId: string }) {
   logTaskChatDebug('markConversationRead.start', params);
+  await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.userId, source: 'markTaskThreadAsRead' });
   const timestamp = nowIso();
   const stateRef = conversationStatesCollection(params.familyId, params.userId).doc(params.threadId);
   const inboxRef = inboxEntriesCollection(params.familyId, params.userId).doc(params.threadId);
@@ -819,6 +892,7 @@ export async function markTaskThreadAsRead(params: { familyId: string; threadId:
 }
 
 export async function getUnreadChatCount(params: { userId: string; familyId: string }) {
+  await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.userId, source: 'getUnreadChatCount' });
   const summarySnapshot = await uiSummaryRef(params.familyId, params.userId).get();
   if (summarySnapshot.exists) {
     const summary = summarySnapshot.data() as TaskUiSummaryDocument;
@@ -838,6 +912,7 @@ export async function getThreadDetail(params: { familyId: string; threadId: stri
     currentUserId: params.userId,
   });
   try {
+    await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.userId, source: 'getThreadDetail' });
     const threadSnapshot = await taskThreadsCollection(params.familyId).doc(params.threadId).get();
   if (!threadSnapshot.exists) {
     throw new TaskChatAccessError('Chat wurde nicht gefunden.', 404);
@@ -869,19 +944,66 @@ export async function getThreadDetail(params: { familyId: string; threadId: stri
       });
     }
 
-    const [stateSnapshot, messagesSnapshot] = await Promise.all([
-      conversationStatesCollection(params.familyId, params.userId).doc(params.threadId).get(),
-      taskMessagesCollection(params.familyId, params.threadId)
+    const stateSnapshotPromise = conversationStatesCollection(params.familyId, params.userId).doc(params.threadId).get();
+    let messagesSnapshot;
+    let usedVisibilityFallback = false;
+    try {
+      messagesSnapshot = await taskMessagesCollection(params.familyId, params.threadId)
         .where('visibleToUserIds', 'array-contains', params.userId)
         .orderBy('createdAt', 'asc')
-        .get(),
-    ]);
+        .get();
+    } catch (error) {
+      if (resolveFirestoreErrorCode(error) === 'failed-precondition') {
+        usedVisibilityFallback = true;
+        messagesSnapshot = await taskMessagesCollection(params.familyId, params.threadId)
+          .orderBy('createdAt', 'asc')
+          .get();
+      } else {
+        throw error;
+      }
+    }
+    const stateSnapshot = await stateSnapshotPromise;
 
     const unreadCount = stateSnapshot.exists ? ((stateSnapshot.data() as TaskConversationStateDocument).unreadCount ?? 0) : 0;
     const messages = messagesSnapshot.docs
       .map((entry) => normalizeChatMessage(entry.data(), entry.id, { familyId: params.familyId, currentUserId: params.userId, threadId: params.threadId }))
       .filter((message): message is TaskThreadMessageDocument => Boolean(message))
+      .filter((message) => {
+        if (message.visibleToUserIds.includes(params.userId)) return true;
+        if (!message.visibleToUserIds.length) {
+          const visibleByLegacyFields = message.senderUserId === params.userId
+            || message.receiverUserId === params.userId
+            || Object.keys(message.readBy ?? {}).includes(params.userId);
+          return visibleByLegacyFields;
+        }
+        return false;
+      })
       .map((message) => toLegacyMessage(message));
+    if (usedVisibilityFallback) {
+      const batch = adminDb.batch();
+      let patchedCount = 0;
+      messagesSnapshot.docs.forEach((doc) => {
+        const payload = doc.data() as Partial<TaskThreadMessageDocument>;
+        if (Array.isArray(payload.visibleToUserIds) && payload.visibleToUserIds.length) return;
+        const inferredVisibility = uniqueUserIds([
+          ...(thread.participantUserIds ?? []),
+          typeof payload.senderUserId === 'string' ? payload.senderUserId : null,
+          typeof payload.receiverUserId === 'string' ? payload.receiverUserId : null,
+        ]);
+        if (!inferredVisibility.length) return;
+        patchedCount += 1;
+        batch.set(doc.ref, { visibleToUserIds: inferredVisibility, updatedAt: nowIso() } satisfies Partial<TaskThreadMessageDocument>, { merge: true });
+      });
+      if (patchedCount) {
+        await batch.commit();
+        logTaskChatWrite('messages.visibleToUserIds.backfill', {
+          familyId: params.familyId,
+          threadId: params.threadId,
+          currentUserId: params.userId,
+          patchedCount,
+        });
+      }
+    }
     logTaskChatRead('messages.query', {
       familyId: params.familyId,
       taskId: thread.taskId,
@@ -891,6 +1013,7 @@ export async function getThreadDetail(params: { familyId: string; threadId: stri
       filters: [{ field: 'visibleToUserIds', op: 'array-contains', value: params.userId }],
       orderBy: [{ field: 'createdAt', direction: 'asc' }],
       resultCount: messages.length,
+      usedVisibilityFallback,
     });
 
     return {
@@ -915,6 +1038,7 @@ export async function appendThreadMetaToOverview(params: {
   userId: string;
   overview: TaskOverviewResponse;
 }) {
+  await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.userId, source: 'appendThreadMetaToOverview' });
   const baseOverview: TaskOverviewResponse = {
     ...params.overview,
     dayTasks: params.overview.dayTasks ?? [],
