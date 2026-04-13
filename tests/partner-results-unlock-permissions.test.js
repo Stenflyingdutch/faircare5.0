@@ -29,6 +29,12 @@ test('dashboard logs the first family read and resolves names from safe family s
   assert.match(partnerFlowSrc, /initiator\.dashboard\.first_read\.failed/);
   assert.match(partnerFlowSrc, /initiatorDisplayName = family\.initiatorDisplayName/);
   assert.match(partnerFlowSrc, /partnerDisplayName = family\.partnerDisplayName/);
+  assert.match(partnerFlowSrc, /shouldReadInitiatorProfile/);
+  assert.match(partnerFlowSrc, /shouldReadPartnerProfile/);
+  assert.match(partnerFlowSrc, /family_profile_read\.start/);
+  assert.match(partnerFlowSrc, /family_profile_read\.success/);
+  assert.match(partnerFlowSrc, /family_profile_read\.failed/);
+  assert.match(partnerFlowSrc, /skipped_optional_permission_denied/);
   assert.doesNotMatch(partnerFlowSrc, /fetchAppUserProfile\(family\.initiatorUserId\)/);
   assert.doesNotMatch(partnerFlowSrc, /fetchAppUserProfile\(family\.partnerUserId\)/);
 });

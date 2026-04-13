@@ -30,6 +30,8 @@ test('task threads route returns structured success and failure payloads', () =>
 
   assert.match(route, /route\.taskThreads\.request/);
   assert.match(route, /route\.taskThreads\.success/);
+  assert.match(route, /dataSources/);
+  assert.match(route, /finalStatus: 200/);
   assert.match(route, /success: true, scope, items: threads, threads/);
   assert.match(route, /items: \[\]/);
   assert.match(route, /CHAT_QUERY_PRECONDITION_FAILED/);

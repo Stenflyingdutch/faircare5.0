@@ -1734,28 +1734,120 @@ export async function fetchDashboardBundle(userId: string) {
   }
 
   if (family) {
-    const loadFamilyMemberProfile = async (targetUserId?: string | null) => {
+    const loadFamilyMemberProfile = async ({
+      targetUserId,
+      reason,
+      requiredFields,
+      optional,
+    }: {
+      targetUserId?: string | null;
+      reason: string;
+      requiredFields: string[];
+      optional: boolean;
+    }) => {
       if (!targetUserId) return null;
       if (targetUserId === userId) return profile;
+      const profilePath = `${firestoreCollections.users}/${targetUserId}`;
+      logSignupInfo('partner_personal_area.family_profile_read.start', {
+        step: 'fetchDashboardBundle',
+        path: profilePath,
+        uid: userId,
+        extra: {
+          familyId,
+          flow: 'dashboard_hydrate',
+          currentUserId: userId,
+          partnerUserId: targetUserId,
+          reason,
+          requiredFields,
+          optional,
+        },
+      });
       try {
-        return await fetchAppUserProfile(targetUserId);
+        const loadedProfile = await fetchAppUserProfile(targetUserId);
+        logSignupInfo('partner_personal_area.family_profile_read.success', {
+          step: 'fetchDashboardBundle',
+          path: profilePath,
+          uid: userId,
+          extra: {
+            familyId,
+            flow: 'dashboard_hydrate',
+            currentUserId: userId,
+            partnerUserId: targetUserId,
+            reason,
+            requiredFields,
+            optional,
+            exists: Boolean(loadedProfile),
+          },
+        });
+        return loadedProfile;
       } catch (error) {
         const errorCode = (error as { code?: string })?.code ?? '';
         const isPermissionDenied = errorCode === 'permission-denied' || errorCode === 'firestore/permission-denied';
-        if (!isPermissionDenied) throw error;
-        logSignupInfo('partner_personal_area.family_profile_read.skipped_permission_denied', {
+        const errorMessage = extractErrorMessage(error);
+        logSignupError('partner_personal_area.family_profile_read.failed', error, {
           step: 'fetchDashboardBundle',
-          path: `${firestoreCollections.users}/${targetUserId}`,
+          path: profilePath,
           uid: userId,
-          extra: { targetUserId, role: profile.role ?? null },
+          extra: {
+            familyId,
+            flow: 'dashboard_hydrate',
+            currentUserId: userId,
+            partnerUserId: targetUserId,
+            reason,
+            requiredFields,
+            optional,
+            firestoreErrorCode: errorCode || null,
+            firestoreErrorMessage: errorMessage,
+          },
+        });
+        if (!optional || !isPermissionDenied) throw error;
+        logSignupInfo('partner_personal_area.family_profile_read.skipped_optional_permission_denied', {
+          step: 'fetchDashboardBundle',
+          path: profilePath,
+          uid: userId,
+          extra: {
+            familyId,
+            flow: 'dashboard_hydrate',
+            currentUserId: userId,
+            partnerUserId: targetUserId,
+            reason,
+            requiredFields,
+            optional,
+          },
         });
         return null;
       }
     };
 
+    const shouldReadInitiatorProfile = Boolean(
+      !family.initiatorDisplayName
+      && family.initiatorUserId
+      && family.initiatorUserId !== userId,
+    );
+    const shouldReadPartnerProfile = Boolean(
+      !family.partnerDisplayName
+      && family.partnerUserId
+      && family.partnerUserId !== userId
+      && !family.invitationId,
+    );
+
     const [initiatorProfile, partnerProfile, invitation] = await Promise.all([
-      loadFamilyMemberProfile(family.initiatorUserId),
-      loadFamilyMemberProfile(family.partnerUserId),
+      shouldReadInitiatorProfile
+        ? loadFamilyMemberProfile({
+          targetUserId: family.initiatorUserId,
+          reason: 'resolve_missing_initiator_display_name',
+          requiredFields: ['displayName', 'firstName', 'role'],
+          optional: true,
+        })
+        : Promise.resolve(null),
+      shouldReadPartnerProfile
+        ? loadFamilyMemberProfile({
+          targetUserId: family.partnerUserId,
+          reason: 'resolve_missing_partner_display_name',
+          requiredFields: ['displayName', 'firstName', 'role'],
+          optional: true,
+        })
+        : Promise.resolve(null),
       family.invitationId
         ? getDoc(doc(db, firestoreCollections.invitations, family.invitationId)).then((snap) => (snap.exists() ? snap.data() as InvitationDocument : null))
         : Promise.resolve(null),
