@@ -436,6 +436,7 @@ export default function PersonalHomePage() {
                   onClick={() => setComposerState({ mode: 'day' })}
                 >
                   <PlusIcon />
+                  <span>einmalige Aufgabe</span>
                 </button>
               </div>
 
@@ -518,6 +519,7 @@ export default function PersonalHomePage() {
                       onClick={() => setComposerState({ mode: 'responsibility', responsibility })}
                     >
                       <PlusIcon />
+                      <span>wiederkehrende Aufgaben</span>
                     </button>
                   ) : null}
                 >

@@ -2612,17 +2612,19 @@ textarea.input {
 }
 
 .task-inline-add-button {
-  width: 42px;
+  width: auto;
   min-height: 42px;
-  padding: 0;
+  padding: 0 12px;
   border-radius: 14px;
+  white-space: nowrap;
 }
 
 .responsibility-task-add-button {
-  width: 42px;
+  width: auto;
   min-height: 42px;
-  padding: 0;
+  padding: 0 12px;
   border-radius: 14px;
+  white-space: nowrap;
 }
 
 .task-day-list,
@@ -2781,6 +2783,11 @@ textarea.input {
   text-decoration: none;
 }
 
+.task-list-item.is-overdue {
+  border-color: rgba(216, 127, 127, 0.5);
+  background: linear-gradient(180deg, #fff 0%, #fff5f5 100%);
+}
+
 .task-row-subtitle {
   color: var(--color-text-secondary);
   font-size: 0.9rem;
@@ -2799,6 +2806,17 @@ textarea.input {
   align-items: flex-end;
   gap: 8px;
   margin-left: auto;
+}
+
+.task-recurring-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(223, 230, 237, 0.65);
+  color: #6a7684;
 }
 
 .task-chip {
@@ -2994,6 +3012,19 @@ textarea.input {
 .task-date-stack {
   display: grid;
   gap: 12px;
+}
+
+.task-date-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.task-day-handoff {
+  min-height: 38px;
+  border-radius: 999px;
+  padding: 0 12px;
 }
 
 .task-date-pill-button {
@@ -3499,9 +3530,6 @@ textarea.input {
     align-items: center;
   }
 
-  .task-inline-add-button {
-    white-space: nowrap;
-  }
 }
 
 @media (max-width: 699px) {
