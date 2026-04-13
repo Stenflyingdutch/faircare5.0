@@ -50,12 +50,9 @@ const weekdayOptions: Array<{ value: TaskWeekday; label: string }> = [
 ];
 
 const recurrenceOptions: Array<{ value: TaskRecurrenceType; label: string }> = [
-  { value: 'none', label: 'Keine' },
   { value: 'daily', label: 'Täglich' },
   { value: 'weekly', label: 'Wöchentlich' },
   { value: 'monthly', label: 'Monatlich' },
-  { value: 'quarterly', label: 'Quartärlich' },
-  { value: 'yearly', label: 'Jährlich' },
 ];
 
 const ordinalOptions: Array<{ value: TaskOrdinal; label: string }> = [
@@ -79,7 +76,7 @@ type RecurrenceDraft = {
   quarterlyWeekday: TaskWeekday;
   yearlyMonth: number;
   yearlyDay: number;
-  endMode: 'never' | 'onDate';
+  endMode: 'none' | 'onDate';
   endDate: string;
 };
 
@@ -258,9 +255,7 @@ function RecurrenceFields({
             recurrenceType: event.target.value as TaskRecurrenceType,
             weekdays: event.target.value === 'daily'
               ? weekdayOptions.map((entry) => entry.value)
-              : event.target.value === 'weekly'
-                ? ['mon']
-                : draft.weekdays,
+              : ['mon'],
           })}
         >
           {recurrenceOptions.map((option) => (
@@ -431,9 +426,9 @@ function RecurrenceFields({
             <select
               className="input"
               value={draft.endMode}
-              onChange={(event) => onChange({ ...draft, endMode: event.target.value as 'never' | 'onDate' })}
+              onChange={(event) => onChange({ ...draft, endMode: event.target.value as 'none' | 'onDate' })}
             >
-              <option value="never">Nie</option>
+              <option value="none">kein Enddatum</option>
               <option value="onDate">Bis Datum</option>
             </select>
           </label>
@@ -571,7 +566,7 @@ export function TaskComposerModal({
   const [draftDate, setDraftDate] = useState(selectedDate);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [recurrenceDraft, setRecurrenceDraft] = useState<RecurrenceDraft>({
-    recurrenceType: 'none',
+    recurrenceType: mode === 'responsibility' ? 'daily' : 'none',
     weekdays: ['mon'],
     monthlyMode: 'weekdayOfMonth',
     monthlyDayOfMonth: parseDateKey(selectedDate).day,
@@ -583,7 +578,7 @@ export function TaskComposerModal({
     quarterlyWeekday: getWeekday(selectedDate),
     yearlyMonth: parseDateKey(selectedDate).month,
     yearlyDay: parseDateKey(selectedDate).day,
-    endMode: 'never',
+    endMode: 'none',
     endDate: '',
   });
   const [delegationDraft, setDelegationDraft] = useState<DelegationDraft>({
@@ -601,7 +596,7 @@ export function TaskComposerModal({
     setDraftDate(selectedDate);
     setIsDatePickerOpen(false);
     setRecurrenceDraft({
-      recurrenceType: 'none',
+      recurrenceType: mode === 'responsibility' ? 'daily' : 'none',
       weekdays: ['mon'],
       monthlyMode: 'weekdayOfMonth',
       monthlyDayOfMonth: parsed.day,
@@ -613,7 +608,7 @@ export function TaskComposerModal({
       quarterlyWeekday: getWeekday(selectedDate),
       yearlyMonth: parsed.month,
       yearlyDay: parsed.day,
-      endMode: 'never',
+      endMode: 'none',
       endDate: '',
     });
     setDelegationDraft({
@@ -637,9 +632,12 @@ export function TaskComposerModal({
           notes,
           selectedDate: draftDate,
           recurrenceType: 'none',
-          endMode: 'never',
+          handoffEnabled: delegationDraft.enabled,
+          endMode: 'none',
         },
-        delegationAction: { type: 'clear' },
+        delegationAction: delegationDraft.enabled
+          ? { type: 'save', input: { mode: 'singleDate', date: draftDate } }
+          : { type: 'clear' },
       });
       return;
     }
@@ -669,8 +667,8 @@ export function TaskComposerModal({
             : recurrenceDraft.recurrenceType === 'yearly'
               ? { yearlyMonth: recurrenceDraft.yearlyMonth, yearlyDay: recurrenceDraft.yearlyDay }
               : null,
-      endMode: recurrenceDraft.recurrenceType === 'none' ? 'never' : recurrenceDraft.endMode,
-      endDate: recurrenceDraft.recurrenceType === 'none' || recurrenceDraft.endMode === 'never' ? null : recurrenceDraft.endDate,
+      endMode: recurrenceDraft.recurrenceType === 'none' ? 'none' : recurrenceDraft.endMode,
+      endDate: recurrenceDraft.recurrenceType === 'none' || recurrenceDraft.endMode === 'none' ? null : recurrenceDraft.endDate,
     };
 
     await onSubmit({
@@ -701,7 +699,7 @@ export function TaskComposerModal({
         <DialogHeader title={mode === 'day' ? 'Einmalige Aufgabe' : 'Aufgabe hinzufügen'} />
 
         {mode === 'day' ? (
-          <div className="task-date-stack">
+          <div className="task-date-row">
             <button
               type="button"
               className={`task-date-pill task-date-pill-button ${isDatePickerOpen ? 'is-open' : ''}`}
@@ -709,6 +707,13 @@ export function TaskComposerModal({
               aria-expanded={isDatePickerOpen}
             >
               Datum: {formatDateLabel(draftDate)}
+            </button>
+            <button
+              type="button"
+              className={`task-segment task-day-handoff ${delegationDraft.enabled ? 'is-selected' : ''}`}
+              onClick={() => setDelegationDraft((current) => ({ ...current, enabled: !current.enabled }))}
+            >
+              übergeben
             </button>
 
             {isDatePickerOpen ? (
@@ -738,7 +743,6 @@ export function TaskComposerModal({
         {mode === 'responsibility' ? (
           <>
             <div className="task-stack">
-              <p className="task-section-title">Wiederholt sich diese Aufgabe?</p>
               <RecurrenceFields draft={recurrenceDraft} onChange={setRecurrenceDraft} />
             </div>
 
@@ -844,8 +848,8 @@ export function TaskEditModal({
                 yearlyDay: currentRecurrenceDraft.yearlyDay,
               }
               : null,
-      endMode: nextRecurrenceType === 'none' ? 'never' : currentRecurrenceDraft.endMode,
-      endDate: nextRecurrenceType === 'none' || currentRecurrenceDraft.endMode === 'never' ? null : currentRecurrenceDraft.endDate,
+      endMode: nextRecurrenceType === 'none' ? 'none' : currentRecurrenceDraft.endMode,
+      endDate: nextRecurrenceType === 'none' || currentRecurrenceDraft.endMode === 'none' ? null : currentRecurrenceDraft.endDate,
     };
 
     const delegationAction: DelegationAction = currentDelegationDraft.enabled

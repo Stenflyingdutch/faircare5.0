@@ -3,6 +3,17 @@ import { useRef, useState } from 'react';
 import { getTaskTimingLabel } from '@/services/tasks.logic';
 import type { TaskOverviewItem } from '@/types/tasks';
 
+function RepeatIcon() {
+  return (
+    <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M15.5 6.5V3.8h-2.8" />
+      <path d="M4.5 13.5v2.7h2.8" />
+      <path d="M15.3 9.2a5.8 5.8 0 0 0-9.9-2.5" />
+      <path d="M4.7 10.8a5.8 5.8 0 0 0 9.9 2.5" />
+    </svg>
+  );
+}
+
 function PencilIcon() {
   return (
     <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -64,15 +75,7 @@ export function TaskListItem({
     && (task.creatorUserId ?? task.createdByUserId) === currentUserId;
   const swipeLeftLabel = isDelegatedByCurrentUser ? 'Zurücknehmen' : 'Übergeben';
   const hasAnyChat = hasTaskMessages || unreadCount > 0;
-  const chips: Array<{ key: string; label: string; variant?: 'delegated' | 'new' | 'series' }> = [];
-
-  if (task.recurrenceType !== 'none') {
-    chips.push({
-      key: 'series',
-      label: getTaskTimingLabel(task),
-      variant: 'series',
-    });
-  }
+  const chips: Array<{ key: string; label: string; variant?: 'delegated' | 'new' }> = [];
 
   if (task.delegatedToUserId) {
     chips.push({ key: 'delegated', label: isAssignedToCurrentUser ? 'Übernommen' : 'Übergeben', variant: 'delegated' });
@@ -171,10 +174,15 @@ export function TaskListItem({
         </div>
 
         <div className="task-chip-row">
+          {task.recurrenceType !== 'none' ? (
+            <span className="task-recurring-icon" aria-label={getTaskTimingLabel(task)}>
+              <RepeatIcon />
+            </span>
+          ) : null}
           {chips.map((chip) => (
             <span
               key={`${task.id}-${chip.key}`}
-              className={`task-chip ${chip.variant === 'delegated' ? 'is-delegated' : ''} ${chip.variant === 'new' ? 'is-chat-new' : ''} ${chip.variant === 'series' ? 'is-series' : ''}`}
+              className={`task-chip ${chip.variant === 'delegated' ? 'is-delegated' : ''} ${chip.variant === 'new' ? 'is-chat-new' : ''}`}
             >
               {chip.label}
             </span>

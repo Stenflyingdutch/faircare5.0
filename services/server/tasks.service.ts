@@ -2,7 +2,7 @@ import 'server-only';
 
 import { familySubcollections, firestoreCollections } from '@/types/domain';
 import { adminDb, verifyAdminSessionCookie } from '@/lib/firebase-admin';
-import { assertDateKey } from '@/services/task-date';
+import { addDays, assertDateKey } from '@/services/task-date';
 import {
   canUserEditTask,
   canUserSeeTask,
@@ -138,6 +138,7 @@ function normalizeRecurrenceConfig(type: TaskRecurrenceType, recurrenceConfig?: 
   if (type === 'monthly') {
     return {
       monthlyPattern: recurrenceConfig?.monthlyPattern ?? undefined,
+      monthlyIntervalMode: recurrenceConfig?.monthlyIntervalMode ?? 'monthly',
     };
   }
 
@@ -155,6 +156,32 @@ function normalizeRecurrenceConfig(type: TaskRecurrenceType, recurrenceConfig?: 
   }
 
   return null;
+}
+
+function findCarryForwardDate(task: TaskDocument, overrides: TaskOverrideDocument[], selectedDate: string) {
+  if (task.recurrenceType === 'none') return null;
+  let probe = addDays(selectedDate, -1);
+  let earliestOpen: string | null = null;
+  for (let i = 0; i < 45; i += 1) {
+    if (!isTaskDueOnDate(task, probe)) {
+      probe = addDays(probe, -1);
+      continue;
+    }
+
+    const override = overrides
+      .filter((entry) => entry.date === probe)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0];
+    const resolvedStatus = override?.status ?? task.status;
+
+    if (resolvedStatus === 'completed') {
+      break;
+    }
+
+    earliestOpen = probe;
+    probe = addDays(probe, -1);
+  }
+
+  return earliestOpen;
 }
 
 async function resolveTaskContext(userId: string): Promise<TaskContext> {
@@ -411,8 +438,16 @@ export async function getTaskOverviewForSelectedDate(userId: string, dateKey: st
   const delegationsByTask = groupDelegationsByTask(delegations);
   const overridesByTask = groupOverridesByTask(overrides);
   const dayTasks = tasks
-    .map((task) => toTaskOverviewItem(task, delegationsByTask.get(task.id) ?? [], overridesByTask.get(task.id) ?? [], dateKey))
-    .filter((task) => task.isDueOnSelectedDate)
+    .map((task) => {
+      const taskDelegations = delegationsByTask.get(task.id) ?? [];
+      const taskOverrides = overridesByTask.get(task.id) ?? [];
+      const carryForwardFrom = findCarryForwardDate(task, taskOverrides, dateKey);
+      return toTaskOverviewItem(task, taskDelegations, taskOverrides, dateKey, {
+        isCarryForward: !isTaskDueOnDate(task, dateKey) && Boolean(carryForwardFrom),
+        overdueSince: carryForwardFrom,
+      });
+    })
+    .filter((task) => task.isDueOnSelectedDate || task.isCarryForward)
     .sort(sortDayTasks);
   const responsibilityTasks = tasks
     .filter((task) => Boolean(task.responsibilityId))
@@ -480,7 +515,9 @@ export async function createTaskForUser(userId: string, input: CreateTaskInput) 
     selectedDate,
     recurrenceType,
     recurrenceConfig: normalizeRecurrenceConfig(recurrenceType, input.recurrenceConfig),
-    endMode: input.endMode ?? 'never',
+    handoffEnabled: input.handoffEnabled ?? false,
+    recurringHandoffMode: input.recurringHandoffMode ?? 'none',
+    endMode: input.endMode ?? 'none',
     endDate: normalizeOptionalDate(input.endDate),
     status: 'active',
     threadId: null,
@@ -512,6 +549,8 @@ export async function updateTaskForUser(userId: string, taskId: string, input: U
     ? normalizeOptionalDate(input.selectedDate)
     : existingTask.selectedDate ?? null;
   const nextEndMode = input.endMode ?? existingTask.endMode;
+  const nextHandoffEnabled = input.handoffEnabled ?? existingTask.handoffEnabled ?? false;
+  const nextRecurringHandoffMode = input.recurringHandoffMode ?? existingTask.recurringHandoffMode ?? 'none';
   const nextEndDate = input.endDate !== undefined
     ? normalizeOptionalDate(input.endDate)
     : existingTask.endDate ?? null;
@@ -522,6 +561,8 @@ export async function updateTaskForUser(userId: string, taskId: string, input: U
     selectedDate: nextSelectedDate,
     recurrenceType: nextRecurrenceType,
     recurrenceConfig: normalizeRecurrenceConfig(nextRecurrenceType, input.recurrenceConfig ?? existingTask.recurrenceConfig),
+    handoffEnabled: nextHandoffEnabled,
+    recurringHandoffMode: nextRecurringHandoffMode,
     endMode: nextEndMode,
     endDate: nextEndDate,
     status: input.status ?? existingTask.status,
