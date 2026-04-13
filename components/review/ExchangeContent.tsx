@@ -33,7 +33,7 @@ function toUserFacingQueryError(error: unknown) {
 const EXCHANGE_DEBUG = process.env.NEXT_PUBLIC_TASK_CHAT_DEBUG === '1';
 
 export function ExchangeContent() {
-  const [mainTab, setMainTab] = useState<'checkins' | 'chats'>('checkins');
+  const [mainTab, setMainTab] = useState<'checkins' | 'chats'>('chats');
   const [chatTab, setChatTab] = useState<'inbox' | 'threads'>('inbox');
   const [threads, setThreads] = useState<TaskThreadListItem[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -115,8 +115,8 @@ export function ExchangeContent() {
     <section className="section">
       <div className="container stack">
         <div className="exchange-segmented exchange-segmented-main" role="tablist" aria-label="Austausch Ansicht wählen">
-          <button type="button" className={`exchange-segment ${mainTab === 'checkins' ? 'is-active' : ''}`} onClick={() => setMainTab('checkins')}>Check-ins</button>
           <button type="button" className={`exchange-segment ${mainTab === 'chats' ? 'is-active' : ''}`} onClick={() => setMainTab('chats')}>Chats</button>
+          <button type="button" className={`exchange-segment ${mainTab === 'checkins' ? 'is-active' : ''}`} onClick={() => setMainTab('checkins')}>Check-ins</button>
         </div>
 
         {mainTab === 'checkins' ? (
