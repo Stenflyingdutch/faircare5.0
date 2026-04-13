@@ -30,8 +30,8 @@ export function TaskListItem({
   onToggleStatus,
   onSwipeRight,
   onSwipeLeft,
-  hasUnreadMessage = false,
   unreadCount = 0,
+  hasTaskMessages = false,
 }: {
   currentUserId: string | null;
   task: TaskOverviewItem;
@@ -42,8 +42,8 @@ export function TaskListItem({
   onToggleStatus?: () => void;
   onSwipeRight?: () => void;
   onSwipeLeft?: () => void;
-  hasUnreadMessage?: boolean;
   unreadCount?: number;
+  hasTaskMessages?: boolean;
 }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const skipClickRef = useRef(false);
@@ -76,10 +76,6 @@ export function TaskListItem({
   if (task.delegatedToUserId) {
     chips.push({ key: 'delegated', label: isAssignedToCurrentUser ? 'Übernommen' : 'Übergeben', variant: 'delegated' });
   }
-  if (hasUnreadMessage) {
-    chips.push({ key: 'new', label: 'Ungelesen', variant: 'new' });
-  }
-
   const handleRowClick = () => {
     if (skipClickRef.current) {
       skipClickRef.current = false;
@@ -209,7 +205,11 @@ export function TaskListItem({
               }}
             >
               <ChatBubbleIcon />
-              {unreadCount > 0 ? <span className="ios-badge task-chat-icon-badge">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
+              {(hasTaskMessages || unreadCount > 0) ? (
+                <span className={`task-chat-icon-badge-dot ${unreadCount > 0 ? 'is-unread' : 'is-read'}`} aria-hidden="true">
+                  {unreadCount > 0 ? '1' : ''}
+                </span>
+              ) : null}
             </button>
           ) : null}
         </div>

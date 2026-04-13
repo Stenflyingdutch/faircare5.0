@@ -536,8 +536,8 @@ export default function PersonalHomePage() {
                       onSwipeTaskDelete={queueSwipeDelete}
                       onSwipeTaskDelegate={(task) => handleSwipeDelegateOrUndelegate(task)}
                       onToggleTaskStatus={(task) => void toggleTaskCompletion(task, selectedDate)}
-                      hasUnreadMessage={hasUnreadMessage}
                       unreadCountForTask={unreadCountForTask}
+                      hasTaskMessages={hasTaskThread}
                     />
                   ) : null}
                 </ResponsibilityCard>

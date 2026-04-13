@@ -972,20 +972,11 @@ export function TaskChatModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="task-dialog-shell">
-        <DialogHeader title="Aufgaben-Thread" subtitle={task.displayTitle} />
-        <div className="task-thread-context">
-          <p className="task-thread-context-title">Unterhaltung zu dieser Aufgabe</p>
-          <p className="task-thread-context-meta">
-            {threadDetail ? `${threadDetail.thread.participantUserIds.length} Beteiligte` : 'Thread wird geladen …'}
-          </p>
-        </div>
+        <DialogHeader title={task.displayTitle} />
         <div className="task-thread-history">
           {loadError ? <p className="task-inline-hint" style={{ color: '#b00020' }}>{loadError}</p> : null}
           {!threadDetail?.messages?.length ? (
-            <div className="task-thread-empty">
-              <strong>Noch keine Nachrichten zu dieser Aufgabe</strong>
-              <p className="task-inline-hint">Starte die Unterhaltung mit deiner ersten Nachricht.</p>
-            </div>
+            <p className="task-inline-hint">Noch keine Nachrichten.</p>
           ) : threadDetail.messages.map((message) => (
             <article key={message.id} className={`task-thread-message ${message.senderUserId === task.delegatedToUserId ? 'is-other' : 'is-self'} ${message.type === 'system_message' ? 'is-system' : ''}`}>
               <p className="task-thread-author">{message.type === 'system_message' ? 'System' : message.senderUserId === task.delegatedToUserId ? 'Partner' : 'Du'}</p>
@@ -1016,11 +1007,9 @@ export function TaskChatModal({
                   ? sendTaskMessageInThread(threadDetail.thread.id, task.id, chatMessage)
                   : sendTaskMessageByTask(task.id, chatMessage);
                 void sendAction
-                  .then((result) => fetchTaskThreadDetail(result.threadId))
-                  .then((detail) => {
-                    setThreadDetail(detail);
+                  .then(() => {
                     setChatMessage('');
-                    return markTaskThreadRead(detail.thread.id);
+                    onClose();
                   })
                   .finally(() => setIsSendingChatMessage(false));
               }}
