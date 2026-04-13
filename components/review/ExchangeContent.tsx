@@ -74,8 +74,9 @@ export function ExchangeContent() {
         return;
       }
       setThreads(inbox.threads);
-      setInboxOpenCount(inbox.threads.length);
-      logExchangeDebug('badge recompute', { inboxOpenCount: inbox.threads.length });
+      const unreadTotal = inbox.threads.reduce((sum, thread) => sum + Math.max(0, thread.unreadCount ?? 0), 0);
+      setInboxOpenCount(unreadTotal);
+      logExchangeDebug('badge recompute', { inboxOpenCount: unreadTotal });
     } catch (error) {
       if (requestId !== loadRequestIdRef.current) {
         return;
@@ -125,6 +126,15 @@ export function ExchangeContent() {
   }, [activeThreadId, loadThreads]);
 
   const inboxCount = useMemo(() => inboxOpenCount, [inboxOpenCount]);
+
+  const TrashIcon = () => (
+    <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3.5 5.5h13" />
+      <path d="M7.5 5.5V4.3c0-.5.4-.8.8-.8h3.4c.5 0 .8.4.8.8v1.2" />
+      <path d="M6 5.5l.7 10c0 .6.5 1 1 1h4.6c.6 0 1-.4 1-1l.7-10" />
+      <path d="M8.4 8.3v5.8M11.6 8.3v5.8" />
+    </svg>
+  );
 
   const handleThreadAction = useCallback(async (threadId: string, action: 'delete' | 'unread') => {
     if (action === 'delete') {
@@ -183,7 +193,7 @@ export function ExchangeContent() {
             {!activeThread ? (
               <article className="card stack">
                 <p className="exchange-chat-tabs-label" style={{ marginBottom: 0 }}>
-                  Inbox {inboxCount > 0 ? <span className="ios-badge" aria-label={`${inboxCount} offene Fälle`} title={`${inboxCount} offene Fälle`}>{inboxCount > 99 ? '99+' : inboxCount}</span> : null}
+                  {inboxCount > 0 ? <span className="ios-badge" aria-label={`${inboxCount} neue Nachrichten`} title={`${inboxCount} neue Nachrichten`}>{inboxCount > 99 ? '99+' : inboxCount}</span> : null}
                 </p>
                 <p className="helper exchange-chat-tabs-hint" data-legacy-empty-threads={LEGACY_EMPTY_THREADS_TEXT}>Wische nach links zum Löschen (nur für dich) oder nach rechts auf ungelesen.</p>
                 {loading ? <p className="helper" style={{ margin: 0 }}>Lade Chats …</p> : null}
@@ -200,25 +210,48 @@ export function ExchangeContent() {
                 <div className="stack" style={{ gap: 8 }}>
                   {threads.map((thread) => {
                     const swipeOffset = swipeOffsetByThread[thread.id] ?? 0;
-                    const envelopeIcon = thread.unreadCount > 0 ? '✉️' : '📭';
+                    const isUnread = thread.unreadCount > 0;
                     return (
                       <div key={thread.id} className="exchange-thread-row-shell">
-                        <button
-                          type="button"
-                          className="exchange-thread-row"
+                        <div className="exchange-thread-swipe-actions" aria-hidden="true">
+                          <div className={`exchange-thread-swipe-action is-delete ${swipeOffset < 0 ? 'is-active' : ''}`}>Löschen</div>
+                          <div className={`exchange-thread-swipe-action is-unread ${swipeOffset > 0 ? 'is-active' : ''}`}>Ungelesen</div>
+                        </div>
+                        <div
+                          className={`exchange-thread-row ${isUnread ? 'is-unread' : 'is-read'}`}
                           onClick={() => setActiveThreadId(thread.id)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setActiveThreadId(thread.id);
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
                           onTouchStart={(event) => startSwipe(thread.id, event.touches[0]?.clientX ?? 0)}
                           onTouchMove={(event) => updateSwipe(thread.id, event.touches[0]?.clientX ?? 0)}
                           onTouchEnd={() => endSwipe(thread.id)}
                           style={{ transform: `translateX(${swipeOffset}px)` }}
                         >
                           <div className="stack" style={{ gap: 2 }}>
-                            <strong className={thread.unreadCount > 0 ? 'exchange-thread-title is-unread' : 'exchange-thread-title'}>{thread.taskTitle}</strong>
+                            <strong className={isUnread ? 'exchange-thread-title is-unread' : 'exchange-thread-title'}>{thread.taskTitle}</strong>
                             <span className="helper exchange-preview">{thread.lastMessageText || 'Noch keine Nachricht.'}</span>
                             <span className="helper">{thread.lastMessageUserId === thread.createdByUserId ? 'Du' : 'Partner'} · {formatDateTime(thread.lastMessageAt)}</span>
                           </div>
-                          <span className="exchange-envelope" aria-label={thread.unreadCount > 0 ? 'Ungelesen' : 'Gelesen'}>{envelopeIcon}</span>
-                        </button>
+                          <button
+                            type="button"
+                            className="exchange-trash-button"
+                            aria-label="Nachricht aus Inbox löschen"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleThreadAction(thread.id, 'delete').catch((error) => {
+                                setLastWriteError(error instanceof Error ? error.message : 'Chat konnte nicht entfernt werden.');
+                              });
+                            }}
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

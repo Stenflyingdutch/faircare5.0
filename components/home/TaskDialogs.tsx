@@ -949,18 +949,16 @@ export function TaskChatModal({
   const historyRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!isOpen || !threadDetail?.messages?.length || !historyRef.current) return;
-    historyRef.current.scrollTop = historyRef.current.scrollHeight;
-  }, [isOpen, threadDetail]);
-
-  useEffect(() => {
     if (!isOpen || !task) return;
+
     setChatMessage('');
     setLoadError(null);
+
     if (!hasThread || !threadId) {
       setThreadDetail(null);
       return;
     }
+
     void fetchTaskThreadDetail(threadId)
       .then((detail) => {
         setThreadDetail(detail);
@@ -971,6 +969,11 @@ export function TaskChatModal({
       });
   }, [hasThread, isOpen, task, threadId]);
 
+  useEffect(() => {
+    if (!isOpen || !threadDetail?.messages?.length || !historyRef.current) return;
+    historyRef.current.scrollTop = historyRef.current.scrollHeight;
+  }, [isOpen, threadDetail]);
+
   if (!task) {
     return null;
   }
@@ -979,27 +982,52 @@ export function TaskChatModal({
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="task-dialog-shell">
         <DialogHeader title="Aufgaben-Thread" subtitle={task.displayTitle} />
+
         <div className="task-thread-context">
           <p className="task-thread-context-title">Unterhaltung zu dieser Aufgabe</p>
           <p className="task-thread-context-meta">
-            {threadDetail ? `${threadDetail.thread.participantUserIds.length} Beteiligte` : 'Thread wird geladen …'}
+            {threadDetail
+              ? `${threadDetail.thread.participantUserIds.length} Beteiligte`
+              : 'Thread wird geladen …'}
           </p>
         </div>
+
         <div ref={historyRef} className="task-thread-history">
-          {loadError ? <p className="task-inline-hint" style={{ color: '#b00020' }}>{loadError}</p> : null}
+          {loadError ? (
+            <p className="task-inline-hint" style={{ color: '#b00020' }}>
+              {loadError}
+            </p>
+          ) : null}
+
           {!threadDetail?.messages?.length ? (
-            <div className="task-thread-empty">
-              <strong>Noch keine Nachrichten zu dieser Aufgabe</strong>
-              <p className="task-inline-hint">Starte die Unterhaltung mit deiner ersten Nachricht.</p>
-            </div>
-          ) : threadDetail.messages.map((message) => (
-            <article key={message.id} className={`task-thread-message ${message.senderUserId === task.delegatedToUserId ? 'is-other' : 'is-self'} ${message.type === 'system_message' ? 'is-system' : ''}`}>
-              <p className="task-thread-author">{message.type === 'system_message' ? 'System' : message.senderUserId === task.delegatedToUserId ? 'Partner' : 'Du'}</p>
-              <p className="task-thread-text">{message.text}</p>
-              <span className="task-thread-time">{new Date(message.createdAt).toLocaleString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
-            </article>
-          ))}
+            <p className="task-inline-hint">Noch keine Nachrichten.</p>
+          ) : (
+            threadDetail.messages.map((message) => (
+              <article
+                key={message.id}
+                className={`task-thread-message ${
+                  message.senderUserId === task.delegatedToUserId ? 'is-other' : 'is-self'
+                } ${message.type === 'system_message' ? 'is-system' : ''}`}
+              >
+                <p className="task-thread-author">
+                  {message.type === 'system_message'
+                    ? 'System'
+                    : message.senderUserId === task.delegatedToUserId
+                      ? 'Partner'
+                      : 'Du'}
+                </p>
+                <p className="task-thread-text">{message.text}</p>
+                <span className="task-thread-time">
+                  {new Date(message.createdAt).toLocaleString('de-DE', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </article>
+            ))
+          )}
         </div>
+
         <div className="task-thread-composer">
           <textarea
             className="input task-textarea"
@@ -1017,16 +1045,17 @@ export function TaskChatModal({
               disabled={!chatMessage.trim() || isSendingChatMessage}
               onClick={() => {
                 if (!chatMessage.trim()) return;
+
                 setIsSendingChatMessage(true);
+
                 const sendAction = threadDetail?.thread?.id
                   ? sendTaskMessageInThread(threadDetail.thread.id, task.id, chatMessage)
                   : sendTaskMessageByTask(task.id, chatMessage);
+
                 void sendAction
-                  .then((result) => fetchTaskThreadDetail(result.threadId))
-                  .then((detail) => {
-                    setThreadDetail(detail);
+                  .then(() => {
                     setChatMessage('');
-                    return markTaskThreadRead(detail.thread.id);
+                    onClose();
                   })
                   .finally(() => setIsSendingChatMessage(false));
               }}
@@ -1058,6 +1087,7 @@ export function TaskInstanceEditModal({
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
   const [delegationDraft, setDelegationDraft] = useState<DelegationDraft | null>(null);
+
   useEffect(() => {
     if (!isOpen || !task || !instanceDate) return;
     const instanceState = resolveTaskInstanceState(task, instanceDate);
