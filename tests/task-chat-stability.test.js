@@ -9,6 +9,8 @@ test('thread list loader normalizes and skips invalid chat docs instead of crash
   const service = read('services/server/task-chat.service.ts');
 
   assert.match(service, /function normalizeChatThread\(/);
+  assert.match(service, /async function ensureFamilyUserDoc/);
+  assert.match(service, /parentCreated: true/);
   assert.match(service, /threads\.normalize\.skip/);
   assert.match(service, /resultCountRaw/);
   assert.match(service, /resultCountNormalized/);
@@ -30,6 +32,8 @@ test('task threads route returns structured success and failure payloads', () =>
   assert.match(route, /route\.taskThreads\.success/);
   assert.match(route, /success: true, scope, items: threads, threads/);
   assert.match(route, /items: \[\]/);
+  assert.match(route, /CHAT_QUERY_PRECONDITION_FAILED/);
+  assert.match(route, /details:/);
   assert.match(route, /errorCode: 'CHAT_THREADS_LOAD_FAILED'/);
   assert.match(route, /mapErrorToHttpStatus/);
 });

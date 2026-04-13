@@ -18,6 +18,9 @@ function mapErrorToHttpStatus(error: unknown) {
   if (code === 'unauthenticated') {
     return { status: 401, errorCode: 'UNAUTHENTICATED', message: 'Anmeldung erforderlich.' };
   }
+  if (code === 'failed-precondition') {
+    return { status: 500, errorCode: 'CHAT_QUERY_PRECONDITION_FAILED', message: 'Chat-Abfrage ist aktuell inkonsistent konfiguriert.' };
+  }
   if (code === 'unavailable' || code === 'deadline-exceeded') {
     return { status: 503, errorCode: 'CHAT_BACKEND_UNAVAILABLE', message: 'Der Chat-Dienst ist derzeit nicht erreichbar.' };
   }
@@ -73,6 +76,11 @@ export async function GET(request: NextRequest) {
         errorCode: 'CHAT_ACCESS_DENIED',
         error: error.message,
         message: error.message,
+        details: {
+          route: routeContext.routeName,
+          scope,
+          status: error.status,
+        },
       }, { status: error.status });
     }
     return NextResponse.json({
@@ -82,6 +90,11 @@ export async function GET(request: NextRequest) {
       errorCode: mapped.errorCode,
       error: mapped.message,
       message: mapped.message,
+      details: {
+        route: routeContext.routeName,
+        scope,
+        firestoreErrorCode: errorCode,
+      },
     }, { status: mapped.status });
   }
 }
