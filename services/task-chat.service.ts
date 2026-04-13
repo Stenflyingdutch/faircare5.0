@@ -70,6 +70,24 @@ export async function markTaskThreadRead(threadId: string) {
   return parseJson<{ success: true }>(response);
 }
 
+export async function markTaskThreadUnread(threadId: string) {
+  const response = await fetch(`/api/task-threads/${threadId}/read`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ read: false }),
+  });
+  return parseJson<{ success: true }>(response);
+}
+
+export async function deleteTaskThreadInboxEntry(threadId: string) {
+  const response = await fetch(`/api/task-threads/${threadId}/read`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  });
+  return parseJson<{ success: true }>(response);
+}
+
 export async function fetchExchangeUnreadSummary() {
   const response = await fetch('/api/exchange/unread-summary', { credentials: 'same-origin' });
   return parseJson<{ unreadChatCount: number; unreadCheckInCount: number; total: number }>(response);

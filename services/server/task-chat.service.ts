@@ -987,6 +987,83 @@ export async function markTaskThreadAsRead(params: { familyId: string; threadId:
   logTaskChatDebug('markConversationRead.finish', params);
 }
 
+export async function markTaskThreadAsUnread(params: { familyId: string; threadId: string; userId: string }) {
+  await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.userId, source: 'markTaskThreadAsUnread' });
+  const timestamp = nowIso();
+  const stateRef = conversationStatesCollection(params.familyId, params.userId).doc(params.threadId);
+  const inboxRef = inboxEntriesCollection(params.familyId, params.userId).doc(params.threadId);
+
+  await adminDb.runTransaction(async (transaction) => {
+    const [stateSnap, inboxSnap] = await Promise.all([transaction.get(stateRef), transaction.get(inboxRef)]);
+
+    if (stateSnap.exists) {
+      transaction.set(stateRef, {
+        hasUnread: true,
+        unreadCount: Math.max(1, (stateSnap.data() as TaskConversationStateDocument).unreadCount ?? 0),
+        updatedAt: timestamp,
+      } satisfies Partial<TaskConversationStateDocument>, { merge: true });
+    } else {
+      transaction.set(stateRef, {
+        taskId: params.threadId,
+        conversationId: params.threadId,
+        familyId: params.familyId,
+        userId: params.userId,
+        isTaskVisible: true,
+        isDelegatedTaskVisible: false,
+        hasUnread: true,
+        unreadCount: 1,
+        inInbox: true,
+        inboxReason: 'new_message',
+        requiresReply: false,
+        hasTaskBadge: true,
+        lastIncomingMessageAt: timestamp,
+        lastOutgoingMessageAt: null,
+        lastReadAt: null,
+        lastSeenMessageAt: null,
+        lastRepliedAt: null,
+        updatedAt: timestamp,
+      } satisfies TaskConversationStateDocument, { merge: true });
+    }
+
+    if (inboxSnap.exists) {
+      transaction.set(inboxRef, {
+        isOpen: true,
+        isUnread: true,
+        updatedAt: timestamp,
+      } satisfies Partial<TaskInboxEntryDocument>, { merge: true });
+    }
+  });
+
+  await recomputeUiSummary(params.familyId, params.userId);
+}
+
+export async function removeTaskThreadFromInbox(params: { familyId: string; threadId: string; userId: string }) {
+  await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.userId, source: 'removeTaskThreadFromInbox' });
+  const timestamp = nowIso();
+  const stateRef = conversationStatesCollection(params.familyId, params.userId).doc(params.threadId);
+  const inboxRef = inboxEntriesCollection(params.familyId, params.userId).doc(params.threadId);
+
+  await adminDb.runTransaction(async (transaction) => {
+    const [stateSnap, inboxSnap] = await Promise.all([transaction.get(stateRef), transaction.get(inboxRef)]);
+    if (stateSnap.exists) {
+      transaction.set(stateRef, {
+        inInbox: false,
+        hasTaskBadge: false,
+        updatedAt: timestamp,
+      } satisfies Partial<TaskConversationStateDocument>, { merge: true });
+    }
+    if (inboxSnap.exists) {
+      const closedState = Boolean(0);
+      transaction.set(inboxRef, {
+        isOpen: closedState,
+        updatedAt: timestamp,
+      } satisfies Partial<TaskInboxEntryDocument>, { merge: true });
+    }
+  });
+
+  await recomputeUiSummary(params.familyId, params.userId);
+}
+
 export async function getUnreadChatCount(params: { userId: string; familyId: string }) {
   await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.userId, source: 'getUnreadChatCount' });
   const summarySnapshot = await uiSummaryRef(params.familyId, params.userId).get();

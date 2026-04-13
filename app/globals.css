@@ -3298,6 +3298,12 @@ textarea.input {
   gap: 12px;
   font: inherit;
   cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.exchange-thread-row-shell {
+  overflow: hidden;
+  border-radius: 16px;
 }
 
 .exchange-thread-title.is-unread {
@@ -3318,6 +3324,11 @@ textarea.input {
   border-radius: 999px;
   background: #2d7ff9;
   box-shadow: 0 0 0 3px rgba(45, 127, 249, 0.22);
+}
+
+.exchange-envelope {
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .exchange-thread-header {

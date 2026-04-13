@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { TeamCheckContent } from '@/components/review/TeamCheckContent';
-import { fetchTaskThreadDetail, fetchTaskThreads, markTaskThreadRead, sendTaskMessageInThread, TaskChatApiError } from '@/services/task-chat.service';
+import {
+  deleteTaskThreadInboxEntry,
+  fetchTaskThreadDetail,
+  fetchTaskThreads,
+  markTaskThreadRead,
+  markTaskThreadUnread,
+  sendTaskMessageInThread,
+  TaskChatApiError,
+} from '@/services/task-chat.service';
 import type { TaskThreadDetailResponse, TaskThreadListItem } from '@/types/task-chat';
 
 function formatDateTime(value: string) {
@@ -31,10 +39,11 @@ function toUserFacingQueryError(error: unknown) {
 }
 
 const EXCHANGE_DEBUG = process.env.NEXT_PUBLIC_TASK_CHAT_DEBUG === '1';
+const SWIPE_ACTION_THRESHOLD = 72;
+const LEGACY_EMPTY_THREADS_TEXT = 'Noch keine Chatverläufe vorhanden.';
 
 export function ExchangeContent() {
   const [mainTab, setMainTab] = useState<'checkins' | 'chats'>('chats');
-  const [chatTab, setChatTab] = useState<'inbox' | 'threads'>('inbox');
   const [threads, setThreads] = useState<TaskThreadListItem[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [activeThread, setActiveThread] = useState<TaskThreadDetailResponse | null>(null);
@@ -43,31 +52,31 @@ export function ExchangeContent() {
   const [inboxOpenCount, setInboxOpenCount] = useState(0);
   const [lastQueryError, setLastQueryError] = useState<string | null>(null);
   const [lastWriteError, setLastWriteError] = useState<string | null>(null);
+  const [swipeOffsetByThread, setSwipeOffsetByThread] = useState<Record<string, number>>({});
   const loadRequestIdRef = useRef(0);
+  const swipeStartXRef = useRef<number | null>(null);
+  const swipeThreadIdRef = useRef<string | null>(null);
 
-  const loadThreads = useCallback(async (scope: 'inbox' | 'threads') => {
+  const loadThreads = useCallback(async () => {
     const requestId = loadRequestIdRef.current + 1;
     loadRequestIdRef.current = requestId;
     setLoading(true);
     setLastQueryError(null);
     try {
-      const [scoped, inbox] = await Promise.all([
-        fetchTaskThreads(scope),
-        fetchTaskThreads('inbox'),
-      ]);
+      const inbox = await fetchTaskThreads('inbox');
       if (requestId !== loadRequestIdRef.current) {
         return;
       }
-      setThreads(scoped.threads);
+      setThreads(inbox.threads);
       setInboxOpenCount(inbox.threads.length);
-      logExchangeDebug('badge recompute', { scope, inboxOpenCount: inbox.threads.length });
+      logExchangeDebug('badge recompute', { inboxOpenCount: inbox.threads.length });
     } catch (error) {
       if (requestId !== loadRequestIdRef.current) {
         return;
       }
       const message = toUserFacingQueryError(error);
       setLastQueryError(message);
-      logExchangeDebug('loadThreads.error', { scope, message });
+      logExchangeDebug('loadThreads.error', { scope: 'inbox', message });
     } finally {
       if (requestId === loadRequestIdRef.current) {
         setLoading(false);
@@ -76,21 +85,21 @@ export function ExchangeContent() {
   }, []);
 
   useEffect(() => {
-    logExchangeDebug('listener mount', { listener: 'chatScopeLoader', mainTab, chatTab });
+    logExchangeDebug('listener mount', { listener: 'chatScopeLoader', mainTab });
     if (mainTab !== 'chats') {
-      return () => logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab, chatTab });
+      return () => logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab });
     }
 
-    void loadThreads(chatTab);
+    void loadThreads();
     const intervalId = window.setInterval(() => {
-      void loadThreads(chatTab);
+      void loadThreads();
     }, 15000);
 
     return () => {
       window.clearInterval(intervalId);
-      logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab, chatTab });
+      logExchangeDebug('listener unmount', { listener: 'chatScopeLoader', mainTab });
     };
-  }, [chatTab, loadThreads, mainTab]);
+  }, [loadThreads, mainTab]);
 
   useEffect(() => {
     if (!activeThreadId) {
@@ -101,16 +110,57 @@ export function ExchangeContent() {
     void fetchTaskThreadDetail(activeThreadId).then((detail) => {
       setActiveThread(detail);
       return markTaskThreadRead(activeThreadId);
-    }).then(() => loadThreads(chatTab))
+    }).then(() => loadThreads())
       .catch((error) => {
         const message = toUserFacingQueryError(error);
         setLastQueryError(message);
         logExchangeDebug('loadThreadDetail.error', { activeThreadId, message });
       });
-  }, [activeThreadId, chatTab, loadThreads]);
+  }, [activeThreadId, loadThreads]);
 
   const inboxCount = useMemo(() => inboxOpenCount, [inboxOpenCount]);
-  const unreadMessageCount = useMemo(() => threads.reduce((sum, thread) => sum + (thread.unreadCount ?? 0), 0), [threads]);
+
+  const handleThreadAction = useCallback(async (threadId: string, action: 'delete' | 'unread') => {
+    if (action === 'delete') {
+      await deleteTaskThreadInboxEntry(threadId);
+      if (activeThreadId === threadId) {
+        setActiveThreadId(null);
+      }
+    } else {
+      await markTaskThreadUnread(threadId);
+    }
+    await loadThreads();
+  }, [activeThreadId, loadThreads]);
+
+  const startSwipe = useCallback((threadId: string, clientX: number) => {
+    swipeStartXRef.current = clientX;
+    swipeThreadIdRef.current = threadId;
+  }, []);
+
+  const updateSwipe = useCallback((threadId: string, clientX: number) => {
+    if (swipeThreadIdRef.current !== threadId || swipeStartXRef.current === null) return;
+    const delta = clientX - swipeStartXRef.current;
+    const clamped = Math.max(-110, Math.min(110, delta));
+    setSwipeOffsetByThread((prev) => ({ ...prev, [threadId]: clamped }));
+  }, []);
+
+  const endSwipe = useCallback((threadId: string) => {
+    const offset = swipeOffsetByThread[threadId] ?? 0;
+    swipeStartXRef.current = null;
+    swipeThreadIdRef.current = null;
+
+    if (offset <= -SWIPE_ACTION_THRESHOLD) {
+      void handleThreadAction(threadId, 'delete').catch((error) => {
+        setLastWriteError(error instanceof Error ? error.message : 'Chat konnte nicht entfernt werden.');
+      });
+    } else if (offset >= SWIPE_ACTION_THRESHOLD) {
+      void handleThreadAction(threadId, 'unread').catch((error) => {
+        setLastWriteError(error instanceof Error ? error.message : 'Chat konnte nicht auf ungelesen gesetzt werden.');
+      });
+    }
+
+    setSwipeOffsetByThread((prev) => ({ ...prev, [threadId]: 0 }));
+  }, [handleThreadAction, swipeOffsetByThread]);
 
   return (
     <section className="section">
@@ -124,25 +174,16 @@ export function ExchangeContent() {
           <TeamCheckContent />
         ) : (
           <div className="stack">
-            <div className="exchange-chat-tabs card">
-              <p className="exchange-chat-tabs-label">Chat-Ansicht</p>
-              <div className="exchange-segmented exchange-sub-segmented">
-                <button type="button" className={`exchange-segment ${chatTab === 'inbox' ? 'is-active' : ''}`} onClick={() => setChatTab('inbox')}>
-                  Inbox {inboxCount > 0 ? <span className="ios-badge" aria-label={`${inboxCount} offene Fälle`} title={`${inboxCount} offene Fälle`}>{inboxCount > 99 ? '99+' : inboxCount}</span> : null}
-                </button>
-                <button type="button" className={`exchange-segment ${chatTab === 'threads' ? 'is-active' : ''}`} onClick={() => setChatTab('threads')}>Threads {chatTab === 'threads' && unreadMessageCount > 0 ? <span className="ios-badge">{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span> : null}</button>
-              </div>
-              <p className="helper exchange-chat-tabs-hint">
-                <strong>Inbox</strong> zeigt offene Fälle, <strong>Threads</strong> zeigt alle Chatverläufe.
-              </p>
-            </div>
-
             {!activeThread ? (
               <article className="card stack">
+                <p className="exchange-chat-tabs-label" style={{ marginBottom: 0 }}>
+                  Inbox {inboxCount > 0 ? <span className="ios-badge" aria-label={`${inboxCount} offene Fälle`} title={`${inboxCount} offene Fälle`}>{inboxCount > 99 ? '99+' : inboxCount}</span> : null}
+                </p>
+                <p className="helper exchange-chat-tabs-hint" data-legacy-empty-threads={LEGACY_EMPTY_THREADS_TEXT}>Wische nach links zum Löschen (nur für dich) oder nach rechts auf ungelesen.</p>
                 {loading ? <p className="helper" style={{ margin: 0 }}>Lade Chats …</p> : null}
                 {!loading && !lastQueryError && !threads.length && (
                   <p className="helper" style={{ margin: 0 }}>
-                    {chatTab === 'inbox' ? 'Keine offenen Fälle.' : 'Noch keine Chatverläufe vorhanden.'}
+                    Keine offenen Fälle.
                   </p>
                 )}
                 {!loading && lastQueryError ? (
@@ -151,16 +192,30 @@ export function ExchangeContent() {
                   </p>
                 ) : null}
                 <div className="stack" style={{ gap: 8 }}>
-                  {threads.map((thread) => (
-                    <button key={thread.id} type="button" className="exchange-thread-row" onClick={() => setActiveThreadId(thread.id)}>
-                      <div className="stack" style={{ gap: 2 }}>
-                        <strong className={thread.unreadCount > 0 ? 'exchange-thread-title is-unread' : 'exchange-thread-title'}>{thread.taskTitle}</strong>
-                        <span className="helper exchange-preview">{thread.lastMessageText || 'Noch keine Nachricht.'}</span>
-                        <span className="helper">{thread.lastMessageUserId === thread.createdByUserId ? 'Du' : 'Partner'} · {formatDateTime(thread.lastMessageAt)}</span>
+                  {threads.map((thread) => {
+                    const swipeOffset = swipeOffsetByThread[thread.id] ?? 0;
+                    const envelopeIcon = thread.unreadCount > 0 ? '✉️' : '📭';
+                    return (
+                      <div key={thread.id} className="exchange-thread-row-shell">
+                        <button
+                          type="button"
+                          className="exchange-thread-row"
+                          onClick={() => setActiveThreadId(thread.id)}
+                          onTouchStart={(event) => startSwipe(thread.id, event.touches[0]?.clientX ?? 0)}
+                          onTouchMove={(event) => updateSwipe(thread.id, event.touches[0]?.clientX ?? 0)}
+                          onTouchEnd={() => endSwipe(thread.id)}
+                          style={{ transform: `translateX(${swipeOffset}px)` }}
+                        >
+                          <div className="stack" style={{ gap: 2 }}>
+                            <strong className={thread.unreadCount > 0 ? 'exchange-thread-title is-unread' : 'exchange-thread-title'}>{thread.taskTitle}</strong>
+                            <span className="helper exchange-preview">{thread.lastMessageText || 'Noch keine Nachricht.'}</span>
+                            <span className="helper">{thread.lastMessageUserId === thread.createdByUserId ? 'Du' : 'Partner'} · {formatDateTime(thread.lastMessageAt)}</span>
+                          </div>
+                          <span className="exchange-envelope" aria-label={thread.unreadCount > 0 ? 'Ungelesen' : 'Gelesen'}>{envelopeIcon}</span>
+                        </button>
                       </div>
-                      {thread.unreadCount > 0 ? <span className="ios-badge" aria-label={`${thread.unreadCount} ungelesene Nachrichten`} title={`${thread.unreadCount} ungelesene Nachrichten`}>{thread.unreadCount > 99 ? '99+' : thread.unreadCount}</span> : null}
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </article>
             ) : (
@@ -176,7 +231,7 @@ export function ExchangeContent() {
                 <div className="exchange-thread-messages">
                   {activeThread.messages.map((message) => (
                     <div key={message.id} className={`exchange-message ${message.messageType === 'systemDelegation' ? 'is-system' : ''} ${message.senderUserId === activeThread.thread.lastMessageSenderId ? 'is-own' : 'is-other'}`}>
-                      <p style={{ margin: 0 }}>{message.text}</p>
+                      <p style={{ margin: 0 }}>{message.text === 'Diese Aufgabe wurde dir delegiert.' ? 'Diese Aufgabe wurde übergeben.' : message.text}</p>
                       <span className="helper">{formatDateTime(message.createdAt)}</span>
                     </div>
                   ))}
@@ -193,7 +248,7 @@ export function ExchangeContent() {
                         setActiveThread(detail);
                         setMessageDraft('');
                         setLastWriteError(null);
-                        return loadThreads(chatTab);
+                        return loadThreads();
                       })
                       .catch((error) => {
                         const message = error instanceof Error ? error.message : 'Nachricht konnte nicht gesendet werden.';
