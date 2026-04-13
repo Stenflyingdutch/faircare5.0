@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { TeamCheckContent } from '@/components/review/TeamCheckContent';
-import { fetchTaskThreadDetail, fetchTaskThreads, markTaskThreadRead, sendTaskMessageInThread } from '@/services/task-chat.service';
+import { fetchTaskThreadDetail, fetchTaskThreads, markTaskThreadRead, sendTaskMessageInThread, TaskChatApiError } from '@/services/task-chat.service';
 import type { TaskThreadDetailResponse, TaskThreadListItem } from '@/types/task-chat';
 
 function formatTime(value: string) {
@@ -15,6 +15,19 @@ function formatTime(value: string) {
 function logExchangeDebug(event: string, context: Record<string, unknown> = {}) {
   if (process.env.NODE_ENV === 'production') return;
   console.info(`[exchange] ${event}`, context);
+}
+
+function toUserFacingQueryError(error: unknown) {
+  if (error instanceof TaskChatApiError) {
+    if (error.status === 403 || error.errorCode === 'CHAT_PERMISSION_DENIED' || error.errorCode === 'CHAT_ACCESS_DENIED') {
+      return 'Du hast aktuell keine Berechtigung auf diesen Chat-Bereich.';
+    }
+    if (error.status === 401 || error.errorCode === 'UNAUTHENTICATED') {
+      return 'Bitte melde dich erneut an, um Chats zu laden.';
+    }
+    return error.message;
+  }
+  return error instanceof Error ? error.message : 'Chats konnten nicht geladen werden.';
 }
 
 const EXCHANGE_DEBUG = process.env.NEXT_PUBLIC_TASK_CHAT_DEBUG === '1';
@@ -52,7 +65,7 @@ export function ExchangeContent() {
       if (requestId !== loadRequestIdRef.current) {
         return;
       }
-      const message = error instanceof Error ? error.message : 'Chats konnten nicht geladen werden.';
+      const message = toUserFacingQueryError(error);
       setLastQueryError(message);
       logExchangeDebug('loadThreads.error', { scope, message });
     } finally {
@@ -90,7 +103,7 @@ export function ExchangeContent() {
       return markTaskThreadRead(activeThreadId);
     }).then(() => loadThreads(chatTab))
       .catch((error) => {
-        const message = error instanceof Error ? error.message : 'Thread konnte nicht geladen werden.';
+        const message = toUserFacingQueryError(error);
         setLastQueryError(message);
         logExchangeDebug('loadThreadDetail.error', { activeThreadId, message });
       });
@@ -126,7 +139,7 @@ export function ExchangeContent() {
             {!activeThread ? (
               <article className="card stack">
                 {loading ? <p className="helper" style={{ margin: 0 }}>Lade Chats …</p> : null}
-                {!loading && !threads.length && (
+                {!loading && !lastQueryError && !threads.length && (
                   <p className="helper" style={{ margin: 0 }}>
                     {chatTab === 'inbox' ? 'Keine offenen Fälle.' : 'Noch keine Chatverläufe vorhanden.'}
                   </p>

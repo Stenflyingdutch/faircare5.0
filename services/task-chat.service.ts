@@ -2,10 +2,32 @@
 
 import type { TaskThreadDetailResponse, TaskThreadListItem } from '@/types/task-chat';
 
+type ApiErrorPayload = {
+  error?: string;
+  message?: string;
+  errorCode?: string;
+};
+
+export class TaskChatApiError extends Error {
+  status: number;
+  errorCode: string | null;
+
+  constructor(message: string, options: { status: number; errorCode: string | null }) {
+    super(message);
+    this.status = options.status;
+    this.errorCode = options.errorCode;
+  }
+}
+
 async function parseJson<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => null) as T | { error?: string } | null;
+  const payload = await response.json().catch(() => null) as T | ApiErrorPayload | null;
   if (!response.ok) {
-    throw new Error((payload as { error?: string } | null)?.error || 'Aktion konnte nicht ausgeführt werden.');
+    const errorPayload = payload as ApiErrorPayload | null;
+    const message = errorPayload?.message || errorPayload?.error || 'Aktion konnte nicht ausgeführt werden.';
+    throw new TaskChatApiError(message, {
+      status: response.status,
+      errorCode: errorPayload?.errorCode ?? null,
+    });
   }
   return payload as T;
 }

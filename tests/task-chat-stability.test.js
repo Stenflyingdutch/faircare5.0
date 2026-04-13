@@ -18,6 +18,7 @@ test('thread list loader falls back when firestore composite index is missing', 
   const service = read('services/server/task-chat.service.ts');
 
   assert.match(service, /threads\.all\.queryFallback/);
+  assert.match(service, /threads\.inbox\.queryFallback/);
   assert.match(service, /missing-composite-index-lastMessageAt/);
   assert.match(service, /where\('participantUserIds', 'array-contains', params\.userId\)\s*\.get\(\)/);
 });
@@ -25,10 +26,12 @@ test('thread list loader falls back when firestore composite index is missing', 
 test('task threads route returns structured success and failure payloads', () => {
   const route = read('app/api/task-threads/route.ts');
 
+  assert.match(route, /route\.taskThreads\.request/);
   assert.match(route, /route\.taskThreads\.success/);
-  assert.match(route, /success: true, items: threads, threads/);
+  assert.match(route, /success: true, scope, items: threads, threads/);
+  assert.match(route, /items: \[\]/);
   assert.match(route, /errorCode: 'CHAT_THREADS_LOAD_FAILED'/);
-  assert.match(route, /Chats konnten derzeit nicht geladen werden\. Bitte später erneut versuchen\./);
+  assert.match(route, /mapErrorToHttpStatus/);
 });
 
 test('exchange content distinguishes empty inbox and empty threads states', () => {
@@ -36,5 +39,6 @@ test('exchange content distinguishes empty inbox and empty threads states', () =
 
   assert.match(exchange, /Keine offenen Fälle\./);
   assert.match(exchange, /Noch keine Chatverläufe vorhanden\./);
+  assert.match(exchange, /!loading && !lastQueryError && !threads\.length/);
   assert.match(exchange, /loadRequestIdRef/);
 });

@@ -622,10 +622,33 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
   logTaskChatRead(params.inboxOnly ? 'threads.inbox.start' : 'threads.all.start', params);
   try {
     if (params.inboxOnly) {
-    const inboxSnapshot = await inboxEntriesCollection(params.familyId, params.userId)
-      .where('isOpen', '==', true)
-      .orderBy('lastMessageAt', 'desc')
-      .get();
+    let inboxSnapshot;
+    let inboxUsedFallbackSort = false;
+    try {
+      inboxSnapshot = await inboxEntriesCollection(params.familyId, params.userId)
+        .where('isOpen', '==', true)
+        .orderBy('lastMessageAt', 'desc')
+        .get();
+    } catch (error) {
+      if (resolveFirestoreErrorCode(error) === 'failed-precondition') {
+        inboxUsedFallbackSort = true;
+        logTaskChatRead('threads.inbox.queryFallback', {
+          familyId: params.familyId,
+          currentUserId: params.userId,
+          reason: 'missing-composite-index-lastMessageAt',
+        });
+        inboxSnapshot = await inboxEntriesCollection(params.familyId, params.userId)
+          .where('isOpen', '==', true)
+          .get();
+      } else {
+        throw error;
+      }
+    }
+
+    const inboxByTaskId = new Map<string, TaskInboxEntryDocument>();
+    inboxSnapshot.docs.forEach((entry) => {
+      inboxByTaskId.set(entry.id, entry.data() as TaskInboxEntryDocument);
+    });
 
     const conversations = await Promise.all(inboxSnapshot.docs.map((entry) => taskThreadsCollection(params.familyId).doc(entry.id).get()));
     const rows = conversations
@@ -637,13 +660,24 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
           tab: 'inbox',
         });
         if (!conversation) return null;
-        const inbox = inboxSnapshot.docs.find((entry) => entry.id === snap.id)?.data() as TaskInboxEntryDocument | undefined;
+        if (!conversation.participantUserIds.includes(params.userId)) {
+          logTaskChatRead('threads.inbox.skip', {
+            familyId: params.familyId,
+            currentUserId: params.userId,
+            taskId: conversation.taskId,
+            reason: 'thread-not-visible-for-user',
+            participantUserIds: conversation.participantUserIds,
+          });
+          return null;
+        }
+        const inbox = inboxByTaskId.get(snap.id);
         return {
           ...conversation,
           unreadCount: inbox?.isUnread ? 1 : 0,
         } satisfies TaskThreadListItem;
       })
-      .filter((row): row is TaskThreadListItem => Boolean(row));
+      .filter((row): row is TaskThreadListItem => Boolean(row))
+      .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
 
     logTaskChatRead('threads.inbox.query', {
       familyId: params.familyId,
@@ -651,6 +685,7 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
       path: `families/${params.familyId}/users/${params.userId}/inboxEntries`,
       filters: [{ field: 'isOpen', op: '==', value: true }],
       orderBy: [{ field: 'lastMessageAt', direction: 'desc' }],
+      usedFallbackSort: inboxUsedFallbackSort,
       resultCountRaw: inboxSnapshot.docs.length,
       resultCountNormalized: rows.length,
     });
