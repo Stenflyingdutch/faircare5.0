@@ -25,7 +25,7 @@ test('overview reads only user-visible tasks and keeps legacy fallback paths', (
 test('delegation uses exact system message text and updates visibility state', () => {
   const service = read('services/server/tasks.service.ts');
 
-  assert.match(service, /const systemText = 'Diese Aufgabe wurde dir delegiert\.'/);
+  assert.match(service, /const systemText = 'Diese Aufgabe wurde dir übergeben\.'/);
   assert.match(service, /visibilityMode:\s*'delegated'/);
   assert.match(service, /unreadForUserIds:\s*\[context\.partnerUserId\]/);
 });
@@ -64,7 +64,7 @@ test('write access is restricted to currently assigned user once delegated', () 
 test('task list renders assigned label for assignee and delegated read-only state for creator', () => {
   const taskListItem = read('components/home/TaskListItem.tsx');
 
-  assert.match(taskListItem, /label: isAssignedToCurrentUser \? 'Zugewiesen' : 'Delegiert'/);
+  assert.match(taskListItem, /label: isAssignedToCurrentUser \? 'Übernommen' : 'Übergeben'/);
   assert.match(taskListItem, /isDelegatedAwayFromCurrentUser \? 'is-delegated' : ''/);
   assert.match(taskListItem, /task\.delegatedToUserId\s*\?\s*task\.delegatedToUserId === currentUserId/);
 });

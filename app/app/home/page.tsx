@@ -330,7 +330,7 @@ export default function PersonalHomePage() {
       await saveTaskDelegation(task.id, { mode: 'singleDate', date: selectedDate });
       setTaskRefreshNonce((current) => current + 1);
     } catch (error) {
-      setTaskError(error instanceof Error ? error.message : 'Aufgabe konnte nicht delegiert werden.');
+      setTaskError(error instanceof Error ? error.message : 'Aufgabe konnte nicht übergeben werden.');
     }
   }
 
@@ -350,7 +350,7 @@ export default function PersonalHomePage() {
 
       const wasReclaimed = await reclaimDelegatedTask(task);
       if (!wasReclaimed) {
-        setTaskError('Delegation konnte nicht zurückgenommen werden.');
+        setTaskError('Übergabe konnte nicht zurückgenommen werden.');
       }
     } finally {
       setPendingUndelegation(null);
@@ -607,11 +607,11 @@ export default function PersonalHomePage() {
       <Modal
         isOpen={Boolean(pendingUndelegation)}
         onClose={() => setPendingUndelegation(null)}
-        ariaLabel="Delegation zurücknehmen"
+        ariaLabel="Übergabe zurücknehmen"
         panelClassName="app-modal-panel--sheet"
       >
         <div className="stack" style={{ gap: '14px' }}>
-          <h2 className="h2" style={{ margin: 0 }}>Delegation zurücknehmen?</h2>
+          <h2 className="h2" style={{ margin: 0 }}>Übergabe zurücknehmen?</h2>
           <p className="body" style={{ margin: 0 }}>
             {RECLAIM_CONFIRM_COPY} „{pendingUndelegation?.taskTitle ?? 'dieser Aufgabe'}“
           </p>

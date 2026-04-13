@@ -183,7 +183,7 @@ export function useTaskInteractionFlow({
       onRefresh();
       return true;
     } catch (error) {
-      onError(error instanceof Error ? error.message : 'Delegation konnte nicht zurückgenommen werden.');
+      onError(error instanceof Error ? error.message : 'Übergabe konnte nicht zurückgenommen werden.');
       return false;
     } finally {
       setIsTaskMutationPending(false);
