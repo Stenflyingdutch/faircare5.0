@@ -6,10 +6,10 @@ import { TeamCheckContent } from '@/components/review/TeamCheckContent';
 import { fetchTaskThreadDetail, fetchTaskThreads, markTaskThreadRead, sendTaskMessageInThread, TaskChatApiError } from '@/services/task-chat.service';
 import type { TaskThreadDetailResponse, TaskThreadListItem } from '@/types/task-chat';
 
-function formatTime(value: string) {
+function formatDateTime(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '—';
-  return new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(parsed);
+  return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(parsed);
 }
 
 function logExchangeDebug(event: string, context: Record<string, unknown> = {}) {
@@ -110,6 +110,7 @@ export function ExchangeContent() {
   }, [activeThreadId, chatTab, loadThreads]);
 
   const inboxCount = useMemo(() => inboxOpenCount, [inboxOpenCount]);
+  const unreadMessageCount = useMemo(() => threads.reduce((sum, thread) => sum + (thread.unreadCount ?? 0), 0), [threads]);
 
   return (
     <section className="section">
@@ -127,9 +128,9 @@ export function ExchangeContent() {
               <p className="exchange-chat-tabs-label">Chat-Ansicht</p>
               <div className="exchange-segmented exchange-sub-segmented">
                 <button type="button" className={`exchange-segment ${chatTab === 'inbox' ? 'is-active' : ''}`} onClick={() => setChatTab('inbox')}>
-                  Inbox {inboxCount > 0 ? <span className="exchange-unread-dot" aria-label={`${inboxCount} offene Fälle`} title={`${inboxCount} offene Fälle`} /> : null}
+                  Inbox {inboxCount > 0 ? <span className="ios-badge" aria-label={`${inboxCount} offene Fälle`} title={`${inboxCount} offene Fälle`}>{inboxCount > 99 ? '99+' : inboxCount}</span> : null}
                 </button>
-                <button type="button" className={`exchange-segment ${chatTab === 'threads' ? 'is-active' : ''}`} onClick={() => setChatTab('threads')}>Threads</button>
+                <button type="button" className={`exchange-segment ${chatTab === 'threads' ? 'is-active' : ''}`} onClick={() => setChatTab('threads')}>Threads {chatTab === 'threads' && unreadMessageCount > 0 ? <span className="ios-badge">{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</span> : null}</button>
               </div>
               <p className="helper exchange-chat-tabs-hint">
                 <strong>Inbox</strong> zeigt offene Fälle, <strong>Threads</strong> zeigt alle Chatverläufe.
@@ -153,11 +154,11 @@ export function ExchangeContent() {
                   {threads.map((thread) => (
                     <button key={thread.id} type="button" className="exchange-thread-row" onClick={() => setActiveThreadId(thread.id)}>
                       <div className="stack" style={{ gap: 2 }}>
-                        <strong>{thread.taskTitle}</strong>
+                        <strong className={thread.unreadCount > 0 ? 'exchange-thread-title is-unread' : 'exchange-thread-title'}>{thread.taskTitle}</strong>
                         <span className="helper exchange-preview">{thread.lastMessageText || 'Noch keine Nachricht.'}</span>
-                        <span className="helper">{thread.lastMessageUserId === thread.createdByUserId ? 'Du' : 'Partner'} · {formatTime(thread.lastMessageAt)}</span>
+                        <span className="helper">{thread.lastMessageUserId === thread.createdByUserId ? 'Du' : 'Partner'} · {formatDateTime(thread.lastMessageAt)}</span>
                       </div>
-                      {thread.unreadCount > 0 ? <span className="exchange-unread-dot" aria-label={`${thread.unreadCount} ungelesene Nachrichten`} title={`${thread.unreadCount} ungelesene Nachrichten`} /> : null}
+                      {thread.unreadCount > 0 ? <span className="ios-badge" aria-label={`${thread.unreadCount} ungelesene Nachrichten`} title={`${thread.unreadCount} ungelesene Nachrichten`}>{thread.unreadCount > 99 ? '99+' : thread.unreadCount}</span> : null}
                     </button>
                   ))}
                 </div>
@@ -167,15 +168,16 @@ export function ExchangeContent() {
                 <div className="exchange-thread-header">
                   <div>
                     <h3 style={{ margin: 0 }}>{activeThread.thread.taskTitle}</h3>
+                    <p className="helper" style={{ margin: 0 }}>Unterhaltung zu dieser Aufgabe · letzte Aktivität {formatDateTime(activeThread.thread.lastMessageAt)}</p>
                   </div>
                   <button type="button" className="button" onClick={() => setActiveThreadId(null)}>Zurück</button>
                 </div>
 
                 <div className="exchange-thread-messages">
                   {activeThread.messages.map((message) => (
-                    <div key={message.id} className={`exchange-message ${message.messageType === 'systemDelegation' ? 'is-system' : ''}`}>
+                    <div key={message.id} className={`exchange-message ${message.messageType === 'systemDelegation' ? 'is-system' : ''} ${message.senderUserId === activeThread.thread.lastMessageSenderId ? 'is-own' : 'is-other'}`}>
                       <p style={{ margin: 0 }}>{message.text}</p>
-                      <span className="helper">{formatTime(message.createdAt)}</span>
+                      <span className="helper">{formatDateTime(message.createdAt)}</span>
                     </div>
                   ))}
                 </div>

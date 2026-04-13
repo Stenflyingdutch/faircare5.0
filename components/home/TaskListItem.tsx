@@ -31,6 +31,7 @@ export function TaskListItem({
   onSwipeRight,
   onSwipeLeft,
   hasUnreadMessage = false,
+  unreadCount = 0,
 }: {
   currentUserId: string | null;
   task: TaskOverviewItem;
@@ -42,6 +43,7 @@ export function TaskListItem({
   onSwipeRight?: () => void;
   onSwipeLeft?: () => void;
   hasUnreadMessage?: boolean;
+  unreadCount?: number;
 }) {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const skipClickRef = useRef(false);
@@ -207,6 +209,7 @@ export function TaskListItem({
               }}
             >
               <ChatBubbleIcon />
+              {unreadCount > 0 ? <span className="ios-badge task-chat-icon-badge">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
             </button>
           ) : null}
         </div>

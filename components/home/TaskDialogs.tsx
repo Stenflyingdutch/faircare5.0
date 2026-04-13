@@ -6,7 +6,8 @@ import type { ReactNode } from 'react';
 import { Modal } from '@/components/Modal';
 import { formatDateLabel, getWeekday, parseDateKey } from '@/services/task-date';
 import { getTaskTimingLabel, resolveTaskInstanceDate, resolveTaskInstanceState } from '@/services/tasks.logic';
-import { sendTaskMessageByTask } from '@/services/task-chat.service';
+import { fetchTaskThreadDetail, markTaskThreadRead, sendTaskMessageByTask, sendTaskMessageInThread } from '@/services/task-chat.service';
+import type { TaskThreadDetailResponse } from '@/types/task-chat';
 import type { Responsibility } from '@/services/responsibilities.service';
 import type {
   CreateTaskInput,
@@ -933,19 +934,36 @@ export function TaskChatModal({
   task,
   onClose,
   hasThread,
+  threadId,
 }: {
   isOpen: boolean;
   task: TaskOverviewItem | null;
   onClose: () => void;
   hasThread?: boolean;
+  threadId?: string | null;
 }) {
   const [chatMessage, setChatMessage] = useState('');
   const [isSendingChatMessage, setIsSendingChatMessage] = useState(false);
+  const [threadDetail, setThreadDetail] = useState<TaskThreadDetailResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen || !task) return;
     setChatMessage('');
-  }, [isOpen, task]);
+    setLoadError(null);
+    if (!hasThread || !threadId) {
+      setThreadDetail(null);
+      return;
+    }
+    void fetchTaskThreadDetail(threadId)
+      .then((detail) => {
+        setThreadDetail(detail);
+        return markTaskThreadRead(threadId);
+      })
+      .catch((error) => {
+        setLoadError(error instanceof Error ? error.message : 'Thread konnte nicht geladen werden.');
+      });
+  }, [hasThread, isOpen, task, threadId]);
 
   if (!task) {
     return null;
@@ -954,35 +972,62 @@ export function TaskChatModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div className="task-dialog-shell">
-        <DialogHeader title={hasThread ? 'Chat öffnen' : 'Nachricht senden'} subtitle={task.displayTitle} />
-        <p className="task-inline-hint">Diese Nachricht gehört zu dieser Aufgabe.</p>
-        <textarea
-          className="input task-textarea"
-          value={chatMessage}
-          onChange={(event) => setChatMessage(event.target.value)}
-          placeholder="Was möchtest du dazu sagen?"
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
-          <button type="button" className="task-secondary-button" onClick={onClose}>
-            Schließen
-          </button>
-          <button
-            type="button"
-            className="task-primary-button"
-            disabled={!chatMessage.trim() || isSendingChatMessage}
-            onClick={() => {
-              if (!chatMessage.trim()) return;
-              setIsSendingChatMessage(true);
-              void sendTaskMessageByTask(task.id, chatMessage)
-                .then(() => {
-                  setChatMessage('');
-                  onClose();
-                })
-                .finally(() => setIsSendingChatMessage(false));
-            }}
-          >
-            {isSendingChatMessage ? 'Sendet …' : 'Senden'}
-          </button>
+        <DialogHeader title="Aufgaben-Thread" subtitle={task.displayTitle} />
+        <div className="task-thread-context">
+          <p className="task-thread-context-title">Unterhaltung zu dieser Aufgabe</p>
+          <p className="task-thread-context-meta">
+            {threadDetail ? `${threadDetail.thread.participantUserIds.length} Beteiligte` : 'Thread wird geladen …'}
+          </p>
+        </div>
+        <div className="task-thread-history">
+          {loadError ? <p className="task-inline-hint" style={{ color: '#b00020' }}>{loadError}</p> : null}
+          {!threadDetail?.messages?.length ? (
+            <div className="task-thread-empty">
+              <strong>Noch keine Nachrichten zu dieser Aufgabe</strong>
+              <p className="task-inline-hint">Starte die Unterhaltung mit deiner ersten Nachricht.</p>
+            </div>
+          ) : threadDetail.messages.map((message) => (
+            <article key={message.id} className={`task-thread-message ${message.senderUserId === task.delegatedToUserId ? 'is-other' : 'is-self'} ${message.type === 'system_message' ? 'is-system' : ''}`}>
+              <p className="task-thread-author">{message.type === 'system_message' ? 'System' : message.senderUserId === task.delegatedToUserId ? 'Partner' : 'Du'}</p>
+              <p className="task-thread-text">{message.text}</p>
+              <span className="task-thread-time">{new Date(message.createdAt).toLocaleString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+            </article>
+          ))}
+        </div>
+        <div className="task-thread-composer">
+          <textarea
+            className="input task-textarea"
+            value={chatMessage}
+            onChange={(event) => setChatMessage(event.target.value)}
+            placeholder="Antwort schreiben …"
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+            <button type="button" className="task-secondary-button" onClick={onClose}>
+              Schließen
+            </button>
+            <button
+              type="button"
+              className="task-primary-button"
+              disabled={!chatMessage.trim() || isSendingChatMessage}
+              onClick={() => {
+                if (!chatMessage.trim()) return;
+                setIsSendingChatMessage(true);
+                const sendAction = threadDetail?.thread?.id
+                  ? sendTaskMessageInThread(threadDetail.thread.id, task.id, chatMessage)
+                  : sendTaskMessageByTask(task.id, chatMessage);
+                void sendAction
+                  .then((result) => fetchTaskThreadDetail(result.threadId))
+                  .then((detail) => {
+                    setThreadDetail(detail);
+                    setChatMessage('');
+                    return markTaskThreadRead(detail.thread.id);
+                  })
+                  .finally(() => setIsSendingChatMessage(false));
+              }}
+            >
+              {isSendingChatMessage ? 'Sendet …' : 'Senden'}
+            </button>
+          </div>
         </div>
       </div>
     </Modal>
