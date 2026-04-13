@@ -691,16 +691,31 @@ export async function createDelegationSystemMessage(params: {
 
 async function readThreadList(params: { familyId: string; userId: string; inboxOnly: boolean }) {
   logTaskChatRead(params.inboxOnly ? 'threads.inbox.start' : 'threads.all.start', params);
+  const scope = params.inboxOnly ? 'inbox' : 'threads';
   try {
     await ensureFamilyUserDoc({ familyId: params.familyId, userId: params.userId, source: params.inboxOnly ? 'readThreadList.inbox' : 'readThreadList.threads' });
     if (params.inboxOnly) {
     let inboxSnapshot;
     let inboxUsedFallbackSort = false;
     try {
+      console.log('[task-chat][debug] firestore-read', {
+        scope,
+        familyId: params.familyId,
+        userId: params.userId,
+        collection: `families/${params.familyId}/users/${params.userId}/inboxEntries`,
+        docCount: null,
+      });
       inboxSnapshot = await inboxEntriesCollection(params.familyId, params.userId)
         .where('isOpen', '==', true)
         .orderBy('lastMessageAt', 'desc')
         .get();
+      console.log('[task-chat][debug] firestore-read', {
+        scope,
+        familyId: params.familyId,
+        userId: params.userId,
+        collection: `families/${params.familyId}/users/${params.userId}/inboxEntries`,
+        docCount: inboxSnapshot.docs.length,
+      });
     } catch (error) {
       if (resolveFirestoreErrorCode(error) === 'failed-precondition') {
         inboxUsedFallbackSort = true;
@@ -709,20 +724,59 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
           currentUserId: params.userId,
           reason: 'missing-composite-index-lastMessageAt',
         });
+        console.log('[task-chat][debug] firestore-read', {
+          scope,
+          familyId: params.familyId,
+          userId: params.userId,
+          collection: `families/${params.familyId}/users/${params.userId}/inboxEntries`,
+          docCount: null,
+        });
         inboxSnapshot = await inboxEntriesCollection(params.familyId, params.userId)
           .where('isOpen', '==', true)
           .get();
+        console.log('[task-chat][debug] firestore-read', {
+          scope,
+          familyId: params.familyId,
+          userId: params.userId,
+          collection: `families/${params.familyId}/users/${params.userId}/inboxEntries`,
+          docCount: inboxSnapshot.docs.length,
+        });
       } else {
         throw error;
       }
     }
 
-    const inboxByTaskId = new Map<string, TaskInboxEntryDocument>();
+    const inboxByThreadId = new Map<string, TaskInboxEntryDocument>();
     inboxSnapshot.docs.forEach((entry) => {
-      inboxByTaskId.set(entry.id, entry.data() as TaskInboxEntryDocument);
+      const payload = entry.data() as TaskInboxEntryDocument;
+      const threadId = typeof payload?.conversationId === 'string' && payload.conversationId.trim()
+        ? payload.conversationId
+        : entry.id;
+      inboxByThreadId.set(threadId, payload);
     });
 
-    const conversations = await Promise.all(inboxSnapshot.docs.map((entry) => taskThreadsCollection(params.familyId).doc(entry.id).get()));
+    const threadIds = inboxSnapshot.docs
+      .map((entry) => {
+        const payload = entry.data() as TaskInboxEntryDocument;
+        if (typeof payload?.conversationId === 'string' && payload.conversationId.trim()) return payload.conversationId;
+        return entry.id;
+      })
+      .filter((threadId, index, list) => Boolean(threadId) && list.indexOf(threadId) === index);
+    console.log('[task-chat][debug] firestore-read', {
+      scope,
+      familyId: params.familyId,
+      userId: params.userId,
+      collection: `families/${params.familyId}/taskThreads`,
+      docCount: null,
+    });
+    const conversations = await Promise.all(threadIds.map((threadId) => taskThreadsCollection(params.familyId).doc(threadId).get()));
+    console.log('[task-chat][debug] firestore-read', {
+      scope,
+      familyId: params.familyId,
+      userId: params.userId,
+      collection: `families/${params.familyId}/taskThreads`,
+      docCount: conversations.length,
+    });
     const rows = conversations
       .filter((snap) => snap.exists)
       .map((snap) => {
@@ -742,7 +796,7 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
           });
           return null;
         }
-        const inbox = inboxByTaskId.get(snap.id);
+        const inbox = inboxByThreadId.get(snap.id);
         return {
           ...conversation,
           unreadCount: inbox?.isUnread ? 1 : 0,
@@ -766,10 +820,24 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
 
   let snapshot;
   try {
+    console.log('[task-chat][debug] firestore-read', {
+      scope,
+      familyId: params.familyId,
+      userId: params.userId,
+      collection: `families/${params.familyId}/taskThreads`,
+      docCount: null,
+    });
     snapshot = await taskThreadsCollection(params.familyId)
       .where('participantUserIds', 'array-contains', params.userId)
       .orderBy('lastMessageAt', 'desc')
       .get();
+    console.log('[task-chat][debug] firestore-read', {
+      scope,
+      familyId: params.familyId,
+      userId: params.userId,
+      collection: `families/${params.familyId}/taskThreads`,
+      docCount: snapshot.docs.length,
+    });
   } catch (error) {
     if (resolveFirestoreErrorCode(error) === 'failed-precondition') {
       logTaskChatRead('threads.all.queryFallback', {
@@ -777,15 +845,43 @@ async function readThreadList(params: { familyId: string; userId: string; inboxO
         currentUserId: params.userId,
         reason: 'missing-composite-index-lastMessageAt',
       });
+      console.log('[task-chat][debug] firestore-read', {
+        scope,
+        familyId: params.familyId,
+        userId: params.userId,
+        collection: `families/${params.familyId}/taskThreads`,
+        docCount: null,
+      });
       snapshot = await taskThreadsCollection(params.familyId)
         .where('participantUserIds', 'array-contains', params.userId)
         .get();
+      console.log('[task-chat][debug] firestore-read', {
+        scope,
+        familyId: params.familyId,
+        userId: params.userId,
+        collection: `families/${params.familyId}/taskThreads`,
+        docCount: snapshot.docs.length,
+      });
     } else {
       throw error;
     }
   }
 
+  console.log('[task-chat][debug] firestore-read', {
+    scope,
+    familyId: params.familyId,
+    userId: params.userId,
+    collection: `families/${params.familyId}/users/${params.userId}/conversationStates`,
+    docCount: null,
+  });
   const stateSnapshot = await conversationStatesCollection(params.familyId, params.userId).get();
+  console.log('[task-chat][debug] firestore-read', {
+    scope,
+    familyId: params.familyId,
+    userId: params.userId,
+    collection: `families/${params.familyId}/users/${params.userId}/conversationStates`,
+    docCount: stateSnapshot.docs.length,
+  });
   const unreadByTaskId = new Map<string, number>();
   stateSnapshot.docs.forEach((entry) => {
     const state = entry.data() as TaskConversationStateDocument;
@@ -945,23 +1041,9 @@ export async function getThreadDetail(params: { familyId: string; threadId: stri
     }
 
     const stateSnapshotPromise = conversationStatesCollection(params.familyId, params.userId).doc(params.threadId).get();
-    let messagesSnapshot;
-    let usedVisibilityFallback = false;
-    try {
-      messagesSnapshot = await taskMessagesCollection(params.familyId, params.threadId)
-        .where('visibleToUserIds', 'array-contains', params.userId)
-        .orderBy('createdAt', 'asc')
-        .get();
-    } catch (error) {
-      if (resolveFirestoreErrorCode(error) === 'failed-precondition') {
-        usedVisibilityFallback = true;
-        messagesSnapshot = await taskMessagesCollection(params.familyId, params.threadId)
-          .orderBy('createdAt', 'asc')
-          .get();
-      } else {
-        throw error;
-      }
-    }
+    const messagesSnapshot = await taskMessagesCollection(params.familyId, params.threadId)
+      .orderBy('createdAt', 'asc')
+      .get();
     const stateSnapshot = await stateSnapshotPromise;
 
     const unreadCount = stateSnapshot.exists ? ((stateSnapshot.data() as TaskConversationStateDocument).unreadCount ?? 0) : 0;
@@ -979,41 +1061,16 @@ export async function getThreadDetail(params: { familyId: string; threadId: stri
         return false;
       })
       .map((message) => toLegacyMessage(message));
-    if (usedVisibilityFallback) {
-      const batch = adminDb.batch();
-      let patchedCount = 0;
-      messagesSnapshot.docs.forEach((doc) => {
-        const payload = doc.data() as Partial<TaskThreadMessageDocument>;
-        if (Array.isArray(payload.visibleToUserIds) && payload.visibleToUserIds.length) return;
-        const inferredVisibility = uniqueUserIds([
-          ...(thread.participantUserIds ?? []),
-          typeof payload.senderUserId === 'string' ? payload.senderUserId : null,
-          typeof payload.receiverUserId === 'string' ? payload.receiverUserId : null,
-        ]);
-        if (!inferredVisibility.length) return;
-        patchedCount += 1;
-        batch.set(doc.ref, { visibleToUserIds: inferredVisibility, updatedAt: nowIso() } satisfies Partial<TaskThreadMessageDocument>, { merge: true });
-      });
-      if (patchedCount) {
-        await batch.commit();
-        logTaskChatWrite('messages.visibleToUserIds.backfill', {
-          familyId: params.familyId,
-          threadId: params.threadId,
-          currentUserId: params.userId,
-          patchedCount,
-        });
-      }
-    }
     logTaskChatRead('messages.query', {
       familyId: params.familyId,
       taskId: thread.taskId,
       threadId: params.threadId,
       currentUserId: params.userId,
       path: `families/${params.familyId}/taskThreads/${params.threadId}/messages`,
-      filters: [{ field: 'visibleToUserIds', op: 'array-contains', value: params.userId }],
+      filters: [],
       orderBy: [{ field: 'createdAt', direction: 'asc' }],
       resultCount: messages.length,
-      usedVisibilityFallback,
+      usedVisibilityFallback: false,
     });
 
     return {
