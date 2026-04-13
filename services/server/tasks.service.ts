@@ -37,6 +37,29 @@ type TaskContext = {
   partnerUserId: string | null;
 };
 
+function uniqueUserIds(userIds: Array<string | null | undefined>) {
+  return [...new Set(userIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0))];
+}
+
+function resolveFamilyMemberUserIds(family: FamilyDocument) {
+  return uniqueUserIds([family.initiatorUserId, family.partnerUserId ?? null]);
+}
+
+function buildTaskVisibilityUserIds(task: Pick<TaskDocument, 'createdByUserId' | 'creatorUserId' | 'delegatedToUserId' | 'visibleToUserIds'>, family: FamilyDocument) {
+  return uniqueUserIds([
+    ...(task.visibleToUserIds ?? []),
+    task.creatorUserId ?? task.createdByUserId,
+    task.delegatedToUserId ?? null,
+    ...resolveFamilyMemberUserIds(family),
+  ]);
+}
+
+function haveSameUserIds(left: string[], right: string[]) {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((entry) => rightSet.has(entry));
+}
+
 type ClearDelegationOptions = {
   date?: string | null;
   mode?: 'recurring' | 'singleDate';
@@ -169,13 +192,38 @@ async function resolveTaskContext(userId: string): Promise<TaskContext> {
     source: 'resolveTaskContext.familyMembership',
   });
 
-  return {
+  const context = {
     userId,
     profile,
     family,
     familyId,
     partnerUserId: family.initiatorUserId === userId ? family.partnerUserId ?? null : family.initiatorUserId,
   };
+  await repairFamilyTaskVisibility(context);
+  return context;
+}
+
+async function repairFamilyTaskVisibility(context: TaskContext) {
+  const snapshot = await tasksCollection(context.familyId).get();
+  if (snapshot.empty) return;
+
+  const batch = adminDb.batch();
+  let hasChanges = false;
+  snapshot.docs.forEach((entry) => {
+    const task = entry.data() as TaskDocument;
+    const visibleToUserIds = buildTaskVisibilityUserIds(task, context.family);
+    if (!haveSameUserIds(task.visibleToUserIds ?? [], visibleToUserIds)) {
+      hasChanges = true;
+      batch.set(entry.ref, {
+        visibleToUserIds,
+        updatedAt: nowIso(),
+      } satisfies Partial<TaskDocument>, { merge: true });
+    }
+  });
+
+  if (hasChanges) {
+    await batch.commit();
+  }
 }
 
 async function resolveTaskContextFromCookie(sessionCookie?: string) {
@@ -234,12 +282,16 @@ async function syncTaskVisibilityAfterDelegationChange(context: TaskContext, tas
   }
 
   const creatorId = task.creatorUserId ?? task.createdByUserId ?? context.userId;
+  const visibleToUserIds = uniqueUserIds([
+    ...buildTaskVisibilityUserIds(task, context.family),
+    creatorId,
+  ]);
   await tasksCollection(context.familyId).doc(task.id).set({
     delegatedToUserId: null,
     delegatedByUserId: null,
     delegatedAt: null,
     visibilityMode: 'private',
-    visibleToUserIds: [creatorId],
+    visibleToUserIds,
     unreadForUserIds: [],
     updatedAt: nowIso(),
   } satisfies Partial<TaskDocument>, { merge: true });
@@ -269,10 +321,18 @@ async function resolveTaskById(context: TaskContext, taskId: string) {
     throw new TaskAccessError('Aufgabe nicht gefunden.', 404);
   }
   const task = { ...(snapshot.data() as TaskDocument), id: snapshot.id };
-  if (!canUserSeeTask(task, context.userId)) {
+  const visibleToUserIds = buildTaskVisibilityUserIds(task, context.family);
+  const resolvedTask = { ...task, visibleToUserIds };
+  if (!haveSameUserIds(task.visibleToUserIds ?? [], visibleToUserIds)) {
+    await tasksCollection(context.familyId).doc(taskId).set({
+      visibleToUserIds,
+      updatedAt: nowIso(),
+    } satisfies Partial<TaskDocument>, { merge: true });
+  }
+  if (!canUserSeeTask(resolvedTask, context.userId)) {
     throw new TaskAccessError('Kein Zugriff auf diese Aufgabe.', 403);
   }
-  return task;
+  return resolvedTask;
 }
 
 function assertTaskWriteAccess(task: TaskDocument, userId: string) {
@@ -415,7 +475,7 @@ export async function createTaskForUser(userId: string, input: CreateTaskInput) 
     delegatedByUserId: null,
     delegatedAt: null,
     visibilityMode: 'private',
-    visibleToUserIds: [context.userId],
+    visibleToUserIds: resolveFamilyMemberUserIds(context.family),
     taskType: input.taskType,
     selectedDate,
     recurrenceType,
@@ -465,6 +525,7 @@ export async function updateTaskForUser(userId: string, taskId: string, input: U
     endMode: nextEndMode,
     endDate: nextEndDate,
     status: input.status ?? existingTask.status,
+    visibleToUserIds: buildTaskVisibilityUserIds(existingTask, context.family),
     updatedAt: nowIso(),
   };
 
@@ -583,7 +644,12 @@ export async function saveTaskDelegationForUser(userId: string, taskId: string, 
   const systemText = 'Diese Aufgabe wurde dir übergeben.';
 
   const visibleToUserIds = resolveTaskVisibleToUserIds(task);
-  const updatedVisibleToUserIds = [...new Set([...visibleToUserIds, context.partnerUserId])];
+  const updatedVisibleToUserIds = uniqueUserIds([
+    ...visibleToUserIds,
+    context.userId,
+    context.partnerUserId,
+    ...resolveFamilyMemberUserIds(context.family),
+  ]);
   await tasksCollection(context.familyId).doc(task.id).set({
     delegatedToUserId: context.partnerUserId,
     delegatedByUserId: context.userId,
