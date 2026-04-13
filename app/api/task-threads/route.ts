@@ -39,8 +39,19 @@ export async function GET(request: NextRequest) {
       scope: scopeParam,
     },
   };
+  const dataSources = {
+    required: [
+      'auth.sessionCookie',
+      'users/{currentUserId}',
+      'families/{familyId}',
+      'families/{familyId}/taskThreads',
+      'families/{familyId}/users/{currentUserId}/inboxEntries',
+    ],
+    optional: [],
+  };
   console.info('[task-chat] route.taskThreads.request', {
     ...routeContext,
+    dataSources,
   });
   try {
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -55,6 +66,8 @@ export async function GET(request: NextRequest) {
       currentUserId: context.userId,
       familyId: context.familyId,
       normalizedItemCount: threads.length,
+      dataSources,
+      finalStatus: 200,
     });
 
     return NextResponse.json({ success: true, scope, items: threads, threads });
@@ -64,6 +77,7 @@ export async function GET(request: NextRequest) {
     console.error('[task-chat] route.taskThreads.error', {
       ...routeContext,
       scope,
+      dataSources,
       firestoreErrorCode: errorCode,
       error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
       finalStatus: error instanceof TaskAccessError || error instanceof TaskChatAccessError ? error.status : mapped.status,

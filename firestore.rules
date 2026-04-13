@@ -44,6 +44,36 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/families/$(familyId));
     }
 
+    function userDoc(userId) {
+      return get(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function userDocExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function userAccountActive(userId) {
+      return userDocExists(userId) && (
+        !('accountStatus' in userDoc(userId).data) ||
+        userDoc(userId).data.accountStatus == 'active'
+      );
+    }
+
+    function hasSharedFamilyAccessToUserProfile(targetUserId) {
+      return isActiveAccount()
+        && userAccountActive(targetUserId)
+        && currentUserProfileExists()
+        && ('familyId' in currentUserProfile().data)
+        && (currentUserProfile().data.familyId is string)
+        && currentUserProfile().data.familyId.size() > 0
+        && exists(/databases/$(database)/documents/families/$(currentUserProfile().data.familyId))
+        && isFamilyMember(currentUserProfile().data.familyId)
+        && (
+          familyDoc(currentUserProfile().data.familyId).data.initiatorUserId == targetUserId ||
+          familyDoc(currentUserProfile().data.familyId).data.partnerUserId == targetUserId
+        );
+    }
+
     function isFamilyMember(familyId) {
       return exists(/databases/$(database)/documents/families/$(familyId)) && (
         familyDoc(familyId).data.initiatorUserId == request.auth.uid ||
@@ -78,7 +108,7 @@ service cloud.firestore {
       allow read: if (isSelf(userId) && (
         !exists(/databases/$(database)/documents/users/$(userId)) ||
         isActiveAccount()
-      )) || isAdmin();
+      )) || isAdmin() || hasSharedFamilyAccessToUserProfile(userId);
       allow create: if isSelf(userId)
         && !('adminRole' in request.resource.data)
         && !('isSuperuser' in request.resource.data)

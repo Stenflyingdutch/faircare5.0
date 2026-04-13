@@ -109,6 +109,10 @@ test('firestore rules allow initial self-read for a missing users document while
   assert.match(rulesSrc, /!\('accountStatus' in request\.resource\.data\)/);
   assert.match(rulesSrc, /request\.resource\.data\.adminRole == resource\.data\.adminRole/);
   assert.match(rulesSrc, /request\.resource\.data\.accountStatus == resource\.data\.accountStatus/);
+  assert.match(rulesSrc, /function hasSharedFamilyAccessToUserProfile\(targetUserId\)/);
+  assert.match(rulesSrc, /allow read: if \(isSelf\(userId\) && \([\s\S]*\)\) \|\| isAdmin\(\) \|\| hasSharedFamilyAccessToUserProfile\(userId\);/);
+  assert.match(rulesSrc, /familyDoc\(currentUserProfile\(\)\.data\.familyId\)\.data\.initiatorUserId == targetUserId/);
+  assert.match(rulesSrc, /familyDoc\(currentUserProfile\(\)\.data\.familyId\)\.data\.partnerUserId == targetUserId/);
   assert.doesNotMatch(rulesSrc, /allow read,\s*write:\s*if true;/);
 });
 
