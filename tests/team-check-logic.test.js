@@ -15,14 +15,10 @@ test('team check reminder defaults to 09:00 when no time is set', () => {
   assert.match(src, /computeReminderAt/);
 });
 
-test('team check badge is a dot only in personal nav and not a number/text badge', () => {
+test('personal nav only shows an exchange count badge and never a fallback dot', () => {
   const shell = read('components/personal/PersonalAreaShell.tsx');
-  const css = read('app/globals.css');
-  assert.match(shell, /team-check-nav-dot/);
-  assert.doesNotMatch(shell, /team-check-nav-(count|badge|label)/);
-  assert.doesNotMatch(shell, /badgeCount|badgeLabel/);
-  assert.match(css, /\.team-check-nav-dot/);
-  assert.match(css, /width:\s*8px/);
+  assert.match(shell, /ios-badge exchange-nav-badge/);
+  assert.doesNotMatch(shell, /team-check-nav-dot/);
 });
 
 test('results pages no longer expose an Einstellungen entry point', () => {
